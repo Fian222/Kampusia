@@ -1,4 +1,12 @@
-# Kampusia development data
+# Kampusia development
+
+## Running the application
+
+Copy `apps/api/.env.example` to `apps/api/.env` and `apps/web/.env.example` to `apps/web/.env`. These local files are Git-ignored. Set the API's `DATABASE_URL` to the migrated local database, `WEB_URL=http://localhost:5173`, and `NODE_ENV=development`. The web server uses the private `API_URL=http://localhost:3000` to contact the API through Eden Treaty.
+
+Run `bun dev` from the repository root, then open http://localhost:5173/login. PostgreSQL must be running, migrations applied, and the development seed present to use the demo account below. See [authentication notes](AUTHENTICATION.md) for session behavior and deployment configuration.
+
+## Development seed
 
 This seed is for the local development database only. Apply the existing migration first, then add these values to the Git-ignored `packages/db/.env`:
 
@@ -22,7 +30,21 @@ The seed requires `NODE_ENV=development`, a loopback PostgreSQL URL for database
 | --- | --- | --- |
 | AKADEMIK | akademik@kampusia.test | KampusiaDemo2026! |
 
-Use these credentials only for development. The database stores a salted Argon2id hash produced by Bun, never the plaintext password. A different `SEED_PASSWORD` can be chosen for the first run. Reruns preserve the existing hash and do not reset credentials. Student and lecturer academic records are created without login accounts. Authentication endpoints are not implemented yet.
+Use these credentials only for development. The database stores a salted Argon2id hash produced by Bun, never the plaintext password. A different `SEED_PASSWORD` can be chosen for the first run. Reruns preserve the existing hash and do not reset credentials. Student and lecturer academic records are created without login accounts. Signing in with the demo account opens `/akademik`.
+
+## Authentication verification
+
+`bun test` includes isolated API tests for login, invalid credentials, inactive accounts, cookies, logout/revocation, current user, session expiry, and all four roles. These tests use an in-memory repository and do not modify PostgreSQL.
+
+For the opt-in HTTP integration test, keep `bun dev` running with the local database and existing seed, then run this in a second PowerShell terminal from the repository root:
+
+```powershell
+$env:RUN_AUTH_E2E = '1'
+bun --env-file=packages/db/.env test apps/web/src/lib/server/auth-flow.test.ts
+Remove-Item Env:RUN_AUTH_E2E
+```
+
+The test reads `SEED_PASSWORD`, signs in through the SvelteKit form action, checks the rendered dashboard and role restriction, and signs out. It creates only temporary API sessions and does not change the database. It is skipped during ordinary test runs.
 
 ## Sample academic data
 

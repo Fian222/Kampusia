@@ -1,6 +1,6 @@
 # Kampusia
 
-Bun workspace monorepo for a campus information system. The initial database schema and migration are defined; academic features and API endpoints are not implemented.
+Bun workspace monorepo for a campus information system. The initial database, development seed, cookie authentication, and role-protected dashboard placeholders are implemented. Academic CRUD features are not implemented.
 
 ## Structure
 
@@ -20,9 +20,9 @@ bun install
 bun dev
 ```
 
-The frontend runs at http://localhost:5173 and the API at http://localhost:3000. The API has no routes yet, so requests return 404. PostgreSQL is not needed to start the scaffold.
+The frontend runs at http://localhost:5173 and the API at http://localhost:3000. Open `/login` to sign in. PostgreSQL must be running with the existing migrations applied; see [development setup and demo credentials](docs/DEVELOPMENT.md).
 
-For local environment settings, copy each workspace's `.env.example` to `.env` in the same directory. Workspace commands run from their own directory. Set `DATABASE_URL` in `packages/db/.env` before using database commands, and in `apps/api/.env` when database access is added. `JWT_SECRET` and `WEB_URL` are reserved for future authentication and CORS configuration. The Eden factory accepts a URL; future callers can supply `PUBLIC_API_URL` from SvelteKit's public environment.
+For local environment settings, copy each workspace's `.env.example` to `.env` in the same directory. Workspace commands run from their own directory. Set `DATABASE_URL` in `packages/db/.env` for database commands and in `apps/api/.env` for authentication. Set the API's `WEB_URL` to the exact web origin. The frontend uses server-only `API_URL` for Eden requests. See [authentication notes](docs/AUTHENTICATION.md) for cookie and session configuration.
 
 ## Commands
 
@@ -35,7 +35,7 @@ For local environment settings, copy each workspace's `.env.example` to `.env` i
 | `bun run build` | Build frontend and backend |
 | `bun --filter web preview` | Preview the frontend build |
 | `bun --filter api start` | Run the built API |
-| `bun test` | Run tests once business-rule tests are added |
+| `bun test` | Run schema, seed validation, and authentication tests |
 | `bun run db:generate` | Generate migrations from Drizzle schemas |
 | `bun run db:check` | Validate Drizzle migration metadata |
 | `bun run db:seed` | Create repeatable local development data; see [development setup](docs/DEVELOPMENT.md) |
