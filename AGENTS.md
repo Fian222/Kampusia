@@ -1227,3 +1227,13 @@ prematurely optimized
 ```
 
 This project is intended to demonstrate good application architecture and realistic academic-system business logic, not unnecessary enterprise complexity.
+
+## Database Documentation
+
+Before making any database-related changes, including schemas, migrations,
+relationships, queries, academic domain models, or API/frontend code that
+depends on database structure or rules, read [docs/DATABASE.md](docs/DATABASE.md).
+
+`docs/DATABASE.md` is the source of truth for the database design.
+Do not introduce new tables, columns, or relationships that conflict with
+it without updating the documentation first.
