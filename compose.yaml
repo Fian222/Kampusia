@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: kampusia-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: kampusia
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - kampusia_postgres_data:/var/lib/postgresql
+
+volumes:
+  kampusia_postgres_data:

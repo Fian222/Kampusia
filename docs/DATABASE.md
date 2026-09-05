@@ -10,13 +10,13 @@ The initial design covers only the 15 tables below. Attendance, grades, and othe
 - Every table, including junction tables, has an `id uuid PRIMARY KEY DEFAULT gen_random_uuid()`.
 - Every table has non-null `created_at timestamptz DEFAULT now()` and `updated_at timestamptz DEFAULT now()`. The service updates `updated_at` on every mutation; its default alone does not update existing rows.
 - Column tables below include these shared columns. “No” in Nullable means `NOT NULL`. A dash in Default means no database default; a required value must be supplied.
-- All foreign keys reference the target table's `id`, with `ON DELETE RESTRICT ON UPDATE RESTRICT`. No cascading deletion is planned. Retain academic history; deactivate or cancel referenced records instead of deleting them.
+- Foreign keys reference the target table's `id` unless a composite reference is explicitly documented, with `ON DELETE RESTRICT ON UPDATE RESTRICT` in either case. No cascading deletion is planned. Retain academic history; deactivate or cancel referenced records instead of deleting them.
 - Primary keys and unique constraints provide their own indexes. Additional indexes listed below are B-tree unless specified. Do not add duplicate indexes on the same keys. Composite indexes also serve lookups on their leading column.
 - Nullable unique columns allow multiple nulls; any supplied non-null value must be unique.
 - Business codes and identifiers are text, preserving leading zeros. Trim input; normalize codes and identifiers to uppercase and login email to lowercase before persistence. Require nonblank values for required text fields, and reject blank optional text in favor of null. Database checks must enforce canonical storage for unique codes, identifiers, and email.
 - Status, role, jenjang, and jenis columns use the documented PostgreSQL varchar type with a CHECK limiting values to the listed set. These are initial product choices, not statutory requirements.
 - Local weekly schedule times use the campus timezone, initially Asia/Jakarta. Instants such as submission timestamps use timestamptz.
-- Database constraints enforce row-local validity, uniqueness, and references. Services enforce cross-table rules and authorization inside transactions. A foreign key alone does not enforce semester, program, curriculum, or role compatibility.
+- Database constraints enforce row-local validity, uniqueness, and references, including the documented composite foreign key enforcing student/curriculum program compatibility. Services enforce remaining cross-table rules and authorization inside transactions; single-column foreign keys alone do not enforce semester, program, curriculum, or role compatibility.
 - Paginate list queries. Initial indexes support identifiers and common relationships; add name-search indexes only after defining and measuring the actual search pattern.
 
 ## Relationship overview
@@ -148,7 +148,7 @@ Student academic identity and assigned curriculum.
 | `id` | `uuid` | No | gen_random_uuid() | Primary key |
 | `user_id` | `uuid` | Yes | — | FK users.id |
 | `program_studi_id` | `uuid` | No | — | FK program_studi.id |
-| `kurikulum_id` | `uuid` | No | — | FK kurikulum.id |
+| `kurikulum_id` | `uuid` | No | — | Part of composite FK (kurikulum_id, program_studi_id) to kurikulum (id, program_studi_id) |
 | `nim` | `varchar(30)` | No | — | Student business identifier |
 | `nama` | `varchar(150)` | No | — | Student full name |
 | `angkatan` | `smallint` | No | — | Entry year |
@@ -158,7 +158,7 @@ Student academic identity and assigned curriculum.
 
 **Primary key:** `id`.
 
-**Foreign keys:** `user_id` → users.id; `program_studi_id` → program_studi.id; `kurikulum_id` → kurikulum.id.
+**Foreign keys:** `user_id` → users.id; `program_studi_id` → program_studi.id; `FOREIGN KEY (kurikulum_id, program_studi_id) REFERENCES kurikulum (id, program_studi_id) ON DELETE RESTRICT ON UPDATE RESTRICT`. The composite reference replaces the single-column kurikulum_id foreign key; both participating columns are NOT NULL.
 
 **Unique constraints:** `UNIQUE (nim)` and `UNIQUE (user_id)`. NIM is not a primary key.
 
@@ -168,7 +168,7 @@ Student academic identity and assigned curriculum.
 
 - CHECK angkatan BETWEEN 1900 AND 9999.
 - An academic record may exist before a login account is provisioned.
-- Assigned curriculum must belong to the student's program. Only AKTIF students may submit or obtain approval for new KRS.
+- Assigned curriculum must belong to the student's program. PostgreSQL enforces this on inserts and updates through the composite foreign key to kurikulum; service validation may provide a clearer error but is not the integrity guarantee. The referenced curriculum's program cannot change while student references would become invalid. Only AKTIF students may submit or obtain approval for new KRS.
 - Program or curriculum reassignment requires explicit academic review; do not reinterpret approved KRS history. The initial design does not model transfer history.
 
 **Relationships:** Belongs to one program and one curriculum, optionally one user; has many KRS, one per semester.
@@ -288,9 +288,9 @@ A version of a study program's curriculum.
 
 **Foreign keys:** `program_studi_id` → program_studi.id.
 
-**Unique constraints:** `UNIQUE (program_studi_id, kode)`.
+**Unique constraints:** `UNIQUE (program_studi_id, kode)` and `UNIQUE (id, program_studi_id)`. The latter supplies the composite unique key referenced by mahasiswa, even though id remains the UUID primary key.
 
-**Additional indexes:** None beyond primary/unique indexes; the composite unique index covers program_studi_id.
+**Additional indexes:** None beyond primary/unique indexes; the unique index on (program_studi_id, kode) covers program_studi_id, and UNIQUE (id, program_studi_id) supplies its own index for the composite reference.
 
 **Business rules:**
 
@@ -358,6 +358,7 @@ A course offering by a program in a particular academic semester.
 
 - CHECK kapasitas > 0. Never store jumlah_mahasiswa; derive enrollment counts as defined below.
 - Before DIBUKA, require an active program/course, at least one active lecturer assignment, and at least one valid conflict-free schedule.
+- Before DIBUKA, the service must also verify that the class's mata_kuliah belongs to at least one curriculum for its offering program_studi: a kurikulum_matkul row must match kelas_kuliah.mata_kuliah_id and join to a kurikulum whose program_studi_id equals kelas_kuliah.program_studi_id. This is required for opening a class in the initial system.
 - DIBUKA accepts selections and approvals. DITUTUP prevents new enrollment while existing enrollments remain valid. DIBATALKAN requires transactional cancellation of related active details.
 - Do not change semester, course, or offering program after selections exist. Capacity reductions must not fall below approved active enrollment count.
 - Initial enrollment is limited to the student's program and curriculum membership; cross-program enrollment requires a documented design extension.
