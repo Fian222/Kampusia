@@ -1237,3 +1237,12 @@ depends on database structure or rules, read [docs/DATABASE.md](docs/DATABASE.md
 `docs/DATABASE.md` is the source of truth for the database design.
 Do not introduce new tables, columns, or relationships that conflict with
 it without updating the documentation first.
+
+## Containers
+
+Local development uses Podman, not Docker.
+
+- Use `podman` for container commands.
+- Use `podman compose` for `compose.yaml`.
+- Do not introduce Docker-specific tooling unless explicitly required.
+- The Compose specification itself should remain portable where practical.

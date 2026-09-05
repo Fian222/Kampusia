@@ -41,6 +41,6 @@ For local environment settings, copy each workspace's `.env.example` to `.env` i
 | `bun run db:migrate` | Apply migrations to the configured PostgreSQL database |
 | `bun run db:studio` | Open Drizzle Studio |
 
-Database schema-contract tests run with `bun test`. There is no lint configuration yet. The database package exports TypeScript source consumed by Bun and has no separate build. The initial migration has not been applied. Read [DATABASE.md](docs/DATABASE.md) before database changes and [database package notes](packages/db/README.md) for commands and enforcement boundaries.
+Database schema-contract tests run with `bun test`. There is no lint configuration yet. The database package exports TypeScript source consumed by Bun and has no separate build. The initial migration has been applied and verified on the local Podman development database; other databases must run their own migrations. Read [DATABASE.md](docs/DATABASE.md) before database changes and [database package notes](packages/db/README.md) for commands, local connectivity notes, and enforcement boundaries.
 
 The frontend uses adapter-auto; select an adapter for the eventual deployment target before production deployment. The build command is not a deployment.

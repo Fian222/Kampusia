@@ -1,9 +1,6 @@
 services:
   postgres:
-    image: postgres:18
-    container_name: kampusia-postgres
-    restart: unless-stopped
-
+    image: docker.io/library/postgres:17-alpine
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -13,7 +10,13 @@ services:
       - "5432:5432"
 
     volumes:
-      - kampusia_postgres_data:/var/lib/postgresql
+      - kampusia_postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d kampusia"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
 volumes:
   kampusia_postgres_data:

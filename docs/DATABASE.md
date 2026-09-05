@@ -1,6 +1,6 @@
 # Kampusia database design
 
-This document is the source of truth for the initial database design. The PostgreSQL model is implemented in `packages/db/schema/`, with an initial migration in `packages/db/migrations/0000_initial.sql`. The migration has not been applied. Changes to the model must update this document before implementation. See [database package notes](../packages/db/README.md) for verification commands and the boundary between database constraints and future service rules.
+This document is the source of truth for the initial database design. The PostgreSQL model is implemented in `packages/db/schema/`, with an initial migration in `packages/db/migrations/0000_initial.sql`. The migration was applied and verified on the local Podman development database on 2026-09-05; migration state is specific to each database. Changes to the model must update this document before implementation. See [database package notes](../packages/db/README.md) for verification commands and the boundary between database constraints and future service rules.
 
 The initial design covers only the 15 tables below. Attendance, grades, and other future modules require a separate documented extension.
 

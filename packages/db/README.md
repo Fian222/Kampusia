@@ -2,7 +2,11 @@
 
 The schema implements the 15 tables in [DATABASE.md](../../docs/DATABASE.md). Each table has its own file under `schema/`; `schema/index.ts` exports the tables and Drizzle query relations. PostgreSQL names use snake_case; TypeScript properties use camelCase.
 
-The initial migration is `migrations/0000_initial.sql`, with Drizzle snapshot and journal metadata in `migrations/meta/`. It has been generated, not applied.
+The initial migration is `migrations/0000_initial.sql`, with Drizzle snapshot and journal metadata in `migrations/meta/`. It was applied and verified against the local Podman `kampusia` development database on 2026-09-05. Other databases must run their own migration command.
+
+Local verification confirmed 15 application tables, 21 foreign keys, 20 unique constraints, 53 CHECK constraints, and 50 indexes including two partial unique indexes. The composite student/curriculum reference is validated. The migration hash and timestamp match the single entry in `drizzle.__drizzle_migrations`; rerunning the migration command made no changes. All application tables remain empty.
+
+During this verification, Podman PostgreSQL was healthy but Windows localhost port forwarding was unavailable. A temporary SSH tunnel through the existing Podman machine connection was used for migration and verification, then closed. Restore Podman's localhost:5432 forwarding before connecting directly from Windows; this does not require schema changes or regeneration.
 
 ## Commands
 
