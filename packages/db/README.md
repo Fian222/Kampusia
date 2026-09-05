@@ -4,7 +4,9 @@ The schema implements the 15 tables in [DATABASE.md](../../docs/DATABASE.md). Ea
 
 The initial migration is `migrations/0000_initial.sql`, with Drizzle snapshot and journal metadata in `migrations/meta/`. It was applied and verified against the local Podman `kampusia` development database on 2026-09-05. Other databases must run their own migration command.
 
-Local verification confirmed 15 application tables, 21 foreign keys, 20 unique constraints, 53 CHECK constraints, and 50 indexes including two partial unique indexes. The composite student/curriculum reference is validated. The migration hash and timestamp match the single entry in `drizzle.__drizzle_migrations`; rerunning the migration command made no changes. All application tables remain empty.
+Local migration verification confirmed 15 application tables, 21 foreign keys, 20 unique constraints, 53 CHECK constraints, and 50 indexes including two partial unique indexes. The composite student/curriculum reference is validated. The migration hash and timestamp match the single entry in `drizzle.__drizzle_migrations`; rerunning the migration command made no changes. Application tables were empty before development seeding.
+
+Use `bun run db:seed` for repeatable development data. See [development setup](../../docs/DEVELOPMENT.md) for fixture contents, credentials, environment settings, and the opt-in live seed test.
 
 During this verification, Podman PostgreSQL was healthy but Windows localhost port forwarding was unavailable. A temporary SSH tunnel through the existing Podman machine connection was used for migration and verification, then closed. Restore Podman's localhost:5432 forwarding before connecting directly from Windows; this does not require schema changes or regeneration.
 

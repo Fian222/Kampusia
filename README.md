@@ -38,6 +38,7 @@ For local environment settings, copy each workspace's `.env.example` to `.env` i
 | `bun test` | Run tests once business-rule tests are added |
 | `bun run db:generate` | Generate migrations from Drizzle schemas |
 | `bun run db:check` | Validate Drizzle migration metadata |
+| `bun run db:seed` | Create repeatable local development data; see [development setup](docs/DEVELOPMENT.md) |
 | `bun run db:migrate` | Apply migrations to the configured PostgreSQL database |
 | `bun run db:studio` | Open Drizzle Studio |
 
