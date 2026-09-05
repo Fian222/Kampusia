@@ -1,0 +1,166 @@
+import { relations } from 'drizzle-orm';
+import { users } from './users';
+import { fakultas } from './fakultas';
+import { programStudi } from './program-studi';
+import { mahasiswa } from './mahasiswa';
+import { dosen } from './dosen';
+import { semester } from './semester';
+import { mataKuliah } from './mata-kuliah';
+import { kurikulum } from './kurikulum';
+import { kurikulumMatkul } from './kurikulum-matkul';
+import { kelasKuliah } from './kelas-kuliah';
+import { kelasDosen } from './kelas-dosen';
+import { ruangan } from './ruangan';
+import { jadwalKuliah } from './jadwal-kuliah';
+import { krs } from './krs';
+import { krsDetail } from './krs-detail';
+
+export const usersRelations = relations(users, ({ one, many }) => ({
+  mahasiswa: one(mahasiswa),
+  dosen: one(dosen),
+  krsDisetujui: many(krs),
+}));
+
+export const fakultasRelations = relations(fakultas, ({ many }) => ({
+  programStudi: many(programStudi),
+}));
+
+export const programStudiRelations = relations(programStudi, ({ one, many }) => ({
+  fakultas: one(fakultas, {
+    fields: [programStudi.fakultasId],
+    references: [fakultas.id],
+  }),
+  mahasiswa: many(mahasiswa),
+  dosen: many(dosen),
+  kurikulum: many(kurikulum),
+  kelasKuliah: many(kelasKuliah),
+}));
+
+export const mahasiswaRelations = relations(mahasiswa, ({ one, many }) => ({
+  users: one(users, {
+    fields: [mahasiswa.userId],
+    references: [users.id],
+  }),
+  programStudi: one(programStudi, {
+    fields: [mahasiswa.programStudiId],
+    references: [programStudi.id],
+  }),
+  kurikulum: one(kurikulum, {
+    fields: [mahasiswa.kurikulumId, mahasiswa.programStudiId],
+    references: [kurikulum.id, kurikulum.programStudiId],
+  }),
+  krs: many(krs),
+}));
+
+export const dosenRelations = relations(dosen, ({ one, many }) => ({
+  users: one(users, {
+    fields: [dosen.userId],
+    references: [users.id],
+  }),
+  programStudi: one(programStudi, {
+    fields: [dosen.programStudiId],
+    references: [programStudi.id],
+  }),
+  kelasDosen: many(kelasDosen),
+}));
+
+export const semesterRelations = relations(semester, ({ many }) => ({
+  kelasKuliah: many(kelasKuliah),
+  krs: many(krs),
+}));
+
+export const mataKuliahRelations = relations(mataKuliah, ({ many }) => ({
+  kurikulumMatkul: many(kurikulumMatkul),
+  kelasKuliah: many(kelasKuliah),
+}));
+
+export const kurikulumRelations = relations(kurikulum, ({ one, many }) => ({
+  programStudi: one(programStudi, {
+    fields: [kurikulum.programStudiId],
+    references: [programStudi.id],
+  }),
+  kurikulumMatkul: many(kurikulumMatkul),
+  mahasiswa: many(mahasiswa),
+}));
+
+export const kurikulumMatkulRelations = relations(kurikulumMatkul, ({ one }) => ({
+  kurikulum: one(kurikulum, {
+    fields: [kurikulumMatkul.kurikulumId],
+    references: [kurikulum.id],
+  }),
+  mataKuliah: one(mataKuliah, {
+    fields: [kurikulumMatkul.mataKuliahId],
+    references: [mataKuliah.id],
+  }),
+}));
+
+export const kelasKuliahRelations = relations(kelasKuliah, ({ one, many }) => ({
+  semester: one(semester, {
+    fields: [kelasKuliah.semesterId],
+    references: [semester.id],
+  }),
+  mataKuliah: one(mataKuliah, {
+    fields: [kelasKuliah.mataKuliahId],
+    references: [mataKuliah.id],
+  }),
+  programStudi: one(programStudi, {
+    fields: [kelasKuliah.programStudiId],
+    references: [programStudi.id],
+  }),
+  kelasDosen: many(kelasDosen),
+  jadwalKuliah: many(jadwalKuliah),
+  krsDetail: many(krsDetail),
+}));
+
+export const kelasDosenRelations = relations(kelasDosen, ({ one }) => ({
+  kelasKuliah: one(kelasKuliah, {
+    fields: [kelasDosen.kelasKuliahId],
+    references: [kelasKuliah.id],
+  }),
+  dosen: one(dosen, {
+    fields: [kelasDosen.dosenId],
+    references: [dosen.id],
+  }),
+}));
+
+export const ruanganRelations = relations(ruangan, ({ many }) => ({
+  jadwalKuliah: many(jadwalKuliah),
+}));
+
+export const jadwalKuliahRelations = relations(jadwalKuliah, ({ one }) => ({
+  kelasKuliah: one(kelasKuliah, {
+    fields: [jadwalKuliah.kelasKuliahId],
+    references: [kelasKuliah.id],
+  }),
+  ruangan: one(ruangan, {
+    fields: [jadwalKuliah.ruanganId],
+    references: [ruangan.id],
+  }),
+}));
+
+export const krsRelations = relations(krs, ({ one, many }) => ({
+  mahasiswa: one(mahasiswa, {
+    fields: [krs.mahasiswaId],
+    references: [mahasiswa.id],
+  }),
+  semester: one(semester, {
+    fields: [krs.semesterId],
+    references: [semester.id],
+  }),
+  disetujuiOleh: one(users, {
+    fields: [krs.disetujuiOleh],
+    references: [users.id],
+  }),
+  krsDetail: many(krsDetail),
+}));
+
+export const krsDetailRelations = relations(krsDetail, ({ one }) => ({
+  krs: one(krs, {
+    fields: [krsDetail.krsId],
+    references: [krs.id],
+  }),
+  kelasKuliah: one(kelasKuliah, {
+    fields: [krsDetail.kelasKuliahId],
+    references: [kelasKuliah.id],
+  }),
+}));

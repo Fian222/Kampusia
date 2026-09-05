@@ -1,12 +1,12 @@
 # Kampusia
 
-Bun workspace monorepo for a campus information system. This initial scaffold has no academic features, database tables, or API endpoints.
+Bun workspace monorepo for a campus information system. The initial database schema and migration are defined; academic features and API endpoints are not implemented.
 
 ## Structure
 
 - `apps/web` (`web`): SvelteKit, TypeScript, Tailwind CSS, and an Eden Treaty client factory.
 - `apps/api` (`api`): Elysia server, with separate app and server entry points. The app type is exported for Eden.
-- `packages/db` (`@kampusia/db`): PostgreSQL client factory, Drizzle configuration, and empty schema/migration directories. Import database utilities using `@kampusia/db`.
+- `packages/db` (`@kampusia/db`): PostgreSQL client factory, 15 Drizzle tables with query relations, and the initial migration. Import database utilities using `@kampusia/db` and tables using `@kampusia/db/schema`.
 - `tsconfig.base.json`: shared strict TypeScript options. The web workspace also extends SvelteKit's generated configuration.
 
 ## Setup
@@ -37,9 +37,10 @@ For local environment settings, copy each workspace's `.env.example` to `.env` i
 | `bun --filter api start` | Run the built API |
 | `bun test` | Run tests once business-rule tests are added |
 | `bun run db:generate` | Generate migrations from Drizzle schemas |
+| `bun run db:check` | Validate Drizzle migration metadata |
 | `bun run db:migrate` | Apply migrations to the configured PostgreSQL database |
 | `bun run db:studio` | Open Drizzle Studio |
 
-There are no tests or lint configuration yet. The database package exports TypeScript source consumed by Bun and has no separate build. No database changes have been applied. Add domain schemas under `packages/db/schema`, export them from its index, generate a migration, inspect it, then apply it.
+Database schema-contract tests run with `bun test`. There is no lint configuration yet. The database package exports TypeScript source consumed by Bun and has no separate build. The initial migration has not been applied. Read [DATABASE.md](docs/DATABASE.md) before database changes and [database package notes](packages/db/README.md) for commands and enforcement boundaries.
 
 The frontend uses adapter-auto; select an adapter for the eventual deployment target before production deployment. The build command is not a deployment.

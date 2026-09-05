@@ -10,6 +10,7 @@
   "scripts": {
     "check": "tsc --noEmit",
     "db:generate": "bun --bun drizzle-kit generate",
+    "db:check": "bun --bun drizzle-kit check",
     "db:migrate": "bun --bun drizzle-kit migrate",
     "db:studio": "bun --bun drizzle-kit studio"
   },

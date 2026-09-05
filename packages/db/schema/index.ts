@@ -1,2 +1,16 @@
-// Export domain schemas here as they are introduced.
-export {};
+export * from './users';
+export * from './fakultas';
+export * from './program-studi';
+export * from './mahasiswa';
+export * from './dosen';
+export * from './semester';
+export * from './mata-kuliah';
+export * from './kurikulum';
+export * from './kurikulum-matkul';
+export * from './kelas-kuliah';
+export * from './kelas-dosen';
+export * from './ruangan';
+export * from './jadwal-kuliah';
+export * from './krs';
+export * from './krs-detail';
+export * from './relations';
