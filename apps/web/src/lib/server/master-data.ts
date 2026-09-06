@@ -7,17 +7,17 @@ export function requireMasterAccess(event: RequestEvent) {
   if (!event.locals.user) redirect(303, '/login');
   if (!['ADMIN', 'AKADEMIK'].includes(event.locals.user.role)) error(403, 'Anda tidak memiliki akses ke halaman ini.');
 }
-function apiMessage(value: unknown) {
+export function apiMessage(value: unknown) {
   return value && typeof value === 'object' && 'message' in value && typeof value.message === 'string'
     ? value.message : 'Layanan data akademik tidak tersedia. Silakan coba lagi.';
 }
-function integer(value: string | null, fallback: number, max: number) {
+export function integer(value: string | null, fallback: number, max: number) {
   if (value === null || value === '') return fallback;
   const number = Number(value);
   if (!Number.isInteger(number) || number < 1 || number > max) error(400, 'Parameter halaman tidak valid.');
   return number;
 }
-function active(value: string | null): 'true' | 'false' | undefined {
+export function active(value: string | null): 'true' | 'false' | undefined {
   if (!value) return undefined;
   if (value !== 'true' && value !== 'false') error(400, 'Filter status tidak valid.');
   return value;

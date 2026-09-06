@@ -1,0 +1,67 @@
+import { expect, test } from 'bun:test';
+import { createDatabase } from '@kampusia/db';
+import { fakultas, kurikulum, programStudi, users } from '@kampusia/db/schema';
+import { eq } from 'drizzle-orm';
+import { createMahasiswaRepository } from './mahasiswa/mahasiswa.repository';
+import { createMahasiswaService } from './mahasiswa/mahasiswa.service';
+import { createDosenRepository } from './dosen/dosen.repository';
+import { createDosenService } from './dosen/dosen.service';
+
+test.skipIf(Bun.env.RUN_PROFILE_DB_TESTS !== '1')('PostgreSQL profile queries, constraints, account links and history (rolled back)', async () => {
+  const url = new URL(Bun.env.DATABASE_URL ?? '');
+  if (!['localhost', '127.0.0.1', '[::1]'].includes(url.hostname) || url.pathname !== '/kampusia') throw new Error('Profile integration tests require local kampusia.');
+  const { db, client } = createDatabase(url.toString());
+  const rollback = new Error('Rollback profile fixtures');
+  const prefix = 'T' + crypto.randomUUID().slice(0, 8).toUpperCase();
+  try {
+    await expect(db.transaction(async tx => {
+      const [faculty] = await tx.insert(fakultas).values({ kode: prefix, nama: prefix }).returning();
+      const [program] = await tx.insert(programStudi).values({ fakultasId: faculty!.id, kode: prefix, nama: prefix, jenjang: 'S1' }).returning();
+      const [curriculum] = await tx.insert(kurikulum).values({ programStudiId: program!.id, kode: prefix, nama: prefix, tahunBerlaku: 2026 }).returning();
+      const accounts = await tx.insert(users).values([
+        { email: prefix.toLowerCase() + '-student@kampusia.test', passwordHash: 'test-only-no-login', role: 'MAHASISWA' as const },
+        { email: prefix.toLowerCase() + '-lecturer@kampusia.test', passwordHash: 'test-only-no-login', role: 'DOSEN' as const },
+      ]).returning();
+      const students = createMahasiswaService(createMahasiswaRepository(tx));
+      const lecturers = createDosenService(createDosenRepository(tx));
+      const body = { nim: prefix + 'A', nama: prefix + ' Nama', program_studi_id: program!.id, kurikulum_id: curriculum!.id, angkatan: 2026 };
+      const first = await students.create({ ...body, nim: ' ' + body.nim.toLowerCase() + ' ', user_id: accounts[0]!.id, status: 'CUTI' });
+      const second = await students.create({ ...body, nim: prefix + 'B', status: 'CUTI' });
+      await students.create({ ...body, nim: prefix + '_%', angkatan: 2025 });
+      const page = await students.list({ search: prefix, program_studi_id: program!.id, kurikulum_id: curriculum!.id, angkatan: 2026, status: 'CUTI', limit: 1, page: 2 });
+      expect(page.meta).toEqual({ page: 2, limit: 1, total: 2 }); expect(page.data[0]?.id).toBe(second.id);
+      expect(page.data[0]?.fakultas.id).toBe(faculty!.id); expect(page.data[0]?.kurikulum.id).toBe(curriculum!.id);
+      expect((await students.list({ search: prefix + '_%' })).meta.total).toBe(1);
+      await expect(students.create(body)).rejects.toThrow('NIM sudah digunakan');
+      await expect(students.update(second.id, { nim: first.nim.toLowerCase() })).rejects.toThrow('NIM sudah digunakan');
+      await expect(students.update(second.id, { user_id: accounts[0]!.id })).rejects.toThrow('Akun sudah terhubung');
+      await expect(students.update(second.id, { user_id: accounts[1]!.id })).rejects.toThrow('MAHASISWA');
+      expect((await students.kurikulumOptions({ program_studi_id: program!.id, search: prefix, limit: 1 })).meta.total).toBe(1);
+      expect((await students.kurikulumOptions({ program_studi_id: program!.id, page: 2, limit: 1 })).data).toEqual([]);
+      const lecturer = await lecturers.create({ kode_dosen: prefix + 'A', nidn: ' ' + prefix.toLowerCase() + 'N ', nama: prefix + ' Dosen', program_studi_id: program!.id, user_id: accounts[1]!.id });
+      const optional = await lecturers.create({ kode_dosen: prefix + 'B', nama: prefix + ' Dosen' });
+      await expect(lecturers.create({ kode_dosen: lecturer.kodeDosen.toLowerCase(), nama: 'Duplicate' })).rejects.toThrow('Kode dosen sudah digunakan');
+      await expect(lecturers.update(optional.id, { nidn: lecturer.nidn!.toLowerCase() })).rejects.toThrow('NIDN sudah digunakan');
+      await expect(lecturers.update(optional.id, { user_id: accounts[1]!.id })).rejects.toThrow('Akun sudah terhubung');
+      expect((await lecturers.get(optional.id)).programStudi).toBeNull();
+      expect((await lecturers.list({ search: prefix, limit: 1, page: 2 })).meta.total).toBe(2);
+      expect((await lecturers.list({ search: lecturer.nidn! })).data[0]?.id).toBe(lecturer.id);
+      for (const is_active of [false, true]) {
+        await lecturers.update(lecturer.id, { is_active });
+        const list = await lecturers.list({ program_studi_id: program!.id, is_active: String(is_active) as 'true' | 'false' });
+        expect(list.data[0]?.id).toBe(lecturer.id);
+      }
+      await tx.update(programStudi).set({ isActive: false }).where(eq(programStudi.id, program!.id));
+      await tx.update(kurikulum).set({ isActive: false }).where(eq(kurikulum.id, curriculum!.id));
+      await students.update(first.id, { nama: 'Riwayat', status: 'LULUS' });
+      expect((await students.get(first.id)).status).toBe('LULUS');
+      expect((await tx.select({ active: users.isActive }).from(users).where(eq(users.id, accounts[0]!.id)))[0]?.active).toBe(true);
+      await lecturers.update(lecturer.id, { nama: 'Riwayat', is_active: false });
+      await expect(students.create({ ...body, nim: prefix + 'NEW' })).rejects.toThrow('program studi aktif');
+      await expect(lecturers.create({ kode_dosen: prefix + 'NEW', nama: 'New', program_studi_id: program!.id })).rejects.toThrow('program studi aktif');
+      throw rollback;
+    })).rejects.toBe(rollback);
+    expect((await createMahasiswaRepository(db).list({ search: prefix })).meta.total).toBe(0);
+    expect((await createDosenRepository(db).list({ search: prefix })).meta.total).toBe(0);
+  } finally { await client.end(); }
+}, 20000);

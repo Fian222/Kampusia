@@ -7,7 +7,8 @@
     ".": {
       "types": "./src/app.ts"
     },
-    "./master-data": "./src/modules/program-studi/program-studi.options.ts"
+    "./master-data": "./src/modules/program-studi/program-studi.options.ts",
+    "./mahasiswa-options": "./src/modules/mahasiswa/mahasiswa.options.ts"
   },
   "scripts": {
     "dev": "bun --watch src/index.ts",

@@ -1,0 +1,64 @@
+import { MasterDataError, normalizeText, requirePatch } from '../../utils/master-data';
+import { validateProgram, validateUserLink, withProfileConstraints } from '../../utils/profile-service';
+import { mahasiswaStatusValues } from './mahasiswa.options';
+import type { MahasiswaInput } from './mahasiswa.model';
+import type { MahasiswaRepository } from './mahasiswa.repository';
+
+export function createMahasiswaService(repository: MahasiswaRepository) {
+  function normalize(input: Partial<MahasiswaInput>) {
+    if (input.status !== undefined && !mahasiswaStatusValues.includes(input.status)) throw new MasterDataError(400, 'Status mahasiswa tidak valid.');
+    if (input.angkatan !== undefined && (!Number.isInteger(input.angkatan) || input.angkatan < 1900 || input.angkatan > 9999)) throw new MasterDataError(400, 'Angkatan harus berupa tahun antara 1900 dan 9999.');
+    return {
+      ...(input.nim !== undefined ? { nim: normalizeText(input.nim, 'NIM', 30, true) } : {}),
+      ...(input.nama !== undefined ? { nama: normalizeText(input.nama, 'Nama', 150) } : {}),
+      ...(input.user_id !== undefined ? { userId: input.user_id } : {}),
+      ...(input.program_studi_id !== undefined ? { programStudiId: input.program_studi_id } : {}),
+      ...(input.kurikulum_id !== undefined ? { kurikulumId: input.kurikulum_id } : {}),
+      ...(input.angkatan !== undefined ? { angkatan: input.angkatan } : {}),
+      ...(input.status !== undefined ? { status: input.status } : {}),
+    };
+  }
+  type Tx = Parameters<Parameters<MahasiswaRepository['transaction']>[0]>[0];
+  async function validateCurriculum(tx: Tx, curriculumId: string, programId: string) {
+    const curriculum = await tx.lockKurikulum(curriculumId);
+    if (!curriculum) throw new MasterDataError(400, 'Kurikulum tidak ditemukan.');
+    if (curriculum.programStudiId !== programId) throw new MasterDataError(400, 'Kurikulum harus berasal dari program studi mahasiswa.');
+    if (!curriculum.isActive) throw new MasterDataError(400, 'Penugasan baru harus menggunakan kurikulum aktif.');
+  }
+  return {
+    list: repository.list,
+    kurikulumOptions: repository.kurikulumOptions,
+    async get(id: string) {
+      const row = await repository.findById(id);
+      if (!row) throw new MasterDataError(404, 'Mahasiswa tidak ditemukan.');
+      return row;
+    },
+    create(input: MahasiswaInput) {
+      normalize(input);
+      return withProfileConstraints(() => repository.transaction(async tx => {
+        await validateProgram(tx, input.program_studi_id);
+        await validateCurriculum(tx, input.kurikulum_id, input.program_studi_id);
+        await validateUserLink(tx, input.user_id, 'mahasiswa');
+        return tx.create({ nim: normalizeText(input.nim, 'NIM', 30, true), nama: normalizeText(input.nama, 'Nama', 150), programStudiId: input.program_studi_id, kurikulumId: input.kurikulum_id, angkatan: input.angkatan, status: input.status ?? 'AKTIF', userId: input.user_id ?? null });
+      }));
+    },
+    update(id: string, input: Partial<MahasiswaInput>) {
+      requirePatch(input);
+      const changes = normalize(input);
+      return withProfileConstraints(() => repository.transaction(async tx => {
+        const existing = await tx.findById(id);
+        if (!existing) throw new MasterDataError(404, 'Mahasiswa tidak ditemukan.');
+        const programId = changes.programStudiId ?? existing.programStudiId;
+        const curriculumId = changes.kurikulumId ?? existing.kurikulumId;
+        if (programId !== existing.programStudiId || curriculumId !== existing.kurikulumId) {
+          if (await tx.hasApprovedHistory(id)) throw new MasterDataError(409, 'Program studi atau kurikulum tidak dapat dipindahkan karena mahasiswa memiliki riwayat KRS disetujui.');
+          await validateProgram(tx, programId);
+          await validateCurriculum(tx, curriculumId, programId);
+        }
+        await validateUserLink(tx, changes.userId === undefined ? existing.userId : changes.userId, 'mahasiswa', id);
+        return tx.update(id, { ...changes, updatedAt: new Date() });
+      }));
+    },
+  };
+}
+export type MahasiswaService = ReturnType<typeof createMahasiswaService>;

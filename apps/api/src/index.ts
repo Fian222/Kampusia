@@ -6,6 +6,10 @@ import { createFakultasRepository } from './modules/fakultas/fakultas.repository
 import { createFakultasService } from './modules/fakultas/fakultas.service';
 import { createProgramStudiRepository } from './modules/program-studi/program-studi.repository';
 import { createProgramStudiService } from './modules/program-studi/program-studi.service';
+import { createMahasiswaRepository } from './modules/mahasiswa/mahasiswa.repository';
+import { createMahasiswaService } from './modules/mahasiswa/mahasiswa.service';
+import { createDosenRepository } from './modules/dosen/dosen.repository';
+import { createDosenService } from './modules/dosen/dosen.service';
 
 const port = Number(Bun.env.API_PORT ?? 3000);
 
@@ -20,6 +24,8 @@ const { db, client } = createDatabase(Bun.env.DATABASE_URL ?? '');
 const app = createApp(createAuthService(createAuthRepository(db)), { webOrigin, production }, {
   fakultas: createFakultasService(createFakultasRepository(db)),
   programStudi: createProgramStudiService(createProgramStudiRepository(db)),
+  mahasiswa: createMahasiswaService(createMahasiswaRepository(db)),
+  dosen: createDosenService(createDosenRepository(db)),
 });
 app.listen(port);
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {

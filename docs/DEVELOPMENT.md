@@ -74,6 +74,40 @@ bun --env-file=packages/db/.env test apps/web/src/lib/server/master-data-flow.te
 Remove-Item Env:RUN_MASTER_E2E
 ```
 
+## Mahasiswa and Dosen master data
+
+ADMIN and AKADEMIK share `/akademik/mahasiswa` and `/akademik/dosen`, available from both sidebars. Both APIs require these roles for reads and writes; mutations require the configured web origin. Existing student/lecturer dashboards and authentication behavior are unchanged.
+
+Each resource exposes `GET /resource`, `GET /resource/:id`, `POST /resource`, and `PATCH /resource/:id`, where resource is `mahasiswa` or `dosen`. There are no DELETE endpoints. Lists use the same `page`, `limit` (maximum 100), and literal case-insensitive `search` conventions as Fakultas/Program Studi. Mahasiswa searches NIM/name and accepts `program_studi_id`, `kurikulum_id`, `angkatan`, and `status`. Dosen searches code/NIDN/name and accepts `program_studi_id` and `is_active=true|false`. SQL handles filtering, counting, ordering, and pagination; list/count use a consistent transaction snapshot.
+
+Mahasiswa creation requires `nim`, `nama`, `program_studi_id`, `kurikulum_id`, and integer `angkatan` between 1900 and 9999. Optional `status` defaults to AKTIF; valid values are AKTIF, CUTI, LULUS, KELUAR, NONAKTIF. Dosen requires `kode_dosen` and `nama`; optional fields are `nidn`, `program_studi_id` (homebase), and `is_active` (default true). Both accept optional nullable `user_id`. PATCH accepts individual fields and rejects empty changes; null explicitly clears nullable fields. Responses use Drizzle camelCase properties and include compact related program data; Mahasiswa also includes faculty and curriculum.
+
+Identifiers are trimmed and uppercased, preserving leading zeros; names are trimmed. NIM, lecturer code, supplied NIDN, and account links have friendly duplicate errors (409). Required blank text and blank optional NIDN are rejected; use null for absent NIDN. New academic assignments require an existing active program and, for students, an existing active curriculum in that program. Unchanged historical inactive assignments can still be edited. Lecturer homebase does not constrain teaching programs.
+
+Writes validate references inside transactions. Account linking locks the user row, checks MAHASISWA/DOSEN role compatibility, and checks both profile tables to prevent duplicate or cross-table links. Profiles can exist without accounts. No credentials are returned and these modules do not change `users.is_active`: CUTI, NONAKTIF, and LULUS students can still log in when their account is active.
+
+Program/curriculum changes require academic review. The form explains the restriction; the service rejects reassignment when an approved KRS or retained approval timestamp exists, including cancelled approved plans. A transfer/history workflow is outside this release. Status changes preserve profiles and teaching history.
+
+The pages reuse pagination and status components and provide a shared profile table/form, server-side filters, edit forms, and a lecturer activation confirmation. Program and curriculum choices have separate paginated searches; search the choices before filling the form. `GET /mahasiswa/kurikulum-options` provides a protected read-only curriculum selector with `page`, `limit`, `search`, `program_studi_id`, and `is_active`. This is not a curriculum management module. Account linking currently uses a UUID field; account provisioning/search is outside scope.
+
+`bun test` includes 24 isolated profile API tests, including role permissions, account compatibility, academic validation, duplicates, updates, filtering/pagination, retained history, and login independence. Run the real PostgreSQL test with temporary fixtures that are fully rolled back:
+
+```powershell
+$env:RUN_PROFILE_DB_TESTS = '1'
+bun --env-file=packages/db/.env test apps/api/src/modules/academic-profiles.integration.test.ts
+Remove-Item Env:RUN_PROFILE_DB_TESTS
+```
+
+With `bun dev` running and the development seed present, verify server-rendered lists, edit forms, search, validation feedback, and cross-origin rejection without changing academic records:
+
+```powershell
+$env:RUN_PROFILE_E2E = '1'
+bun --env-file=packages/db/.env test apps/web/src/lib/server/academic-profiles-flow.test.ts
+Remove-Item Env:RUN_PROFILE_E2E
+```
+
+The E2E test defaults to `http://localhost:5173`; `PROFILE_WEB_ORIGIN` can point at another local test port. No database schema, migration, or seed changes are required.
+
 ## Sample academic data
 
 The fixture includes Fakultas Teknik (`DEV-FT`), Informatika S1 (`DEV-IF`), Kurikulum Informatika 2026, five 3-SKS courses, two demo lecturers, five AKTIF students (`DEV20260001` through `DEV20260005`), and three rooms. NIDNs are left null. Curriculum semester recommendations are 1 for Algoritma dan Pemrograman, 3 for Basis Data and Struktur Data, and 5 for Pemrograman Web and Sistem Operasi. Recommendations do not restrict KRS eligibility in the initial design.

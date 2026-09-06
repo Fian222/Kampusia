@@ -8,8 +8,12 @@ import { fakultasRoutes } from './modules/fakultas/fakultas.route';
 import { programStudiRoutes } from './modules/program-studi/program-studi.route';
 import type { FakultasService } from './modules/fakultas/fakultas.service';
 import type { ProgramStudiService } from './modules/program-studi/program-studi.service';
+import { mahasiswaRoutes } from './modules/mahasiswa/mahasiswa.route';
+import { dosenRoutes } from './modules/dosen/dosen.route';
+import type { MahasiswaService } from './modules/mahasiswa/mahasiswa.service';
+import type { DosenService } from './modules/dosen/dosen.service';
 
-export function createApp(auth: AuthService, options: { webOrigin: string; production: boolean }, academic?: { fakultas: FakultasService; programStudi: ProgramStudiService }) {
+export function createApp(auth: AuthService, options: { webOrigin: string; production: boolean }, academic?: { fakultas?: FakultasService; programStudi?: ProgramStudiService; mahasiswa?: MahasiswaService; dosen?: DosenService }) {
   return new Elysia()
     .onRequest(({ set }) => { set.headers['cache-control'] = 'no-store'; })
     .onError(({ code, error, set }) => {
@@ -32,6 +36,8 @@ export function createApp(auth: AuthService, options: { webOrigin: string; produ
     .use(authRoutes(auth, options))
     .use(fakultasRoutes(auth, options.webOrigin, academic?.fakultas))
     .use(programStudiRoutes(auth, options.webOrigin, academic?.programStudi))
+    .use(mahasiswaRoutes(auth, options.webOrigin, academic?.mahasiswa))
+    .use(dosenRoutes(auth, options.webOrigin, academic?.dosen))
     .group('/dashboard', app => app.use(authorization(auth))
       .get('/:area', ({ user, params }) => {
         requireRole(user, [areaRoles[params.area]]);
