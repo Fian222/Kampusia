@@ -2,6 +2,10 @@ import { createDatabase } from '@kampusia/db';
 import { createApp } from './app';
 import { createAuthRepository } from './modules/auth/auth.repository';
 import { createAuthService } from './modules/auth/auth.service';
+import { createFakultasRepository } from './modules/fakultas/fakultas.repository';
+import { createFakultasService } from './modules/fakultas/fakultas.service';
+import { createProgramStudiRepository } from './modules/program-studi/program-studi.repository';
+import { createProgramStudiService } from './modules/program-studi/program-studi.service';
 
 const port = Number(Bun.env.API_PORT ?? 3000);
 
@@ -13,7 +17,10 @@ const production = Bun.env.NODE_ENV === 'production';
 const webOrigin = new URL(Bun.env.WEB_URL ?? 'http://localhost:5173').origin;
 if (production && !webOrigin.startsWith('https://')) throw new Error('Production WEB_URL must use HTTPS.');
 const { db, client } = createDatabase(Bun.env.DATABASE_URL ?? '');
-const app = createApp(createAuthService(createAuthRepository(db)), { webOrigin, production });
+const app = createApp(createAuthService(createAuthRepository(db)), { webOrigin, production }, {
+  fakultas: createFakultasService(createFakultasRepository(db)),
+  programStudi: createProgramStudiService(createProgramStudiRepository(db)),
+});
 app.listen(port);
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, async () => { await app.stop(); await client.end(); process.exit(0); });

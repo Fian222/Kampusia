@@ -3,12 +3,17 @@ import { authorization, requireRole } from './middleware/authorization';
 import { areaRoles, AuthError } from './modules/auth/auth.model';
 import { authRoutes } from './modules/auth/auth.route';
 import type { AuthService } from './modules/auth/auth.service';
+import { MasterDataError } from './utils/master-data';
+import { fakultasRoutes } from './modules/fakultas/fakultas.route';
+import { programStudiRoutes } from './modules/program-studi/program-studi.route';
+import type { FakultasService } from './modules/fakultas/fakultas.service';
+import type { ProgramStudiService } from './modules/program-studi/program-studi.service';
 
-export function createApp(auth: AuthService, options: { webOrigin: string; production: boolean }) {
+export function createApp(auth: AuthService, options: { webOrigin: string; production: boolean }, academic?: { fakultas: FakultasService; programStudi: ProgramStudiService }) {
   return new Elysia()
     .onRequest(({ set }) => { set.headers['cache-control'] = 'no-store'; })
     .onError(({ code, error, set }) => {
-      if (error instanceof AuthError) {
+      if (error instanceof AuthError || error instanceof MasterDataError) {
         set.status = error.status;
         return { success: false as const, message: error.message };
       }
@@ -25,6 +30,8 @@ export function createApp(auth: AuthService, options: { webOrigin: string; produ
       return { success: false as const, message: 'Terjadi kesalahan pada server. Silakan coba lagi.' };
     })
     .use(authRoutes(auth, options))
+    .use(fakultasRoutes(auth, options.webOrigin, academic?.fakultas))
+    .use(programStudiRoutes(auth, options.webOrigin, academic?.programStudi))
     .group('/dashboard', app => app.use(authorization(auth))
       .get('/:area', ({ user, params }) => {
         requireRole(user, [areaRoles[params.area]]);

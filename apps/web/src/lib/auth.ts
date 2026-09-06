@@ -7,3 +7,6 @@ export const roleAreas = {
   MAHASISWA: { path: '/mahasiswa', label: 'Mahasiswa', area: 'mahasiswa' },
 } as const satisfies Record<Role, { path: string; label: string; area: string }>;
 export const sessionCookie = 'kampusia_session';
+export function isMasterDataPath(path: string) {
+  return ['/akademik/fakultas', '/akademik/program-studi'].includes(path.replace(/\/$/, ''));
+}

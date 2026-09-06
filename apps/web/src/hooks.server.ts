@@ -1,6 +1,6 @@
 import { error, redirect, type Handle } from '@sveltejs/kit';
 import { serverApi } from '$lib/server/api';
-import { roleAreas, sessionCookie } from '$lib/auth';
+import { isMasterDataPath, roleAreas, sessionCookie } from '$lib/auth';
 
 export const handle: Handle = async ({ event, resolve }) => {
   event.locals.user = null;
@@ -20,7 +20,8 @@ export const handle: Handle = async ({ event, resolve }) => {
     event.url.pathname === area.path || event.url.pathname.startsWith(area.path + '/'));
   if (area) {
     if (!event.locals.user) redirect(303, '/login');
-    if (roleAreas[event.locals.user.role].path !== area.path) error(403, 'Anda tidak memiliki akses ke halaman ini.');
+    const sharedMaster = isMasterDataPath(event.url.pathname) && ['ADMIN', 'AKADEMIK'].includes(event.locals.user.role);
+    if (!sharedMaster && roleAreas[event.locals.user.role].path !== area.path) error(403, 'Anda tidak memiliki akses ke halaman ini.');
   }
   const response = await resolve(event);
   response.headers.set('cache-control', 'no-store');

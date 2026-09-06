@@ -1,5 +1,6 @@
 <script lang="ts">
   import { roleAreas } from '$lib/auth';
+  import { page } from '$app/state';
   let { data, children } = $props();
   let menuOpen = $state(false);
   const area = $derived(roleAreas[data.user.role]);
@@ -13,7 +14,12 @@
     </div>
     <nav id="sidebar-nav" class="px-4 pb-6 lg:block" class:hidden={!menuOpen} aria-label="Navigasi utama">
       <p class="px-3 py-4 text-xs font-semibold uppercase tracking-widest text-slate-400">{area.label}</p>
-      <a href={area.path} aria-current="page" class="block rounded-lg bg-teal-50 px-3 py-3 text-sm font-semibold text-teal-800">Dashboard</a>
+      <a href={area.path} aria-current={page.url.pathname === area.path ? 'page' : undefined} class="block rounded-lg px-3 py-3 text-sm font-semibold text-teal-800" class:bg-teal-50={page.url.pathname === area.path}>Dashboard</a>
+      {#if data.user.role === 'ADMIN' || data.user.role === 'AKADEMIK'}
+        {#each [{ path: '/akademik/fakultas', label: 'Fakultas' }, { path: '/akademik/program-studi', label: 'Program Studi' }] as item}
+          <a href={item.path} aria-current={page.url.pathname === item.path ? 'page' : undefined} class="mt-1 block rounded-lg px-3 py-3 text-sm font-medium text-teal-800" class:bg-teal-50={page.url.pathname === item.path}>{item.label}</a>
+        {/each}
+      {/if}
     </nav>
     <p class="absolute bottom-6 hidden px-7 text-xs text-slate-400 lg:block">Sistem Informasi Kampus</p>
   </aside>

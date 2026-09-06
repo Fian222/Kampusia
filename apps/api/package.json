@@ -6,7 +6,8 @@
   "exports": {
     ".": {
       "types": "./src/app.ts"
-    }
+    },
+    "./master-data": "./src/modules/program-studi/program-studi.options.ts"
   },
   "scripts": {
     "dev": "bun --watch src/index.ts",
@@ -16,7 +17,8 @@
   },
   "dependencies": {
     "@kampusia/db": "workspace:*",
-    "elysia": "^1.4.0"
+    "elysia": "^1.4.0",
+    "drizzle-orm": "^0.45.0"
   },
   "devDependencies": {
     "@types/bun": "^1.3.0",

@@ -46,6 +46,34 @@ Remove-Item Env:RUN_AUTH_E2E
 
 The test reads `SEED_PASSWORD`, signs in through the SvelteKit form action, checks the rendered dashboard and role restriction, and signs out. It creates only temporary API sessions and does not change the database. It is skipped during ordinary test runs.
 
+## Fakultas and Program Studi master data
+
+ADMIN and AKADEMIK share `/akademik/fakultas` and `/akademik/program-studi`, linked from their existing sidebars. Their dashboards remain role-specific. Both master-data APIs require an active authenticated ADMIN/AKADEMIK account; mutations also require the configured web origin.
+
+Each resource exposes `GET /resource`, `GET /resource/:id`, `POST /resource`, and `PATCH /resource/:id`, where resource is `fakultas` or `program-studi`. There is no DELETE endpoint. Lists accept `page` (default 1), `limit` (default 20, maximum 100), `search` (literal case-insensitive code/name substring), and `is_active=true|false`. Omit status to include historical inactive records. Program Studi also accepts `fakultas_id` and `jenjang`.
+
+Write payloads use `kode`, `nama`, and optional `is_active`; Program Studi additionally requires `fakultas_id` and `jenjang` on creation. PATCH accepts individual fields and rejects an empty body. Responses retain Drizzle's camelCase properties (`isActive`, `fakultasId`, timestamps); Program Studi list/detail includes a small related `fakultas` object. Unique normalized codes return 409 with an Indonesian validation message. Missing records return 404; invalid input or faculty assignments return 400.
+
+Deactivation preserves related records. Creating a program, moving it to another faculty, or reactivating it requires an active faculty. Editing an unchanged historical assignment remains allowed. Program writes validate within transactions and lock faculty rows against concurrent deactivation. Changing faculty is an administrative correction; the form explicitly calls attention to its historical meaning. No schema, migrations, or seed records were changed.
+
+The Program Studi page uses a separate paginated faculty search for filter/form choices, so even the faculty selector does not download the entire dataset. Search/select the relevant faculty before filling the program form. Status changes use an explicit confirmation and never delete records.
+
+`bun test` includes isolated academic API tests. To exercise real Drizzle queries and PostgreSQL constraints with temporary fixtures that are fully rolled back:
+
+```powershell
+$env:RUN_MASTER_DB_TESTS = '1'
+bun --env-file=packages/db/.env test apps/api/src/modules/master-data.integration.test.ts
+Remove-Item Env:RUN_MASTER_DB_TESTS
+```
+
+With `bun dev` running and the development seed present, verify server-rendered pages, edit forms, search, validation, and cross-origin rejection without changing academic records:
+
+```powershell
+$env:RUN_MASTER_E2E = '1'
+bun --env-file=packages/db/.env test apps/web/src/lib/server/master-data-flow.test.ts
+Remove-Item Env:RUN_MASTER_E2E
+```
+
 ## Sample academic data
 
 The fixture includes Fakultas Teknik (`DEV-FT`), Informatika S1 (`DEV-IF`), Kurikulum Informatika 2026, five 3-SKS courses, two demo lecturers, five AKTIF students (`DEV20260001` through `DEV20260005`), and three rooms. NIDNs are left null. Curriculum semester recommendations are 1 for Algoritma dan Pemrograman, 3 for Basis Data and Struktur Data, and 5 for Pemrograman Web and Sistem Operasi. Recommendations do not restrict KRS eligibility in the initial design.

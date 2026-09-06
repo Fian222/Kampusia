@@ -34,7 +34,9 @@ The browser submits same-origin SvelteKit form actions. SvelteKit uses Eden Trea
 | DOSEN | `/dosen` |
 | MAHASISWA | `/mahasiswa` |
 
-Each role can access its own area. ADMIN does not implicitly bypass other role checks. The SvelteKit server hook checks access on every request, and dashboard loads also call the protected API endpoint. Unauthenticated visitors go to `/login`; authenticated visitors requesting another role's area receive 403. All areas share a responsive sidebar, user information, and logout form. Academic pages are not implemented.
+Each role can access its own dashboard. ADMIN does not implicitly bypass other role checks. The SvelteKit server hook checks access on every request, and dashboard loads also call the protected API endpoint. Unauthenticated visitors go to `/login`; authenticated visitors requesting another role's area receive 403. All areas share a responsive sidebar, user information, and logout form.
+
+The explicitly shared master-data pages `/akademik/fakultas` and `/akademik/program-studi` allow both ADMIN and AKADEMIK. Their loads and form actions enforce that allowlist, as do all Fakultas and Program Studi API endpoints. Master-data mutations also verify `Origin` against `WEB_URL`. This exception does not grant ADMIN access to the AKADEMIK dashboard or other role areas.
 
 ## Environment and deployment
 
