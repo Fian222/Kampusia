@@ -1,3 +1,4 @@
+import { validateClassSchedules } from '../jadwal/jadwal.service';
 import { MasterDataError } from '../../utils/master-data';
 import { academicWrite } from '../../utils/academic-write';
 import type { KelasDosenInput, KelasDosenQuery } from './kelas-dosen.model';
@@ -10,13 +11,14 @@ export function createKelasDosenService(repository: KelasDosenRepository) {
     },
     add(id: string, input: KelasDosenInput) {
       return academicWrite(() => repository.transaction(async tx => {
-        if (!await tx.lockClass(id)) throw new MasterDataError(404, 'Kelas kuliah tidak ditemukan.');
+        const kelas = await tx.lockClass(id);
+        if (!kelas) throw new MasterDataError(404, 'Kelas kuliah tidak ditemukan.');
         const lecturer = await tx.lockDosen(input.dosen_id);
         if (!lecturer?.isActive) throw new MasterDataError(400, 'Dosen harus tersedia dan aktif untuk penugasan baru.');
         const rows = await tx.assignments(id);
         if (rows.some(row => row.dosenId === input.dosen_id)) throw new MasterDataError(409, 'Dosen sudah ditugaskan pada kelas ini.');
         if (input.is_koordinator && rows.some(row => row.isKoordinator)) throw new MasterDataError(409, 'Kelas hanya boleh memiliki satu koordinator. Lepaskan koordinator lama terlebih dahulu.');
-        if (await tx.hasSchedule(id)) throw new MasterDataError(409, 'Penambahan dosen pada kelas terjadwal menunggu validasi konflik modul Jadwal.');
+        if (await tx.hasSchedule(id)) await validateClassSchedules(tx.scheduling, kelas, input.dosen_id);
         return tx.create(id, input.dosen_id, input.is_koordinator ?? false);
       }));
     },

@@ -1,3 +1,7 @@
+import { createJadwalRepository } from './modules/jadwal/jadwal.repository';
+import { createJadwalService } from './modules/jadwal/jadwal.service';
+import { createRuanganRepository } from './modules/ruangan/ruangan.repository';
+import { createRuanganService } from './modules/ruangan/ruangan.service';
 import { createKelasDosenRepository } from './modules/kelas-dosen/kelas-dosen.repository';
 import { createKelasDosenService } from './modules/kelas-dosen/kelas-dosen.service';
 import { createKelasKuliahRepository } from './modules/kelas-kuliah/kelas-kuliah.repository';
@@ -36,6 +40,8 @@ const { db, client } = createDatabase(Bun.env.DATABASE_URL ?? '');
 const app = createApp(createAuthService(createAuthRepository(db)), { webOrigin, production }, {
   semester: createSemesterService(createSemesterRepository(db)),
   kelasKuliah: createKelasKuliahService(createKelasKuliahRepository(db)),
+  jadwal: createJadwalService(createJadwalRepository(db)),
+  ruangan: createRuanganService(createRuanganRepository(db)),
   kelasDosen: createKelasDosenService(createKelasDosenRepository(db)),
   mataKuliah: createMataKuliahService(createMataKuliahRepository(db)),
   kurikulum: createKurikulumService(createKurikulumRepository(db)),

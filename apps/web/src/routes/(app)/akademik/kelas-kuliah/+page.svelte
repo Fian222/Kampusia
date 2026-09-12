@@ -24,7 +24,7 @@
 <svelte:head><title>Kelas Kuliah · Kampusia</title></svelte:head>
 <h1 class="text-3xl font-semibold">Kelas Kuliah</h1>
 <p class="mt-2 text-sm text-slate-600">Kelola penawaran mata kuliah per semester dan dosen pengajar.</p>
-<p class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Kelas baru dapat disimpan sebagai DRAFT. DIBUKA memerlukan kurikulum yang sesuai, dosen aktif, serta jadwal yang valid tanpa konflik. Pembukaan tersedia setelah validasi modul Jadwal siap.</p>
+<p class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Kelas baru dapat disimpan sebagai DRAFT. DIBUKA memerlukan kurikulum yang sesuai, dosen aktif, serta jadwal yang valid tanpa konflik. Tambahkan dosen dan jadwal melalui detail kelas sebelum membuka kelas.</p>
 {#if form?.message}<p class={box} role={form.saved ? 'status' : 'alert'}>{form.message}</p>{/if}
 {#if saving}<p role="status" class="mt-3">Menyimpan…</p>{/if}
 <form method="GET" class={box + ' grid gap-4 sm:grid-cols-3'}>

@@ -79,14 +79,15 @@ test.skipIf(Bun.env.RUN_OFFERING_DB_TESTS !== '1')('PostgreSQL semester/class/le
       await classes.update(other.id, { kapasitas: 25 });
       await classes.update(other.id, { semester_id: b.id });
       const [room] = await tx.insert(ruangan).values({ kode: prefix, nama: prefix, kapasitas: 30 }).returning();
-      // Test-only fixtures exercise historical guards; no schedule API or fake production schedule is created.
+      // Test-only schedule fixture exercises opening validation and historical guards.
       await tx.insert(jadwalKuliah).values({ kelasKuliahId: row.id, ruanganId: room!.id, hari: 1, jamMulai: '08:00', jamSelesai: '10:00' });
       await expect(terms.update(a.id, { tanggal_selesai: `${year}-07-01` })).rejects.toThrow('riwayat');
       await expect(classes.update(row.id, { semester_id: b.id })).rejects.toThrow('Identitas');
-      await expect(classes.update(row.id, { status: 'DIBUKA' })).rejects.toThrow('Jadwal');
+      expect((await classes.update(row.id, { status: 'DIBUKA' })).status).toBe('DIBUKA');
       await expect(classes.update(row.id, { kapasitas: 31 })).rejects.toThrow('ruangan');
       await assignments.remove(row.id, second.id);
-      await expect(assignments.add(row.id, { dosen_id: lecturers[1]!.id })).rejects.toThrow('Jadwal');
+      const replacement = await assignments.add(row.id, { dosen_id: lecturers[1]!.id });
+      await assignments.remove(row.id, replacement.id);
       await tx.update(kelasKuliah).set({ status: 'DIBUKA' }).where(eq(kelasKuliah.id, row.id));
       await expect(assignments.remove(row.id, teacher.id)).rejects.toThrow('mempertahankan');
       const [student] = await tx.insert(mahasiswa).values({ nim: prefix, nama: prefix, programStudiId: program!.id, kurikulumId: curriculum!.id, angkatan: 2026 }).returning();

@@ -2,7 +2,7 @@ import { error, fail, redirect, type RequestEvent } from '@sveltejs/kit';
 import { serverApi } from './api';
 import { requireMasterAccess, apiMessage, integer, active } from './master-data';
 
-async function read<T>(request: Promise<{ data: T | null; error: unknown; status: number }>): Promise<NonNullable<T>> {
+export async function read<T>(request: Promise<{ data: T | null; error: unknown; status: number }>): Promise<NonNullable<T>> {
   const result = await request.catch(() => error(503, apiMessage(null)));
   if (result.status === 401) redirect(303, '/login');
   if (result.error || !result.data) error(result.status >= 400 && result.status < 500 ? result.status : 503, apiMessage(result.error && typeof result.error === 'object' && 'value' in result.error ? result.error.value : null));
@@ -15,7 +15,7 @@ function enumFilter<T extends string>(value: string | null, values: readonly T[]
   return found;
 }
 export const statuses = ['DRAFT', 'DIBUKA', 'DITUTUP', 'DIBATALKAN'] as const;
-function query(event: RequestEvent, prefix = '') {
+export function query(event: RequestEvent, prefix = '') {
   return { page: integer(event.url.searchParams.get(prefix + 'page'), 1, 1000000), limit: 20, search: event.url.searchParams.get(prefix + 'search') ?? '' };
 }
 export async function loadSemester(event: RequestEvent) {
@@ -39,13 +39,15 @@ export async function loadKelas(event: RequestEvent) {
 }
 export async function loadKelasDetail(event: RequestEvent) {
   requireMasterAccess(event); const client = serverApi(event); const id = event.params.id!;
-  const [kelas, assignments, lecturers] = await Promise.all([
+  const [kelas, assignments, lecturers, schedules, rooms] = await Promise.all([
     read(client['kelas-kuliah']({ id }).get()), read(client['kelas-kuliah']({ id }).dosen.get({ query: query(event) })),
     read(client.dosen.get({ query: { ...query(event, 'lecturer_'), is_active: 'true' } })),
+    read(client['kelas-kuliah']({ id }).jadwal.get({ query: query(event, 'schedule_') })),
+    read(client.ruangan.get({ query: { ...query(event, 'room_'), is_active: 'true' } })),
   ]);
-  return { kelas: kelas.data, assignments, lecturers };
+  return { kelas: kelas.data, assignments, lecturers, schedules, rooms };
 }
-export async function saveOffering(event: RequestEvent, kind: 'semester' | 'kelas' | 'dosen') {
+export async function saveOffering(event: RequestEvent, kind: 'semester' | 'kelas' | 'dosen' | 'detail') {
   requireMasterAccess(event);
   const form = await event.request.formData();
   const values: Record<string, string> = Object.fromEntries([...form].map(([key, value]) => [key, String(value)]));
@@ -53,7 +55,20 @@ export async function saveOffering(event: RequestEvent, kind: 'semester' | 'kela
   const invalid = (message: string) => fail(400, { values, message });
   let result;
   try {
-    if (kind === 'semester') {
+    if (kind === 'detail' && values.mode === 'status') {
+      const status = statuses.find(item => item === values.status);
+      if (!status || values.confirm !== 'yes') return invalid('Konfirmasikan perubahan status kelas.');
+      result = await client['kelas-kuliah']({ id: event.params.id! }).patch({ status });
+    } else if (kind === 'detail' && values.mode?.startsWith('schedule-')) {
+      const endpoint = client['kelas-kuliah']({ id: event.params.id! }).jadwal;
+      if (values.mode === 'schedule-remove') {
+        if (values.confirm !== 'yes') return invalid('Konfirmasikan penghapusan jadwal.');
+        result = await endpoint({ jadwalId: values.jadwal_id! }).delete();
+      } else if (values.mode === 'schedule-save') {
+        const body = { ruangan_id: values.ruangan_id!, hari: Number(values.hari), jam_mulai: values.jam_mulai!, jam_selesai: values.jam_selesai! };
+        result = values.jadwal_id ? await endpoint({ jadwalId: values.jadwal_id }).patch(body) : await endpoint.post(body);
+      } else return invalid('Tindakan tidak valid.');
+    } else if (kind === 'semester') {
       if (values.mode === 'activate') {
         if (!values.id || values.confirm !== 'yes') return invalid('Konfirmasikan penggantian semester aktif.');
         result = await client.semester({ id: values.id }).patch({ is_active: true });

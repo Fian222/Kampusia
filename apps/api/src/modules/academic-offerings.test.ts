@@ -1,3 +1,4 @@
+import type { SchedulingRepository } from './jadwal/jadwal.repository';
 import { expect, test } from 'bun:test';
 import type { semester, kelasKuliah, kelasDosen, dosen, mataKuliah, programStudi } from '@kampusia/db/schema';
 import { createApp } from '../app';
@@ -53,10 +54,17 @@ function setup(role: Role = 'AKADEMIK') {
       }); } catch (error) { terms.splice(0, terms.length, ...snapshot); throw error; }
     },
   };
+  const scheduling: SchedulingRepository = {
+    lockClass: async id => classes.find(row => row.id === id), term: async id => terms.find(row => row.id === id),
+    room: async () => ({ ...stamps(), kode: 'R', nama: 'Room', gedung: null, kapasitas: 30, isActive: true }),
+    slots: async id => scheduled.has(id) ? [{ ...stamps(), kelasKuliahId: id, ruanganId: missing, hari: 1, jamMulai: '08:00', jamSelesai: '10:00' }] : [],
+    lecturers: async ids => assignments.filter(row => ids.includes(row.kelasKuliahId)), candidates: async () => [], approvedPeerClasses: async () => [], hasApprovalHistory: async () => false,
+    create: async () => { throw new Error('Not used'); }, update: async () => { throw new Error('Not used'); }, remove: async () => {},
+  };
   const classRepository: KelasKuliahRepository = {
     findById: async id => { const row = classes.find(row => row.id === id); return row ? { ...relatedClass(row), jumlahMahasiswa: enrollments.get(id) ?? 0, jumlahJadwal: scheduled.has(id) ? 1 : 0 } : undefined; },
     list: async query => slice(classes.filter(row => (!query.semester_id || row.semesterId === query.semester_id) && (!query.program_studi_id || row.programStudiId === query.program_studi_id) && (!query.mata_kuliah_id || row.mataKuliahId === query.mata_kuliah_id) && (!query.status || row.status === query.status) && (!query.search || (row.namaKelas + courses[0]!.kode + courses[0]!.nama).toLowerCase().includes(query.search.toLowerCase()))).map(relatedClass), query),
-    transaction: async operation => operation({
+    transaction: async operation => operation({ scheduling,
       findById: async id => classes.find(row => row.id === id), lockSemester: async id => terms.find(row => row.id === id), lockProgram: async id => programs.find(row => row.id === id), lockCourse: async id => courses.find(row => row.id === id), hasCurriculum: async id => eligible.has(id),
       hasSelections: async id => selections.has(id), hasActiveDetails: async id => selections.has(id), enrollmentCount: async id => enrollments.get(id) ?? 0,
       schedules: async id => scheduled.has(id) ? [{ ...stamps(), kelasKuliahId: id, ruanganId: missing, hari: 1, jamMulai: '08:00', jamSelesai: '10:00', roomCapacity: 30 }] : [], assignments: async id => relatedAssignments(id),
@@ -66,7 +74,7 @@ function setup(role: Role = 'AKADEMIK') {
   };
   const assignmentRepository: KelasDosenRepository = {
     findClass: async id => classes.find(row => row.id === id), list: async (id, query) => slice(relatedAssignments(id), query),
-    transaction: async operation => operation({ lockClass: async id => classes.find(row => row.id === id), lockDosen: async id => lecturers.find(row => row.id === id), assignments: async id => relatedAssignments(id), hasSchedule: async id => scheduled.has(id),
+    transaction: async operation => operation({ scheduling, lockClass: async id => classes.find(row => row.id === id), lockDosen: async id => lecturers.find(row => row.id === id), assignments: async id => relatedAssignments(id), hasSchedule: async id => scheduled.has(id),
       create: async (kelasKuliahId, dosenId, isKoordinator) => { const row = { ...stamps(), kelasKuliahId, dosenId, isKoordinator }; assignments.push(row); return row; },
       update: async (id, isKoordinator) => Object.assign(assignments.find(row => row.id === id)!, { isKoordinator }), remove: async id => { assignments.splice(assignments.findIndex(row => row.id === id), 1); },
     }),
@@ -129,7 +137,7 @@ test('Kelas validates missing references, inactive program/course, blank name an
   for (const changes of [{ semester_id: missing }, { mata_kuliah_id: missing }, { program_studi_id: missing }, { nama_kelas: ' ' }, { kapasitas: 0 }, { kapasitas: -1 }, { kapasitas: 1.5 }, { kapasitas: 2147483648 }]) expect((await ctx.request('/kelas-kuliah', 'POST', { ...body, ...changes })).status).toBe(400);
   for (const row of [ctx.programs[0]!, ctx.courses[0]!]) { row.isActive = false; expect((await ctx.request('/kelas-kuliah', 'POST', body)).status).toBe(400); row.isActive = true; }
 });
-test('Kelas opening requires curriculum, active lecturer and schedule, with no bypass for preexisting schedule', async () => {
+test('Kelas opening requires curriculum, active lecturer and schedule, then succeeds with a validated schedule', async () => {
   const ctx = setup(); const row = await ctx.kelas(); const path = '/kelas-kuliah/' + row.id;
   expect((await read(await ctx.request(path, 'PATCH', { status: 'DIBUKA' }))).message).toContain('kurikulum');
   ctx.eligible.add(row.mataKuliahId);
@@ -137,8 +145,8 @@ test('Kelas opening requires curriculum, active lecturer and schedule, with no b
   await ctx.services.kelasDosen.add(row.id, { dosen_id: ctx.lecturers[0]!.id });
   expect((await read(await ctx.request(path, 'PATCH', { status: 'DIBUKA' }))).message).toContain('jadwal');
   ctx.scheduled.add(row.id);
-  expect((await ctx.request(path, 'PATCH', { status: 'DIBUKA' })).status).toBe(409);
-  expect(row.status).toBe('DRAFT');
+  expect((await ctx.request(path, 'PATCH', { status: 'DIBUKA' })).status).toBe(200);
+  expect(row.status).toBe('DIBUKA');
 });
 test('Kelas preserves selections, approved capacity, room capacity and cancellation safety', async () => {
   const ctx = setup(); const row = await ctx.kelas(); const other = await ctx.term(2027); ctx.selections.add(row.id); ctx.enrollments.set(row.id, 25);
@@ -166,18 +174,18 @@ test('Kelas Dosen API list/add, duplicate, inactive, missing, coordinator unique
   expect((await ctx.request(path + '/' + b.id, 'DELETE')).status).toBe(200);
   expect(ctx.lecturers).toHaveLength(2);
 });
-test('Kelas Dosen scopes assignment IDs, protects opened class and guards scheduled additions', async () => {
+test('Kelas Dosen scopes assignment IDs, protects opened class and validates scheduled additions', async () => {
   const ctx = setup(); const row = await ctx.kelas(); const other = await ctx.services.kelasKuliah.create(ctx.classBody(row.semesterId, 'B'));
   const a = await ctx.services.kelasDosen.add(row.id, { dosen_id: ctx.lecturers[0]!.id });
   for (const method of ['PATCH', 'DELETE']) expect((await ctx.request(`/kelas-kuliah/${other.id}/dosen/${a.id}`, method, method === 'PATCH' ? { is_koordinator: true } : undefined)).status).toBe(404);
   row.status = 'DIBUKA'; ctx.scheduled.add(row.id);
   expect((await ctx.request(`/kelas-kuliah/${row.id}/dosen/${a.id}`, 'DELETE')).status).toBe(409);
-  expect((await ctx.request(`/kelas-kuliah/${row.id}/dosen`, 'POST', { dosen_id: ctx.lecturers[1]!.id })).status).toBe(409);
+  expect((await ctx.request(`/kelas-kuliah/${row.id}/dosen`, 'POST', { dosen_id: ctx.lecturers[1]!.id })).status).toBe(201);
   expect((await ctx.request(`/kelas-kuliah/${row.id}/dosen/${a.id}`, 'PATCH', { is_koordinator: true })).status).toBe(200);
 });
 for (const role of ['ADMIN', 'AKADEMIK', 'DOSEN', 'MAHASISWA'] as const) test('offering routes enforce role ' + role, async () => {
   const ctx = setup(role); const row = await ctx.kelas(); const a = await ctx.services.kelasDosen.add(row.id, { dosen_id: ctx.lecturers[0]!.id }); const allowed = ['ADMIN', 'AKADEMIK'].includes(role);
-  const routes = [ ['/semester', 'GET'], ['/semester/' + row.semesterId, 'GET'], ['/semester', 'POST', termBody(2027)], ['/semester/' + row.semesterId, 'PATCH', { is_active: true }], ['/kelas-kuliah', 'GET'], ['/kelas-kuliah/' + row.id, 'GET'], ['/kelas-kuliah', 'POST', ctx.classBody(row.semesterId, 'B')], ['/kelas-kuliah/' + row.id, 'PATCH', { kapasitas: 20 }], [`/kelas-kuliah/${row.id}/dosen`, 'GET'], [`/kelas-kuliah/${row.id}/dosen`, 'POST', { dosen_id: ctx.lecturers[1]!.id }], [`/kelas-kuliah/${row.id}/dosen/${a.id}`, 'PATCH', { is_koordinator: true }], [`/kelas-kuliah/${row.id}/dosen/${a.id}`, 'DELETE'] ] as const;
+  const routes = [ ['/semester', 'GET'], ['/semester/' + row.semesterId, 'GET'], ['/semester', 'POST', termBody(2027)], ['/semester/' + row.semesterId, 'PATCH', { is_active: true }], ['/kelas-kuliah', 'GET'], ['/kelas-kuliah/' + row.id, 'GET'], ['/kelas-kuliah', 'POST', ctx.classBody(row.semesterId, 'B')], ['/kelas-kuliah/' + row.id, 'PATCH', { kapasitas: 20 }], ['/kelas-kuliah/' + row.id, 'PATCH', { status: 'DITUTUP' }], [`/kelas-kuliah/${row.id}/dosen`, 'GET'], [`/kelas-kuliah/${row.id}/dosen`, 'POST', { dosen_id: ctx.lecturers[1]!.id }], [`/kelas-kuliah/${row.id}/dosen/${a.id}`, 'PATCH', { is_koordinator: true }], [`/kelas-kuliah/${row.id}/dosen/${a.id}`, 'DELETE'] ] as const;
   for (const [path, method, body] of routes) expect((await ctx.request(path, method, body)).status).toBe(allowed ? method === 'POST' ? 201 : 200 : 403);
 });
 test('offering routes enforce sessions, origin, validation, no hard deletes and scoped missing IDs', async () => {

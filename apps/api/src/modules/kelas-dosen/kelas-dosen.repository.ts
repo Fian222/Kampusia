@@ -1,3 +1,4 @@
+import { schedulingRepository } from '../jadwal/jadwal.repository';
 import type { createDatabase } from '@kampusia/db';
 import { kelasKuliah, kelasDosen, dosen, jadwalKuliah } from '@kampusia/db/schema';
 import { and, asc, count, eq, getTableColumns, ilike, or } from 'drizzle-orm';
@@ -8,6 +9,7 @@ type Database = ReturnType<typeof createDatabase>['db'];
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
 function transactionRepository(tx: Transaction) {
   return {
+    scheduling: schedulingRepository(tx),
     async lockClass(id: string) { return (await tx.select().from(kelasKuliah).where(eq(kelasKuliah.id, id)).for('update'))[0]; },
     async lockDosen(id: string) { return (await tx.select().from(dosen).where(eq(dosen.id, id)).for('share'))[0]; },
     assignments: (id: string) => classAssignments(tx, [id]),

@@ -1,3 +1,4 @@
+import { schedulingRepository } from '../jadwal/jadwal.repository';
 import type { createDatabase } from '@kampusia/db';
 import { kelasKuliah, semester, mataKuliah, programStudi, kurikulum, kurikulumMatkul, kelasDosen, dosen, jadwalKuliah, ruangan, krsDetail, krs } from '@kampusia/db/schema';
 import { and, asc, count, eq, getTableColumns, ilike, inArray, or } from 'drizzle-orm';
@@ -16,6 +17,7 @@ export async function classAssignments(tx: Pick<Database, 'select'>, ids: string
 }
 function transactionRepository(tx: Transaction) {
   return {
+    scheduling: schedulingRepository(tx),
     async findById(id: string) { return (await tx.select().from(kelasKuliah).where(eq(kelasKuliah.id, id)).for('update'))[0]; },
     async lockSemester(id: string) { return (await tx.select().from(semester).where(eq(semester.id, id)).for('share'))[0]; },
     async lockProgram(id: string) { return (await tx.select().from(programStudi).where(eq(programStudi.id, id)).for('share'))[0]; },

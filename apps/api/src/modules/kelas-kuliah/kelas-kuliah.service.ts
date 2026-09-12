@@ -1,3 +1,4 @@
+import { validateClassSchedules } from '../jadwal/jadwal.service';
 import { MasterDataError, normalizeText, requirePatch } from '../../utils/master-data';
 import { academicWrite } from '../../utils/academic-write';
 import type { KelasKuliahInput } from './kelas-kuliah.model';
@@ -16,13 +17,13 @@ async function validateReferences(tx: Tx, row: { semesterId: string; mataKuliahI
   const course = await tx.lockCourse(row.mataKuliahId);
   if (!course?.isActive) throw new MasterDataError(400, 'Mata kuliah harus tersedia dan aktif.');
 }
-// Future Jadwal service must supply full occurrence/resource/student validation
-// within this same serializable transaction before this guard can be removed.
-async function validateOpening(tx: Tx, row: { id?: string; mataKuliahId: string; programStudiId: string }) {
+async function validateOpening(tx: Tx, row: { id?: string; mataKuliahId: string; programStudiId: string; kapasitas: number }) {
   if (!await tx.hasCurriculum(row.mataKuliahId, row.programStudiId)) throw new MasterDataError(400, 'Mata kuliah belum termasuk kurikulum program studi penawar.');
   if (!row.id || !(await tx.assignments(row.id)).some(item => item.dosen.isActive)) throw new MasterDataError(400, 'Kelas DIBUKA membutuhkan setidaknya satu dosen aktif.');
   if (!(await tx.schedules(row.id)).length) throw new MasterDataError(400, 'Kelas belum memiliki jadwal. Konfigurasikan Jadwal sebelum membuka kelas.');
-  throw new MasterDataError(409, 'Pembukaan kelas menunggu validasi konflik oleh modul Jadwal.');
+  const kelas = await tx.scheduling.lockClass(row.id);
+  if (!kelas) throw new MasterDataError(404, 'Kelas kuliah tidak ditemukan.');
+  await validateClassSchedules(tx.scheduling, { ...kelas, kapasitas: row.kapasitas, status: 'DIBUKA' });
 }
 export function createKelasKuliahService(repository: KelasKuliahRepository) {
   return {
@@ -46,7 +47,7 @@ export function createKelasKuliahService(repository: KelasKuliahRepository) {
         if (next.kapasitas < existing.kapasitas && next.kapasitas < await tx.enrollmentCount(id)) throw new MasterDataError(409, 'Kapasitas tidak boleh kurang dari jumlah mahasiswa pada KRS disetujui yang aktif.');
         if (next.kapasitas !== existing.kapasitas && schedules.some(slot => slot.roomCapacity < next.kapasitas)) throw new MasterDataError(409, 'Kapasitas kelas melebihi kapasitas ruangan pada jadwal.');
         if (next.status === 'DIBATALKAN' && existing.status !== 'DIBATALKAN' && await tx.hasActiveDetails(id)) throw new MasterDataError(409, 'Pembatalan kelas dengan pilihan aktif memerlukan alur pembatalan KRS.');
-        if (existing.status === 'DIBATALKAN' && next.status !== 'DIBATALKAN' && schedules.length) throw new MasterDataError(409, 'Pengaktifan kembali kelas terjadwal menunggu validasi konflik Jadwal.');
+        if (existing.status === 'DIBATALKAN' && next.status !== 'DIBATALKAN' && schedules.length) await validateClassSchedules(tx.scheduling, next);
         if (next.status === 'DIBUKA' && (existing.status !== 'DIBUKA' || identityChanged)) await validateOpening(tx, next);
         return tx.update(id, changes);
       }));

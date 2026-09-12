@@ -169,7 +169,7 @@ Historical safeguards:
 - Offering history for a member course in the curriculum's program also blocks curriculum identity changes and removal of that membership. The initial model does not track which curriculum justified an offering, so removal conservatively retains membership even if another curriculum contains the same course.
 - New membership requires an active curriculum and an active course. Existing inactive courses remain visible and retain references.
 
-Writes check references/history inside transactions. Curriculum mutations and membership writes lock the parent curriculum against student assignment (which already takes a shared curriculum lock). Membership addition locks the course against concurrent identity changes or deactivation. Program references use shared locks against deactivation. Course updates lock the course before inspecting references. List data/count queries share a repeatable-read snapshot. Future offering services must coordinate their curriculum eligibility reads with these curriculum locks; no offering workflow is implemented here.
+Writes check references/history inside transactions. Curriculum mutations and membership writes lock the parent curriculum against student assignment (which already takes a shared curriculum lock). Membership addition locks the course against concurrent identity changes or deactivation. Program references use shared locks against deactivation. Course updates lock the course before inspecting references. List data/count queries share a repeatable-read snapshot. Offering services coordinate curriculum eligibility reads with these curriculum locks.
 
 Verification:
 
@@ -215,8 +215,8 @@ Class and lecturer rules:
 - New offerings require an existing semester and active program/course. Class labels are trimmed/uppercased, capacity is a positive PostgreSQL integer, and the documented four-part class identity is unique. DRAFT is the default. Curriculum membership is an opening requirement, so an otherwise valid DRAFT can be prepared before membership exists.
 - Semester/course/program changes are rejected after any KRS selection, including cancelled selections, or when a schedule exists. Capacity cannot be reduced below approved active enrollment count or increased beyond an assigned room's capacity.
 - DITUTUP retains enrollments. Cancelling a class with active details is rejected until a KRS cancellation workflow can cancel those details transactionally. A cancelled scheduled class cannot be restored without schedule conflict validation. No class DELETE endpoint exists.
-- Opening checks program/course availability, offering-program curriculum membership, and an active lecturer. It rejects missing schedules. Even preexisting schedules cannot authorize a new DIBUKA transition until the future Jadwal module supplies complete conflict validation. Existing seeded DIBUKA classes remain readable/editable for safe changes.
-- Adding lecturers to scheduled classes is also guarded until Jadwal conflict validation exists. Coordinator-only edits are safe because they do not change participating lecturers or slots. Removing a lecturer releases their reserved time and preserves at least one active lecturer on an opened class.
+- Opening checks program/course availability, offering-program curriculum membership, an active lecturer, and at least one valid, conflict-free schedule. The Jadwal validator runs within the existing class transaction, including when restoring a cancelled class. Existing seeded DIBUKA classes remain readable/editable for safe changes.
+- Adding lecturers to scheduled classes revalidates schedules with the proposed lecturer in the same transaction. Coordinator-only edits are safe because they do not change participating lecturers or slots. Removing a lecturer releases their reserved time and preserves at least one active lecturer on an opened class.
 - Lecturer assignments require an active lecturer and reject duplicates. Homebase does not limit teaching programs. At most one coordinator is allowed, and no coordinator is required. To change coordinators, clear the previous flag before assigning the new one; each operation locks the class. Assignment IDs are always scoped to the parent class.
 - Class/assignment writes use SERIALIZABLE transactions with bounded retries and lock the parent class. Program/course/semester references use shared locks. Opening eligibility takes shared curriculum locks compatible with existing membership/history guards. Future Jadwal/KRS operations must participate in the documented class-lock and serializable transaction protocols.
 
@@ -232,4 +232,40 @@ RUN_OFFERING_E2E=1 bun --env-file=packages/db/.env test apps/web/src/lib/server/
 
 The 16 isolated API/service tests cover CRUD, filtering/pagination, duplicates, validation, active-term replacement/rollback, history, opening safeguards, lecturer/coordinator rules, authorization, and bounded transaction retries. The PostgreSQL integration test exercises real repositories, constraints, and academic-history fixtures; all fixtures and active-semester changes roll back. The rendered-page test requires running API/frontend servers and the existing development seed, and submits only invalid/rejected forms. `OFFERING_WEB_ORIGIN` selects a different local frontend port. Browser interaction automation is not included.
 
-No schemas, migrations, or development seed records are changed. Jadwal, KRS workflows, attendance, and grading remain outside this increment.
+No schemas, migrations, or development seed records are changed. KRS workflows, attendance, and grading remain outside this increment.
+
+
+## Jadwal Kuliah and Ruangan
+
+ADMIN and AKADEMIK manage schedules on `/akademik/kelas-kuliah/:id` and rooms on `/akademik/ruangan`. Both roles have a Ruangan sidebar link. The class detail includes weekday, local start/end times, room, building, add/edit forms, removal confirmation, and a confirmed status-change form. Paginated room searches provide room choices; the current room remains visible when outside the selector page. Failed forms preserve input and display API validation messages. All requests use Eden Treaty and the existing server-side role/session/origin checks.
+
+Endpoints:
+
+- `GET /kelas-kuliah/:id/jadwal`, `POST /kelas-kuliah/:id/jadwal`.
+- `PATCH /kelas-kuliah/:id/jadwal/:jadwalId`, `DELETE /kelas-kuliah/:id/jadwal/:jadwalId`.
+- `GET /ruangan`, `GET /ruangan/:id`, `POST /ruangan`, `PATCH /ruangan/:id`.
+- Class status continues to use `PATCH /kelas-kuliah/:id`; there is no separate status implementation.
+
+Schedule bodies use `ruangan_id`, `hari` (1 = Monday through 7 = Sunday), `jam_mulai`, and `jam_selesai`. The class comes from the path. PATCH accepts individual fields and rejects empty changes. Times accept `HH:mm` or `HH:mm:ss` with optional fractional seconds (up to six digits), in Asia/Jakarta. The start must precede the end within the same day. A slot must occur at least once within the class's semester dates. Rooms must exist, be active, and accommodate the class capacity. Schedule IDs are always scoped to their parent class. Lists accept `page` and `limit` (maximum 100), with weekday/time ordering and a repeatable-read data/count snapshot.
+
+Conflict validation requires the same weekday, an actual shared occurrence within the intersection of semester date ranges, and strict interval overlap. Adjacent slots are valid. DRAFT, DIBUKA, and DITUTUP reserve resources; DIBATALKAN does not. Conflicts cover the room, the class itself, every assigned lecturer, and other classes of students with approved active KRS selections. Semester and lecturer information are derived through the class. Restoring a cancelled class checks its own retained slots as well as other classes. Adding lecturers to scheduled classes now validates the proposed assignment instead of blocking all additions.
+
+Schedule writes, lecturer assignments, class opening/restoration, and room changes use SERIALIZABLE transactions with at most three total attempts for serialization/deadlock failures. All conflict reads run inside the transaction. Schedule/assignment writes lock the parent class; scheduling reads take shared locks on its semester and room. Room updates lock the room before checking schedules. Existing semester-history guards continue to reject date changes when schedules exist. Existing class-capacity and enrollment-history guards remain authoritative.
+
+Room requests use `kode`, `nama`, optional nullable `gedung`, positive integer `kapasitas`, and optional `is_active` (default true). Codes are trimmed, uppercased, and unique. Lists support literal case-insensitive code/name search, `is_active=true|false`, and pagination. PATCH handles activation/deactivation; no hard-delete endpoint exists. Capacity reductions must accommodate every referenced class, including historical schedules. Deactivation requires resolving all current/future occurrences on noncancelled classes; campus-local date/time determines those occurrences. Past and cancelled schedules retain their references.
+
+Opening a class now succeeds after active program/course, offering-program curriculum membership, active lecturer, and valid conflict-free schedule checks pass. Missing prerequisites produce specific messages. DITUTUP preserves enrollments. Cancellation with active KRS details remains rejected until the KRS cancellation workflow exists. Removing the last schedule of an opened class is rejected, and schedule deletion is conservatively prohibited for a class with retained KRS approval history. Schedule edits remain possible after validation against approved students' other classes.
+
+Verification:
+
+```sh
+bun test
+bun run check
+bun run build
+RUN_SCHEDULING_DB_TESTS=1 bun --env-file=packages/db/.env test apps/api/src/modules/scheduling.integration.test.ts
+RUN_SCHEDULING_E2E=1 bun --env-file=packages/db/.env test apps/web/src/lib/server/scheduling-flow.test.ts
+```
+
+The 22 isolated scheduling tests cover CRUD, scoping, validation, resource/student conflicts, weekday boundaries, cross-semester overlaps, adjacency, cancelled-class restoration, room safety/history, role/session/origin checks, and bounded retries. Existing opening/lecturer tests now exercise the completed behavior. PostgreSQL integration covers real queries, opening, invalid schedules, assignment conflicts, approved student plans, room safety, rollback, and forced concurrent room/lecturer schedule races. The race test uses independent transactions and precisely removes its own committed fixture IDs in `finally`; other fixtures roll back. Rendered-page tests require the development seed and running servers, submit only invalid/unconfirmed changes, and support `SCHEDULING_WEB_ORIGIN` for an alternate local port. Browser interaction automation is not included.
+
+No database schemas, migrations, or seed records are changed. KRS workflows, attendance, grades, and production deployment configuration remain outside this task.

@@ -1,0 +1,47 @@
+<script lang="ts">
+  import { enhance } from '$app/forms';
+  import { page } from '$app/state';
+  import Pagination from '$lib/components/Pagination.svelte';
+  import AcademicFields from '$lib/components/AcademicFields.svelte';
+  import StatusBadge from '$lib/components/StatusBadge.svelte';
+  import type { PageProps } from './$types';
+  let { data, form }: PageProps = $props();
+  let saving = $state(false);
+  const box = 'mt-6 rounded-xl border border-slate-200 bg-white p-5';
+  const input = 'mt-1 w-full rounded-lg border border-slate-300 px-3 py-2';
+  const button = 'rounded-lg bg-teal-700 px-4 py-2 text-sm text-white disabled:opacity-50';
+  function href(changes: Record<string, string | number>) { const p = new URLSearchParams(page.url.searchParams); for (const [key, value] of Object.entries(changes)) { if (value === '') p.delete(key); else p.set(key, String(value)); } return '?' + p; }
+  const submit = () => { saving = true; return async ({ update }: { update: (options: { reset: boolean }) => Promise<void> }) => { try { await update({ reset: false }); } finally { saving = false; } }; };
+</script>
+<svelte:head><title>Ruangan · Kampusia</title></svelte:head>
+<h1 class="text-3xl font-semibold">Ruangan</h1>
+<p class="mt-2 text-sm text-slate-600">Kelola ruang kuliah dan kapasitas. Pindahkan jadwal saat ini/mendatang sebelum menonaktifkan ruangan; riwayat tetap tersimpan.</p>
+{#if form?.message}<p class={box} role={form.saved ? 'status' : 'alert'}>{form.message}</p>{/if}
+<form method="GET" class={box + ' grid gap-4 sm:grid-cols-3'}>
+  <label class="text-sm">Cari kode atau nama<input class={input} name="search" value={data.filters.search} maxlength="150" /></label>
+  <label class="text-sm">Status<select class={input} name="is_active" value={data.filters.is_active ?? ''}><option value="">Semua</option><option value="true">Aktif</option><option value="false">Nonaktif</option></select></label>
+  <div class="self-end"><button class={button}>Terapkan</button> <a href={page.url.pathname}>Reset</a></div>
+</form>
+<section class={box}>
+  <div class="flex justify-between"><h2 class="font-semibold">Daftar Ruangan</h2><a class="text-teal-800" href={href({ edit: '' }) + '#ruangan-form'}>Tambah Ruangan</a></div>
+  <div class="mt-4 overflow-x-auto"><table class="w-full text-left text-sm">
+    <thead class="border-b text-slate-500"><tr>{#each ['Kode', 'Nama', 'Gedung', 'Kapasitas', 'Status', 'Tindakan'] as label}<th class="p-3">{label}</th>{/each}</tr></thead>
+    <tbody>{#each data.records.data as row}<tr class="border-b border-slate-100">
+      <td class="p-3">{row.kode}</td><td class="p-3">{row.nama}</td><td class="p-3">{row.gedung ?? '—'}</td><td class="p-3">{row.kapasitas}</td><td class="p-3"><StatusBadge active={row.isActive} /></td>
+      <td class="p-3"><a class="text-teal-800" href={href({ edit: row.id }) + '#ruangan-form'}>Edit</a>
+        <details class="mt-2"><summary class="cursor-pointer text-teal-800">{row.isActive ? 'Nonaktifkan' : 'Aktifkan'}</summary><p class="my-2">Ubah status ruangan {row.nama}?</p><form method="POST" use:enhance={submit}><input type="hidden" name="mode" value="status" /><input type="hidden" name="id" value={row.id} /><input type="hidden" name="is_active" value={String(!row.isActive)} /><input type="hidden" name="confirm" value="yes" /><button class={button} disabled={saving}>Ya, ubah status</button></form></details>
+      </td></tr>{:else}<tr><td colspan="6" class="p-8 text-center text-slate-500">Tidak ada ruangan yang cocok.</td></tr>{/each}</tbody>
+  </table></div><Pagination {...data.records.meta} href={number => href({ page: number })} />
+</section>
+<section id="ruangan-form" class={box}><h2 class="font-semibold">{data.edit ? 'Edit' : 'Tambah'} Ruangan</h2>
+  {#key data.edit?.id + JSON.stringify(form)}
+  <form method="POST" class="mt-4 grid gap-4 sm:grid-cols-2" use:enhance={submit}>
+    <input type="hidden" name="mode" value="save" /><input type="hidden" name="id" value={data.edit?.id ?? ''} />
+    <AcademicFields values={form?.values?.mode === 'save' ? form.values : {}} fields={[
+      { name: 'kode', label: 'Kode', value: data.edit?.kode, maxlength: 30 }, { name: 'nama', label: 'Nama', value: data.edit?.nama, maxlength: 100 },
+      { name: 'kapasitas', label: 'Kapasitas', type: 'number', min: 1, max: 2147483647, value: data.edit?.kapasitas },
+    ]} />
+    <label class="text-sm font-medium">Gedung (opsional)<input class={input} name="gedung" maxlength="100" value={form?.values?.mode === 'save' ? form.values.gedung : data.edit?.gedung ?? ''} /></label>
+    <div><button class={button} disabled={saving}>{saving ? 'Menyimpan…' : 'Simpan'}</button> {#if data.edit}<a href={href({ edit: '' })}>Batal edit</a>{/if}</div>
+  </form>{/key}
+</section>
