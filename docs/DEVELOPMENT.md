@@ -143,3 +143,49 @@ Remove-Item Env:NODE_ENV
 ```
 
 The live test runs the seed twice, compares fingerprints of all 15 tables (including UUIDs, timestamps, and stored password hashes), verifies the password, checks curriculum integrity and validated foreign keys, and checks the expected enrollment counts. It is intended for this unmodified demo fixture. It does not delete or reset data.
+
+## Mata Kuliah and Kurikulum master data
+
+ADMIN and AKADEMIK share `/akademik/mata-kuliah`, `/akademik/kurikulum`, and `/akademik/kurikulum/:id`. Both sidebars link to the catalog pages. The detail page manages curriculum course membership, recommended semester, and Wajib/Pilihan. Lists and program/course selectors use server-side pagination and search through Eden Treaty. Status changes and membership removal require confirmation in the UI; backend validation remains authoritative.
+
+The API exposes:
+
+- `GET /mata-kuliah`, `GET /mata-kuliah/:id`, `POST /mata-kuliah`, `PATCH /mata-kuliah/:id`.
+- `GET /kurikulum`, `GET /kurikulum/:id`, `POST /kurikulum`, `PATCH /kurikulum/:id`.
+- `GET /kurikulum/:id/mata-kuliah`, `POST /kurikulum/:id/mata-kuliah`.
+- `PATCH /kurikulum/:id/mata-kuliah/:membershipId`, `DELETE /kurikulum/:id/mata-kuliah/:membershipId`.
+
+All endpoints require an active ADMIN/AKADEMIK account. Writes require the configured web origin. There are no course or curriculum DELETE endpoints. List queries accept `page`, `limit` (maximum 100), literal case-insensitive code/name `search`, and `is_active`. Curriculum lists additionally accept `program_studi_id` and `tahun_berlaku`; membership lists apply search/status to the related course. Curriculum responses include compact Program Studi information; membership responses join catalog code, name, and SKS without duplicating stored data.
+
+Course creation requires `kode`, `nama`, and `sks`; curriculum creation requires `kode`, `nama`, `program_studi_id`, and `tahun_berlaku`. Optional `is_active` defaults to true. Codes are trimmed and uppercased; names are trimmed and must be nonblank. SKS is an integer from 1 to 32767 (the positive PostgreSQL smallint range). Curriculum years range from 1900 to 9999. Codes are unique globally for courses and within a program for curricula. PATCH accepts individual fields and rejects empty changes.
+
+Membership creation requires `mata_kuliah_id`; optional `semester_rekomendasi` defaults to null (unspecified) and `is_wajib` defaults to true. Recommendations must be null or integers from 1 to 32767. PATCH allows only recommendation and Wajib/Pilihan changes, not reassignment to another course. A membership ID is always scoped to its curriculum. Duplicate membership returns 409.
+
+Historical safeguards:
+
+- Course code, name, and SKS cannot change while any curriculum membership or offering references the course. This deliberately protects even unassigned curriculum setup; correct an unused setup by safely removing its memberships first, or create a distinct catalog version. Status and unchanged normalized identity fields remain writable.
+- New curricula and changed program assignments require an active program. Reactivation also requires an active program; unchanged inactive historical assignments can still be edited or deactivated.
+- Any assigned student, including LULUS or NONAKTIF, freezes curriculum identity, membership additions/removals, and requirement changes. Use a new curriculum version for substantive changes. Deactivation retains students and memberships, and multiple versions may remain active.
+- Offering history for a member course in the curriculum's program also blocks curriculum identity changes and removal of that membership. The initial model does not track which curriculum justified an offering, so removal conservatively retains membership even if another curriculum contains the same course.
+- New membership requires an active curriculum and an active course. Existing inactive courses remain visible and retain references.
+
+Writes check references/history inside transactions. Curriculum mutations and membership writes lock the parent curriculum against student assignment (which already takes a shared curriculum lock). Membership addition locks the course against concurrent identity changes or deactivation. Program references use shared locks against deactivation. Course updates lock the course before inspecting references. List data/count queries share a repeatable-read snapshot. Future offering services must coordinate their curriculum eligibility reads with these curriculum locks; no offering workflow is implemented here.
+
+Verification:
+
+```sh
+bun test
+bun run check
+bun run build
+RUN_CATALOG_DB_TESTS=1 bun --env-file=packages/db/.env test apps/api/src/modules/course-catalog.integration.test.ts
+```
+
+The 17 isolated API tests cover CRUD/status behavior, validation, duplicates, pagination/filtering, authorization/origin/session checks, curriculum-scoped membership IDs, and historical restrictions. The opt-in PostgreSQL test exercises real repositories and constraints with temporary fixtures, including an assigned graduated student and an offering, and rolls back every fixture.
+
+With the API and frontend running against the existing development seed:
+
+```sh
+RUN_CATALOG_E2E=1 bun --env-file=packages/db/.env test apps/web/src/lib/server/course-catalog-flow.test.ts
+```
+
+`CATALOG_WEB_ORIGIN` can select another local web port. This test verifies server-rendered lists, edit forms, curriculum details, search, form validation, and cross-origin rejection without changing academic records. Browser interaction automation is not included. No schema, migrations, or seed data changes are required.

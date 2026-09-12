@@ -8,5 +8,5 @@ export const roleAreas = {
 } as const satisfies Record<Role, { path: string; label: string; area: string }>;
 export const sessionCookie = 'kampusia_session';
 export function isMasterDataPath(path: string) {
-  return ['/akademik/fakultas', '/akademik/program-studi'].includes(path.replace(/\/$/, ''));
+  return ['/akademik/fakultas', '/akademik/program-studi', '/akademik/mata-kuliah', '/akademik/kurikulum'].includes(path.replace(/\/$/, '')) || /^\/akademik\/kurikulum\/[^/]+\/?$/.test(path);
 }

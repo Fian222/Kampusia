@@ -1,3 +1,9 @@
+import { kurikulumMatkulRoutes } from './modules/kurikulum-matkul/kurikulum-matkul.route';
+import type { KurikulumMatkulService } from './modules/kurikulum-matkul/kurikulum-matkul.service';
+import { kurikulumRoutes } from './modules/kurikulum/kurikulum.route';
+import type { KurikulumService } from './modules/kurikulum/kurikulum.service';
+import { mataKuliahRoutes } from './modules/mata-kuliah/mata-kuliah.route';
+import type { MataKuliahService } from './modules/mata-kuliah/mata-kuliah.service';
 import { Elysia, t } from 'elysia';
 import { authorization, requireRole } from './middleware/authorization';
 import { areaRoles, AuthError } from './modules/auth/auth.model';
@@ -13,7 +19,7 @@ import { dosenRoutes } from './modules/dosen/dosen.route';
 import type { MahasiswaService } from './modules/mahasiswa/mahasiswa.service';
 import type { DosenService } from './modules/dosen/dosen.service';
 
-export function createApp(auth: AuthService, options: { webOrigin: string; production: boolean }, academic?: { fakultas?: FakultasService; programStudi?: ProgramStudiService; mahasiswa?: MahasiswaService; dosen?: DosenService }) {
+export function createApp(auth: AuthService, options: { webOrigin: string; production: boolean }, academic?: { kurikulumMatkul?: KurikulumMatkulService; kurikulum?: KurikulumService; mataKuliah?: MataKuliahService; fakultas?: FakultasService; programStudi?: ProgramStudiService; mahasiswa?: MahasiswaService; dosen?: DosenService }) {
   return new Elysia()
     .onRequest(({ set }) => { set.headers['cache-control'] = 'no-store'; })
     .onError(({ code, error, set }) => {
@@ -38,6 +44,9 @@ export function createApp(auth: AuthService, options: { webOrigin: string; produ
     .use(programStudiRoutes(auth, options.webOrigin, academic?.programStudi))
     .use(mahasiswaRoutes(auth, options.webOrigin, academic?.mahasiswa))
     .use(dosenRoutes(auth, options.webOrigin, academic?.dosen))
+    .use(mataKuliahRoutes(auth, options.webOrigin, academic?.mataKuliah))
+    .use(kurikulumRoutes(auth, options.webOrigin, academic?.kurikulum))
+    .use(kurikulumMatkulRoutes(auth, options.webOrigin, academic?.kurikulumMatkul))
     .group('/dashboard', app => app.use(authorization(auth))
       .get('/:area', ({ user, params }) => {
         requireRole(user, [areaRoles[params.area]]);

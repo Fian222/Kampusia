@@ -1,3 +1,9 @@
+import { createKurikulumMatkulRepository } from './modules/kurikulum-matkul/kurikulum-matkul.repository';
+import { createKurikulumMatkulService } from './modules/kurikulum-matkul/kurikulum-matkul.service';
+import { createKurikulumRepository } from './modules/kurikulum/kurikulum.repository';
+import { createKurikulumService } from './modules/kurikulum/kurikulum.service';
+import { createMataKuliahRepository } from './modules/mata-kuliah/mata-kuliah.repository';
+import { createMataKuliahService } from './modules/mata-kuliah/mata-kuliah.service';
 import { createDatabase } from '@kampusia/db';
 import { createApp } from './app';
 import { createAuthRepository } from './modules/auth/auth.repository';
@@ -22,6 +28,9 @@ const webOrigin = new URL(Bun.env.WEB_URL ?? 'http://localhost:5173').origin;
 if (production && !webOrigin.startsWith('https://')) throw new Error('Production WEB_URL must use HTTPS.');
 const { db, client } = createDatabase(Bun.env.DATABASE_URL ?? '');
 const app = createApp(createAuthService(createAuthRepository(db)), { webOrigin, production }, {
+  mataKuliah: createMataKuliahService(createMataKuliahRepository(db)),
+  kurikulum: createKurikulumService(createKurikulumRepository(db)),
+  kurikulumMatkul: createKurikulumMatkulService(createKurikulumMatkulRepository(db)),
   fakultas: createFakultasService(createFakultasRepository(db)),
   programStudi: createProgramStudiService(createProgramStudiRepository(db)),
   mahasiswa: createMahasiswaService(createMahasiswaRepository(db)),
