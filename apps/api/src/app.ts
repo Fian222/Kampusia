@@ -1,3 +1,5 @@
+import { krsRoutes } from './modules/krs/krs.route';
+import type { KrsService } from './modules/krs/krs.service';
 import { jadwalRoutes } from './modules/jadwal/jadwal.route';
 import type { JadwalService } from './modules/jadwal/jadwal.service';
 import { ruanganRoutes } from './modules/ruangan/ruangan.route';
@@ -29,7 +31,7 @@ import { dosenRoutes } from './modules/dosen/dosen.route';
 import type { MahasiswaService } from './modules/mahasiswa/mahasiswa.service';
 import type { DosenService } from './modules/dosen/dosen.service';
 
-export function createApp(auth: AuthService, options: { webOrigin: string; production: boolean }, academic?: { jadwal?: JadwalService; ruangan?: RuanganService; kelasDosen?: KelasDosenService; kelasKuliah?: KelasKuliahService; semester?: SemesterService; kurikulumMatkul?: KurikulumMatkulService; kurikulum?: KurikulumService; mataKuliah?: MataKuliahService; fakultas?: FakultasService; programStudi?: ProgramStudiService; mahasiswa?: MahasiswaService; dosen?: DosenService }) {
+export function createApp(auth: AuthService, options: { webOrigin: string; production: boolean }, academic?: { krs?: KrsService; jadwal?: JadwalService; ruangan?: RuanganService; kelasDosen?: KelasDosenService; kelasKuliah?: KelasKuliahService; semester?: SemesterService; kurikulumMatkul?: KurikulumMatkulService; kurikulum?: KurikulumService; mataKuliah?: MataKuliahService; fakultas?: FakultasService; programStudi?: ProgramStudiService; mahasiswa?: MahasiswaService; dosen?: DosenService }) {
   return new Elysia()
     .onRequest(({ set }) => { set.headers['cache-control'] = 'no-store'; })
     .onError(({ code, error, set }) => {
@@ -50,6 +52,7 @@ export function createApp(auth: AuthService, options: { webOrigin: string; produ
       return { success: false as const, message: 'Terjadi kesalahan pada server. Silakan coba lagi.' };
     })
     .use(authRoutes(auth, options))
+    .use(krsRoutes(auth, options.webOrigin, academic?.krs))
     .use(jadwalRoutes(auth, options.webOrigin, academic?.jadwal))
     .use(ruanganRoutes(auth, options.webOrigin, academic?.ruangan))
     .use(kelasDosenRoutes(auth, options.webOrigin, academic?.kelasDosen))

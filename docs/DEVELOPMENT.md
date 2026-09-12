@@ -269,3 +269,51 @@ RUN_SCHEDULING_E2E=1 bun --env-file=packages/db/.env test apps/web/src/lib/serve
 The 22 isolated scheduling tests cover CRUD, scoping, validation, resource/student conflicts, weekday boundaries, cross-semester overlaps, adjacency, cancelled-class restoration, room safety/history, role/session/origin checks, and bounded retries. Existing opening/lecturer tests now exercise the completed behavior. PostgreSQL integration covers real queries, opening, invalid schedules, assignment conflicts, approved student plans, room safety, rollback, and forced concurrent room/lecturer schedule races. The race test uses independent transactions and precisely removes its own committed fixture IDs in `finally`; other fixtures roll back. Rendered-page tests require the development seed and running servers, submit only invalid/unconfirmed changes, and support `SCHEDULING_WEB_ORIGIN` for an alternate local port. Browser interaction automation is not included.
 
 No database schemas, migrations, or seed records are changed. KRS workflows, attendance, grades, and production deployment configuration remain outside this task.
+
+## KRS
+
+Students use `/mahasiswa/krs`; ADMIN and AKADEMIK share `/akademik/krs` and `/akademik/krs/:id`. The sidebar links to the appropriate area. Student accounts must already be linked to their academic profiles; the development seed deliberately does not provision student logins.
+
+Set `KRS_INITIAL_BATAS_SKS` in `apps/api/.env` to the authorized initial credit limit, for example `18` for the development policy. This server setting is required only when creating a new plan. Existing plans retain `krs.batas_sks`, and neither student request bodies nor subsequent configuration changes overwrite it. Missing/invalid configuration returns a clear service-unavailable message for new plans. There is no IP-based calculation or limit-edit endpoint in this increment.
+
+Student endpoints (authenticated MAHASISWA):
+
+- `GET /mahasiswa/me/krs`: paginated own history plus the explicitly configured active semester.
+- `GET /mahasiswa/me/krs/:semesterId`: semester information and own KRS, or `krs: null` when none exists.
+- `POST /mahasiswa/me/krs/:semesterId`: create/get DRAFT; other existing states require their documented transitions and cannot be recreated.
+- `GET /mahasiswa/me/krs/:semesterId/kelas`: paginated eligible class search, excluding already selected courses.
+- `POST /mahasiswa/me/krs/:krsId/kelas`: add a selection with `{ "kelas_kuliah_id": "UUID" }`.
+- `DELETE /mahasiswa/me/krs/:krsId/kelas/:detailId`: cancel a DRAFT selection, retaining its row.
+- `POST /mahasiswa/me/krs/:krsId/submit`, `POST /mahasiswa/me/krs/:krsId/reopen`.
+
+Administrative endpoints (authenticated ADMIN/AKADEMIK):
+
+- `GET /krs`: pagination, literal NIM/name `search`, `semester_id`, `program_studi_id`, and `status` filters.
+- `GET /krs/:id`: student, program, semester, dynamically calculated SKS, retained selections, courses, lecturers, schedules, rooms, and effective enrollment counts.
+- `POST /krs/:id/approve`, `/reject`, `/cancel`, `/reopen`.
+
+POST workflow requests use an empty JSON object (`{}`). All list endpoints use the existing page/limit convention (default 20, maximum 100). API responses follow the existing success/data/meta format with Indonesian domain errors. Every mutation requires the configured web origin. Ownership is checked in the service after locking the KRS; administrative service methods also verify role and current account activity. DOSEN has no KRS management access.
+
+The implemented lifecycle is DRAFT → DIAJUKAN → DISETUJUI or DITOLAK; students can reopen DITOLAK → DRAFT. Administrators can reopen DISETUJUI → DRAFT during the active semester, clearing submission/approval fields and releasing seats. Administrative cancellation moves any nonterminal plan to DIBATALKAN, cancels all active details atomically, and retains existing timestamps/approver information. Cancelled plans are terminal. Reselecting a cancelled class reactivates the original detail row. No KRS records are hard-deleted. The schema retains the latest workflow state, not a full event audit trail.
+
+New selections, submission, and approval require an AKTIF student, the explicitly active semester, active program/faculty, DIBUKA classes, active courses, same offering program/semester, and membership in the student's assigned curriculum. An inactive curriculum remains valid for its already assigned students. Classes require an active lecturer and valid schedules/rooms. The service rejects duplicate courses, excess SKS, and overlapping selected schedules using the Jadwal module's shared strict-overlap/weekday semantics; adjacent times are valid. Submission and approval fully revalidate selections. Removal and student reopening require eligibility; administrative cancellation remains possible for historical or ineligible plans.
+
+All KRS operations use SERIALIZABLE transactions with the existing bounded retry utility (three attempts). Mutations lock the parent KRS and relevant class rows in UUID order. Approval counts only AKTIF details on DISETUJUI parents after acquiring the class locks; pending plans consume no seats. A full class rolls back the entire approval. Cancellation and reopening participate in the same class-lock protocol. Concurrent initial creation uses the student/semester unique constraint and returns the winning draft. Class details already expose derived enrollment counts; KRS class lists also return counts and remaining capacity, including zero for empty classes. Full classes remain selectable, but approval requires capacity.
+
+The student page shows active semester, selected/remaining SKS, state, searchable available classes, lecturer/schedule/room information, draft editing, submission, rejected-plan correction, approved plans, and paginated history. The administrative page provides paginated filters and detail review. Status actions use confirmation dialogs, with a checkbox fallback when JavaScript is disabled. Validation errors remain visible after failed form actions. All calls use Eden Treaty through the existing server session handling.
+
+Verification:
+
+```sh
+bun test
+bun run check
+bun run build
+RUN_KRS_DB_TESTS=1 bun --env-file=packages/db/.env test apps/api/src/modules/krs/krs.integration.test.ts
+RUN_KRS_E2E=1 bun --env-file=packages/db/.env test apps/api/src/modules/krs/krs-flow.test.ts
+```
+
+The 19 isolated KRS tests cover lifecycle, timestamps, ownership, role/CSRF checks, eligibility, duplicates, SKS, schedules, reactivation, immutability, and capacity release. Three PostgreSQL tests exercise real repositories, filtered queries, uniqueness/timestamp constraints, atomic multi-class approval, effective counts, concurrent final-seat approval with forced overlapping transactions and retries, and concurrent draft creation. Integration tests require the existing active development semester; most fixtures roll back, while concurrency fixtures delete only their own committed IDs in `finally`. They never alter the active semester or development seed.
+
+The opt-in rendered-page test requires running API/web servers and `KRS_INITIAL_BATAS_SKS` configured. It creates temporary student/reviewer accounts, submits the student and administrative forms through SvelteKit/Eden across the full lifecycle, checks confirmations and ADMIN access to shared pages, logs out, and removes its fixture IDs. `KRS_WEB_ORIGIN` can select a different local frontend port. It verifies HTTP-rendered pages and form actions; interactive browser automation is not included.
+
+No database schema, migrations, or development seed records are changed. Attendance, grades, prerequisites, KHS/IPS/IPK, automatic credit-limit calculation, and a full audit log remain outside scope. Individual approved-detail cancellation and automatic class-wide cancellation are not exposed by this module; cancel/reopen the affected KRS through the authorized workflow. Existing class cancellation guards remain in force.

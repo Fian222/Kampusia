@@ -1,3 +1,5 @@
+import { createKrsRepository } from './modules/krs/krs.repository';
+import { createKrsService } from './modules/krs/krs.service';
 import { createJadwalRepository } from './modules/jadwal/jadwal.repository';
 import { createJadwalService } from './modules/jadwal/jadwal.service';
 import { createRuanganRepository } from './modules/ruangan/ruangan.repository';
@@ -38,6 +40,7 @@ const webOrigin = new URL(Bun.env.WEB_URL ?? 'http://localhost:5173').origin;
 if (production && !webOrigin.startsWith('https://')) throw new Error('Production WEB_URL must use HTTPS.');
 const { db, client } = createDatabase(Bun.env.DATABASE_URL ?? '');
 const app = createApp(createAuthService(createAuthRepository(db)), { webOrigin, production }, {
+  krs: createKrsService(createKrsRepository(db), Bun.env.KRS_INITIAL_BATAS_SKS ? Number(Bun.env.KRS_INITIAL_BATAS_SKS) : undefined),
   semester: createSemesterService(createSemesterRepository(db)),
   kelasKuliah: createKelasKuliahService(createKelasKuliahRepository(db)),
   jadwal: createJadwalService(createJadwalRepository(db)),

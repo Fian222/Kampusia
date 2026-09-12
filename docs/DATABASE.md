@@ -484,7 +484,7 @@ A student's study plan for one semester, including approval state.
 
 **Business rules:**
 
-- CHECK batas_sks > 0. The server assigns this limit from academic policy; students cannot choose it. No arbitrary universal maximum is assumed.
+- CHECK batas_sks > 0. The server assigns this limit from academic policy; students cannot choose it. No arbitrary universal maximum is assumed. The initial KRS module takes the authorized new-plan limit from server configuration `KRS_INITIAL_BATAS_SKS`; it must be a positive PostgreSQL smallint. Missing/invalid configuration blocks creation of new plans, while existing plans retain their assigned limit. This initial policy is explicitly configured, not an IP-based calculation.
 - CHECK disetujui_at and disetujui_oleh are either both null or both non-null. DISETUJUI requires both and diajukan_at; DIAJUKAN and DITOLAK require diajukan_at. DRAFT has all three null. DIAJUKAN and DITOLAK have null approval fields.
 - Only authorized ADMIN or AKADEMIK accounts approve in the initial workflow; role enforcement belongs in the service.
 - Submission and approval validate active student, active semester, eligible classes, total SKS, duplicate courses, and schedule conflicts. Approval also validates available seats under locks.

@@ -16,10 +16,11 @@
       <p class="px-3 py-4 text-xs font-semibold uppercase tracking-widest text-slate-400">{area.label}</p>
       <a href={area.path} aria-current={page.url.pathname === area.path ? 'page' : undefined} class="block rounded-lg px-3 py-3 text-sm font-semibold text-teal-800" class:bg-teal-50={page.url.pathname === area.path}>Dashboard</a>
       {#if data.user.role === 'ADMIN' || data.user.role === 'AKADEMIK'}
-        {#each [{ path: '/akademik/fakultas', label: 'Fakultas' }, { path: '/akademik/program-studi', label: 'Program Studi' }, { path: '/akademik/mahasiswa', label: 'Mahasiswa' }, { path: '/akademik/dosen', label: 'Dosen' }, { path: '/akademik/mata-kuliah', label: 'Mata Kuliah' }, { path: '/akademik/kurikulum', label: 'Kurikulum' }, { path: '/akademik/semester', label: 'Semester' }, { path: '/akademik/kelas-kuliah', label: 'Kelas Kuliah' }, { path: '/akademik/ruangan', label: 'Ruangan' }] as item}
+        {#each [{ path: '/akademik/krs', label: 'KRS' }, { path: '/akademik/fakultas', label: 'Fakultas' }, { path: '/akademik/program-studi', label: 'Program Studi' }, { path: '/akademik/mahasiswa', label: 'Mahasiswa' }, { path: '/akademik/dosen', label: 'Dosen' }, { path: '/akademik/mata-kuliah', label: 'Mata Kuliah' }, { path: '/akademik/kurikulum', label: 'Kurikulum' }, { path: '/akademik/semester', label: 'Semester' }, { path: '/akademik/kelas-kuliah', label: 'Kelas Kuliah' }, { path: '/akademik/ruangan', label: 'Ruangan' }] as item}
           <a href={item.path} aria-current={page.url.pathname === item.path ? 'page' : undefined} class="mt-1 block rounded-lg px-3 py-3 text-sm font-medium text-teal-800" class:bg-teal-50={page.url.pathname === item.path}>{item.label}</a>
         {/each}
       {/if}
+      {#if data.user.role === 'MAHASISWA'}<a href="/mahasiswa/krs" class="mt-1 block rounded-lg px-3 py-3 text-sm font-medium text-teal-800">KRS</a>{/if}
     </nav>
     <p class="absolute bottom-6 hidden px-7 text-xs text-slate-400 lg:block">Sistem Informasi Kampus</p>
   </aside>

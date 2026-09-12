@@ -11,6 +11,12 @@ export function hasWeekday(start: string, end: string, day: number) {
   const offset = (day - (first.getUTCDay() || 7) + 7) % 7;
   return first.getTime() + offset * dayMs <= new Date(end + 'T00:00:00Z').getTime();
 }
+// PostgreSQL time values and API HH:mm inputs use the same strict overlap semantics.
+export function slotsOverlap(a: Pick<Slot, 'hari' | 'jamMulai' | 'jamSelesai'>, b: Pick<Slot, 'hari' | 'jamMulai' | 'jamSelesai'>, dates: { tanggalMulai: string; tanggalSelesai: string }) {
+  const seconds = (value: string) => { const [h, m, s = 0] = value.split(':').map(Number); return h! * 3600 + m! * 60 + s; };
+  return a.hari === b.hari && hasWeekday(dates.tanggalMulai, dates.tanggalSelesai, a.hari)
+    && seconds(a.jamMulai) < seconds(b.jamSelesai) && seconds(b.jamMulai) < seconds(a.jamSelesai);
+}
 function time(value: string) {
   if (!/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d(\.\d{1,6})?)?$/.test(value)) throw new MasterDataError(400, 'Jam harus menggunakan format HH:mm atau HH:mm:ss yang valid.');
   return value.length === 5 ? value + ':00' : value;
@@ -30,7 +36,7 @@ export async function validateSchedule(tx: SchedulingRepository, kelas: Class, s
   if (!room.isActive) throw new MasterDataError(400, 'Ruangan nonaktif tidak dapat digunakan untuk jadwal.');
   if (room.kapasitas < kelas.kapasitas) throw new MasterDataError(400, 'Kapasitas ruangan tidak mencukupi kapasitas kelas.');
   if (kelas.status === 'DIBATALKAN') return;
-  const candidates = (await tx.candidates(slot, term, kelas.id)).filter(row => row.id !== slot.id && hasWeekday(row.tanggalMulai > term.tanggalMulai ? row.tanggalMulai : term.tanggalMulai, row.tanggalSelesai < term.tanggalSelesai ? row.tanggalSelesai : term.tanggalSelesai, slot.hari));
+  const candidates = (await tx.candidates(slot, term, kelas.id)).filter(row => row.id !== slot.id && slotsOverlap(row, slot, { tanggalMulai: row.tanggalMulai > term.tanggalMulai ? row.tanggalMulai : term.tanggalMulai, tanggalSelesai: row.tanggalSelesai < term.tanggalSelesai ? row.tanggalSelesai : term.tanggalSelesai }));
   const assignments = await tx.lecturers([...new Set([kelas.id, ...candidates.map(row => row.kelasKuliahId)])]);
   const lecturers = new Set(assignments.filter(row => row.kelasKuliahId === kelas.id).map(row => row.dosenId));
   if (additionalLecturer) lecturers.add(additionalLecturer);
