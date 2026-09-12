@@ -189,3 +189,47 @@ RUN_CATALOG_E2E=1 bun --env-file=packages/db/.env test apps/web/src/lib/server/c
 ```
 
 `CATALOG_WEB_ORIGIN` can select another local web port. This test verifies server-rendered lists, edit forms, curriculum details, search, form validation, and cross-origin rejection without changing academic records. Browser interaction automation is not included. No schema, migrations, or seed data changes are required.
+
+## Semester, Kelas Kuliah, and Kelas Dosen
+
+ADMIN and AKADEMIK share `/akademik/semester`, `/akademik/kelas-kuliah`, and `/akademik/kelas-kuliah/:id`. Both sidebars link to the new lists. The pages use Eden Treaty, server-side filters/pagination, paginated reference searches, create/edit forms, explicit semester activation confirmation, and lecturer/coordinator management. Semester activation means selecting the academic term; it is separate from master-data availability flags.
+
+Endpoints (all require an active ADMIN/AKADEMIK account; writes also require the configured web origin):
+
+- `GET /semester`, `GET /semester/:id`, `POST /semester`, `PATCH /semester/:id`.
+- `GET /kelas-kuliah`, `GET /kelas-kuliah/:id`, `POST /kelas-kuliah`, `PATCH /kelas-kuliah/:id`.
+- `GET /kelas-kuliah/:id/dosen`, `POST /kelas-kuliah/:id/dosen`.
+- `PATCH /kelas-kuliah/:id/dosen/:assignmentId`, `DELETE /kelas-kuliah/:id/dosen/:assignmentId`.
+
+Request fields use the documented snake_case names; responses use inferred Drizzle camelCase fields. Lists accept `page`, `limit` (maximum 100), and literal case-insensitive `search`. Semester additionally filters by `jenis`, `tahun_mulai`, and `is_active=true|false`. Classes filter by `semester_id`, `program_studi_id`, `mata_kuliah_id`, and `status`; search covers course code/name and class name. Class lists batch lecturer joins rather than querying once per class. Detail responses include `jumlahMahasiswa`, derived only from AKTIF details on DISETUJUI KRS, and `jumlahJadwal`. Neither value is stored.
+
+Semester rules:
+
+- GANJIL/GENAP, years 1900–9998, canonical YYYY1/YYYY2 codes, valid calendar dates, and ordered date ranges are validated. Both documented unique constraints remain authoritative.
+- `PATCH /semester/:id` with `{ "is_active": true }` switches the active term in one transaction. Creation may also explicitly activate a term. A failed write restores the previously active term. `{ "is_active": false }` permits zero active terms. Dates never activate terms automatically.
+- Writes use SERIALIZABLE transactions with up to three total attempts for serialization/deadlock conflicts. A transaction-scoped advisory lock serializes active-term switches even when no semester is active yet.
+- Identity and date changes are conservatively rejected when approved KRS (including retained approval timestamps after cancellation) or schedules exist. Unchanged identity fields and active-term changes remain allowed. No semester DELETE endpoint exists.
+
+Class and lecturer rules:
+
+- New offerings require an existing semester and active program/course. Class labels are trimmed/uppercased, capacity is a positive PostgreSQL integer, and the documented four-part class identity is unique. DRAFT is the default. Curriculum membership is an opening requirement, so an otherwise valid DRAFT can be prepared before membership exists.
+- Semester/course/program changes are rejected after any KRS selection, including cancelled selections, or when a schedule exists. Capacity cannot be reduced below approved active enrollment count or increased beyond an assigned room's capacity.
+- DITUTUP retains enrollments. Cancelling a class with active details is rejected until a KRS cancellation workflow can cancel those details transactionally. A cancelled scheduled class cannot be restored without schedule conflict validation. No class DELETE endpoint exists.
+- Opening checks program/course availability, offering-program curriculum membership, and an active lecturer. It rejects missing schedules. Even preexisting schedules cannot authorize a new DIBUKA transition until the future Jadwal module supplies complete conflict validation. Existing seeded DIBUKA classes remain readable/editable for safe changes.
+- Adding lecturers to scheduled classes is also guarded until Jadwal conflict validation exists. Coordinator-only edits are safe because they do not change participating lecturers or slots. Removing a lecturer releases their reserved time and preserves at least one active lecturer on an opened class.
+- Lecturer assignments require an active lecturer and reject duplicates. Homebase does not limit teaching programs. At most one coordinator is allowed, and no coordinator is required. To change coordinators, clear the previous flag before assigning the new one; each operation locks the class. Assignment IDs are always scoped to the parent class.
+- Class/assignment writes use SERIALIZABLE transactions with bounded retries and lock the parent class. Program/course/semester references use shared locks. Opening eligibility takes shared curriculum locks compatible with existing membership/history guards. Future Jadwal/KRS operations must participate in the documented class-lock and serializable transaction protocols.
+
+Verification:
+
+```sh
+bun test
+bun run check
+bun run build
+RUN_OFFERING_DB_TESTS=1 bun --env-file=packages/db/.env test apps/api/src/modules/academic-offerings.integration.test.ts
+RUN_OFFERING_E2E=1 bun --env-file=packages/db/.env test apps/web/src/lib/server/academic-offerings-flow.test.ts
+```
+
+The 16 isolated API/service tests cover CRUD, filtering/pagination, duplicates, validation, active-term replacement/rollback, history, opening safeguards, lecturer/coordinator rules, authorization, and bounded transaction retries. The PostgreSQL integration test exercises real repositories, constraints, and academic-history fixtures; all fixtures and active-semester changes roll back. The rendered-page test requires running API/frontend servers and the existing development seed, and submits only invalid/rejected forms. `OFFERING_WEB_ORIGIN` selects a different local frontend port. Browser interaction automation is not included.
+
+No schemas, migrations, or development seed records are changed. Jadwal, KRS workflows, attendance, and grading remain outside this increment.

@@ -1,3 +1,9 @@
+import { kelasDosenRoutes } from './modules/kelas-dosen/kelas-dosen.route';
+import type { KelasDosenService } from './modules/kelas-dosen/kelas-dosen.service';
+import { kelasKuliahRoutes } from './modules/kelas-kuliah/kelas-kuliah.route';
+import type { KelasKuliahService } from './modules/kelas-kuliah/kelas-kuliah.service';
+import { semesterRoutes } from './modules/semester/semester.route';
+import type { SemesterService } from './modules/semester/semester.service';
 import { kurikulumMatkulRoutes } from './modules/kurikulum-matkul/kurikulum-matkul.route';
 import type { KurikulumMatkulService } from './modules/kurikulum-matkul/kurikulum-matkul.service';
 import { kurikulumRoutes } from './modules/kurikulum/kurikulum.route';
@@ -19,7 +25,7 @@ import { dosenRoutes } from './modules/dosen/dosen.route';
 import type { MahasiswaService } from './modules/mahasiswa/mahasiswa.service';
 import type { DosenService } from './modules/dosen/dosen.service';
 
-export function createApp(auth: AuthService, options: { webOrigin: string; production: boolean }, academic?: { kurikulumMatkul?: KurikulumMatkulService; kurikulum?: KurikulumService; mataKuliah?: MataKuliahService; fakultas?: FakultasService; programStudi?: ProgramStudiService; mahasiswa?: MahasiswaService; dosen?: DosenService }) {
+export function createApp(auth: AuthService, options: { webOrigin: string; production: boolean }, academic?: { kelasDosen?: KelasDosenService; kelasKuliah?: KelasKuliahService; semester?: SemesterService; kurikulumMatkul?: KurikulumMatkulService; kurikulum?: KurikulumService; mataKuliah?: MataKuliahService; fakultas?: FakultasService; programStudi?: ProgramStudiService; mahasiswa?: MahasiswaService; dosen?: DosenService }) {
   return new Elysia()
     .onRequest(({ set }) => { set.headers['cache-control'] = 'no-store'; })
     .onError(({ code, error, set }) => {
@@ -40,6 +46,9 @@ export function createApp(auth: AuthService, options: { webOrigin: string; produ
       return { success: false as const, message: 'Terjadi kesalahan pada server. Silakan coba lagi.' };
     })
     .use(authRoutes(auth, options))
+    .use(kelasDosenRoutes(auth, options.webOrigin, academic?.kelasDosen))
+    .use(kelasKuliahRoutes(auth, options.webOrigin, academic?.kelasKuliah))
+    .use(semesterRoutes(auth, options.webOrigin, academic?.semester))
     .use(fakultasRoutes(auth, options.webOrigin, academic?.fakultas))
     .use(programStudiRoutes(auth, options.webOrigin, academic?.programStudi))
     .use(mahasiswaRoutes(auth, options.webOrigin, academic?.mahasiswa))

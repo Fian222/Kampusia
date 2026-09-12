@@ -1,3 +1,9 @@
+import { createKelasDosenRepository } from './modules/kelas-dosen/kelas-dosen.repository';
+import { createKelasDosenService } from './modules/kelas-dosen/kelas-dosen.service';
+import { createKelasKuliahRepository } from './modules/kelas-kuliah/kelas-kuliah.repository';
+import { createKelasKuliahService } from './modules/kelas-kuliah/kelas-kuliah.service';
+import { createSemesterRepository } from './modules/semester/semester.repository';
+import { createSemesterService } from './modules/semester/semester.service';
 import { createKurikulumMatkulRepository } from './modules/kurikulum-matkul/kurikulum-matkul.repository';
 import { createKurikulumMatkulService } from './modules/kurikulum-matkul/kurikulum-matkul.service';
 import { createKurikulumRepository } from './modules/kurikulum/kurikulum.repository';
@@ -28,6 +34,9 @@ const webOrigin = new URL(Bun.env.WEB_URL ?? 'http://localhost:5173').origin;
 if (production && !webOrigin.startsWith('https://')) throw new Error('Production WEB_URL must use HTTPS.');
 const { db, client } = createDatabase(Bun.env.DATABASE_URL ?? '');
 const app = createApp(createAuthService(createAuthRepository(db)), { webOrigin, production }, {
+  semester: createSemesterService(createSemesterRepository(db)),
+  kelasKuliah: createKelasKuliahService(createKelasKuliahRepository(db)),
+  kelasDosen: createKelasDosenService(createKelasDosenRepository(db)),
   mataKuliah: createMataKuliahService(createMataKuliahRepository(db)),
   kurikulum: createKurikulumService(createKurikulumRepository(db)),
   kurikulumMatkul: createKurikulumMatkulService(createKurikulumMatkulRepository(db)),
