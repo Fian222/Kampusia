@@ -46,7 +46,11 @@ export function createKelasKuliahService(repository: KelasKuliahRepository) {
         if (identityChanged || (next.status === 'DIBUKA' && existing.status !== 'DIBUKA')) await validateReferences(tx, next);
         if (next.kapasitas < existing.kapasitas && next.kapasitas < await tx.enrollmentCount(id)) throw new MasterDataError(409, 'Kapasitas tidak boleh kurang dari jumlah mahasiswa pada KRS disetujui yang aktif.');
         if (next.kapasitas !== existing.kapasitas && schedules.some(slot => slot.roomCapacity < next.kapasitas)) throw new MasterDataError(409, 'Kapasitas kelas melebihi kapasitas ruangan pada jadwal.');
-        if (next.status === 'DIBATALKAN' && existing.status !== 'DIBATALKAN' && await tx.hasActiveDetails(id)) throw new MasterDataError(409, 'Pembatalan kelas dengan pilihan aktif memerlukan alur pembatalan KRS.');
+        if (next.status === 'DIBATALKAN' && existing.status !== 'DIBATALKAN') {
+          if (await tx.hasActiveDetails(id)) throw new MasterDataError(409, 'Pembatalan kelas dengan pilihan aktif memerlukan alur pembatalan KRS.');
+          if (await tx.scheduledMeetingHasAttendance(id)) throw new MasterDataError(409, 'Kelas memiliki pertemuan terjadwal dengan absensi; koreksi riwayat sebelum pembatalan kelas.');
+          await tx.cancelScheduledMeetings(id);
+        }
         if (existing.status === 'DIBATALKAN' && next.status !== 'DIBATALKAN' && schedules.length) await validateClassSchedules(tx.scheduling, next);
         if (next.status === 'DIBUKA' && (existing.status !== 'DIBUKA' || identityChanged)) await validateOpening(tx, next);
         return tx.update(id, changes);

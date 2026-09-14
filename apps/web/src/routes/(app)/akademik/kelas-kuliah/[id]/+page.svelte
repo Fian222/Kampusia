@@ -5,6 +5,7 @@
   import AcademicOptions from '$lib/components/AcademicOptions.svelte';
   import ScheduleForm from '$lib/components/ScheduleForm.svelte';
   import AcademicFields from '$lib/components/AcademicFields.svelte';
+  import MeetingManager from '$lib/components/MeetingManager.svelte';
   import type { PageProps } from './$types';
   let { data, form }: PageProps = $props();
   let saving = $state(false);
@@ -26,6 +27,7 @@
   <a class="mt-3 inline-block text-teal-800" href={`/akademik/kelas-kuliah?edit=${data.kelas.id}#kelas-form`}>Edit informasi kelas</a>
   <p class="mt-3 text-sm text-amber-900">Pembukaan kelas memerlukan prodi dan mata kuliah aktif, mata kuliah pada kurikulum prodi, dosen aktif, serta jadwal valid tanpa bentrok. Alasan penolakan akan ditampilkan saat menyimpan.</p>
 </section>
+<MeetingManager meetings={data.meetings} area="akademik" {form} />
 {#if form?.message}<p class={box} role={form.saved ? 'status' : 'alert'}>{form.message}</p>{/if}
 {#if saving}<p role="status" class="mt-3">Menyimpan…</p>{/if}
 <section class={box}>

@@ -39,13 +39,14 @@ export async function loadKelas(event: RequestEvent) {
 }
 export async function loadKelasDetail(event: RequestEvent) {
   requireMasterAccess(event); const client = serverApi(event); const id = event.params.id!;
-  const [kelas, assignments, lecturers, schedules, rooms] = await Promise.all([
+  const [kelas, assignments, lecturers, schedules, rooms, meetings] = await Promise.all([
     read(client['kelas-kuliah']({ id }).get()), read(client['kelas-kuliah']({ id }).dosen.get({ query: query(event) })),
     read(client.dosen.get({ query: { ...query(event, 'lecturer_'), is_active: 'true' } })),
     read(client['kelas-kuliah']({ id }).jadwal.get({ query: query(event, 'schedule_') })),
     read(client.ruangan.get({ query: { ...query(event, 'room_'), is_active: 'true' } })),
+    read(client['kelas-kuliah']({ id }).pertemuan.get({ query: { page: integer(event.url.searchParams.get('meeting_page'), 1, 1000000), limit: 20 } })),
   ]);
-  return { kelas: kelas.data, assignments, lecturers, schedules, rooms };
+  return { kelas: kelas.data, assignments, lecturers, schedules, rooms, meetings };
 }
 export async function saveOffering(event: RequestEvent, kind: 'semester' | 'kelas' | 'dosen' | 'detail') {
   requireMasterAccess(event);

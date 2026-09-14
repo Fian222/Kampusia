@@ -332,4 +332,38 @@ bun run check
 
 The PostgreSQL test requires the migrated local `kampusia` database. It validates both tables, foreign keys and actor references, then proves that duplicate meeting numbers, duplicate student attendance, missing/invalid explicit statuses, invalid row-local values, and invalid references are rejected. All test fixtures roll back.
 
-Semester-range validation, effective-enrollment checks, attendance authorization, meeting/attendance transitions, complete-roster finalization, coordinated cancellation, historical correction policy, and concurrency locking remain service-level rules. No API, repository/service workflow, frontend, attendance fan-out, or automatic ALPHA behavior is implemented by this extension.
+The schema extension deliberately leaves semester-range validation, effective-enrollment checks, authorization, lifecycle transitions, complete-roster finalization, correction policy, and concurrency locking to the application layer described below. It does not add attendance fan-out or automatic ALPHA behavior.
+
+## Pertemuan Kuliah and Absensi Mahasiswa application module
+
+The application layer implements Pertemuan and Absensi through the existing Route → Service → Repository → Drizzle structure. It does not change the database schema, migrations, or development seed.
+
+Authenticated ADMIN/AKADEMIK and an assigned DOSEN use:
+
+- `GET/POST /kelas-kuliah/:id/pertemuan` to list or create meetings.
+- `GET/PATCH /pertemuan/:id` to read, edit, or perform an explicit factual correction.
+- `POST /pertemuan/:id/cancel` and `POST /pertemuan/:id/complete` for lifecycle transitions.
+- `GET /pertemuan/:id/absensi` for the effective roster and retained historical rows.
+- `PUT /pertemuan/:id/absensi/:mahasiswaId` for initial/incremental entry and `PATCH` on the same path for an in-place correction.
+
+DOSEN class discovery is scoped through `GET /dosen/me/kelas-kuliah` and its `/:id` detail. The repository derives this list from `kelas_dosen`; changing a path ID never grants access to an unassigned class. ADMIN and AKADEMIK continue from the existing class detail. The web pages are `/dosen/kelas-kuliah`, the role-specific class details and attendance pages, and `/akademik/pertemuan/:id`.
+
+MAHASISWA use only `GET /mahasiswa/me/absensi` and `/mahasiswa/absensi`. The profile is derived from the authenticated account; there is no student ID parameter and no attendance mutation in the student UI.
+
+The effective roster is derived only from an AKTIF `krs_detail` whose parent KRS is DISETUJUI. DRAFT, DIAJUKAN, DITOLAK, and DIBATALKAN plans do not appear. Rows are lazy: the roster returns `BELUM_DICATAT` with a null attendance value when no row exists, never inferred ALPHA. Finalization locks related KRS rows, then the class, meeting, and attendance rows in the documented order. It rejects incomplete coverage with the missing count and changes the meeting to SELESAI only in the same successful SERIALIZABLE transaction. An empty effective roster is valid.
+
+TERJADWAL meetings accept incremental attendance. DIBATALKAN meetings accept none. Existing rows are corrected in place, preserving `created_at` and `dicatat_oleh` while updating `updated_at` and `diubah_oleh`. Completed corrections require an explicit note. ADMIN/AKADEMIK can make an explicit, justified late insertion for a currently effective student; DOSEN cannot. Existing attendance remains visible as historical data after KRS reopen/cancellation or other prospective enrollment changes. No revision log or roster snapshot is created.
+
+Verification:
+
+```sh
+bun test
+bun --filter api check
+bun --filter @kampusia/db check
+bun --bun --cwd apps/web run check
+bun --filter api build
+bun --bun --cwd apps/web run build
+RUN_ATTENDANCE_APP_DB_TESTS=1 bun --env-file=packages/db/.env test apps/api/src/modules/pertemuan/pertemuan.integration.test.ts
+```
+
+The isolated tests cover meeting CRUD/lifecycle, date/number validation, ADMIN/AKADEMIK/DOSEN/MAHASISWA authorization, all four explicit attendance statuses, lazy missing rows, correction actor metadata, retained history, completion coverage, cancellation safeguards, CSRF, and student scoping. The opt-in PostgreSQL test additionally proves DRAFT/DIAJUKAN exclusion, atomic failed completion, successful finalization, KRS reopen retention, and in-place correction against real constraints.
