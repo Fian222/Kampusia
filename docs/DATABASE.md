@@ -1,8 +1,8 @@
 # Kampusia database design
 
-This document is the source of truth for the initial database design. The PostgreSQL model is implemented in `packages/db/schema/`, with an initial migration in `packages/db/migrations/0000_initial.sql`. The migration was applied and verified on the local Podman development database on 2026-09-05; migration state is specific to each database. Changes to the model must update this document before implementation. See [database package notes](../packages/db/README.md) for verification commands and the boundary between database constraints and future service rules.
+This document is the source of truth for the database design. The existing 15-table PostgreSQL model is implemented in `packages/db/schema/`, with its initial migration in `packages/db/migrations/0000_initial.sql`. That migration was applied and verified on the local Podman development database on 2026-09-05; migration state is specific to each database. The `pertemuan` and `absensi` extension documented below is design-only and is not yet present in the Drizzle schema or a migration. Changes to the model must update this document before implementation. See [database package notes](../packages/db/README.md) for verification commands and the boundary between database constraints and future service rules.
 
-The initial design covers only the 15 tables below. Attendance, grades, and other future modules require a separate documented extension.
+The design covers the 17 tables below. The initial 15-table academic model is extended here with `pertemuan` and `absensi`; assessment components, grades, and other future modules require separate documented extensions.
 
 ## Shared conventions
 
@@ -44,9 +44,14 @@ erDiagram
     users o|--o{ krs : approves
     krs ||--o{ krs_detail : contains
     kelas_kuliah ||--o{ krs_detail : selected
+    kelas_kuliah ||--o{ pertemuan : holds
+    pertemuan ||--o{ absensi : records
+    mahasiswa ||--o{ absensi : attends
+    users ||--o{ absensi : records_initially
+    users ||--o{ absensi : changes_last
 ```
 
-Each student's faculty is derived through program_studi. Course membership and recommended semester belong in kurikulum_matkul. Students select semester-specific offerings through krs and krs_detail. Lecturer assignments use kelas_dosen, including team teaching.
+Each student's faculty is derived through program_studi. Course membership and recommended semester belong in kurikulum_matkul. Students select semester-specific offerings through krs and krs_detail. Lecturer assignments use kelas_dosen, including team teaching. Actual class meetings belong to kelas_kuliah, and attendance joins each meeting directly to a student. Semester, course, program, and class are derived through the meeting's class rather than copied into attendance.
 
 ## Table definitions
 
@@ -79,7 +84,7 @@ Authentication accounts, separate from student and lecturer academic profiles.
 - An account may be linked to at most one student or one lecturer, never both. The per-table unique constraints do not enforce the cross-table exclusion; account linking must lock the users row and validate it.
 - Disabling a login does not cancel academic records. Never expose password_hash in API responses.
 
-**Relationships:** Optional one-to-one links from mahasiswa and dosen; one-to-many KRS approvals.
+**Relationships:** Optional one-to-one links from mahasiswa and dosen; one-to-many KRS approvals; one-to-many initial and latest attendance-recording references.
 
 ### fakultas
 
@@ -171,7 +176,7 @@ Student academic identity and assigned curriculum.
 - Assigned curriculum must belong to the student's program. PostgreSQL enforces this on inserts and updates through the composite foreign key to kurikulum; service validation may provide a clearer error but is not the integrity guarantee. The referenced curriculum's program cannot change while student references would become invalid. Only AKTIF students may submit or obtain approval for new KRS.
 - Program or curriculum reassignment requires explicit academic review; do not reinterpret approved KRS history. The initial design does not model transfer history.
 
-**Relationships:** Belongs to one program and one curriculum, optionally one user; has many KRS, one per semester.
+**Relationships:** Belongs to one program and one curriculum, optionally one user; has many KRS, one per semester, and many attendance rows across meetings.
 
 ### dosen
 
@@ -235,7 +240,7 @@ Explicit academic terms and the globally selected active term.
 - CHECK tahun_mulai BETWEEN 1900 AND 9998 and tanggal_mulai <= tanggal_selesai.
 - CHECK kode matches tahun_mulai followed by 1 for GANJIL or 2 for GENAP. The initial model has two regular terms per academic year.
 - Dates do not determine is_active. Switch the active term in one transaction. Zero active terms are allowed during setup; KRS submission requires one.
-- Do not alter term identity or dates once doing so would invalidate approved enrollments or schedules.
+- Do not alter term identity or dates once doing so would invalidate approved enrollments, schedules, or actual meetings. A meeting date must remain within its owning term.
 
 **Relationships:** One semester has many offerings and KRS.
 
@@ -359,11 +364,11 @@ A course offering by a program in a particular academic semester.
 - CHECK kapasitas > 0. Never store jumlah_mahasiswa; derive enrollment counts as defined below.
 - Before DIBUKA, require an active program/course, at least one active lecturer assignment, and at least one valid conflict-free schedule.
 - Before DIBUKA, the service must also verify that the class's mata_kuliah belongs to at least one curriculum for its offering program_studi: a kurikulum_matkul row must match kelas_kuliah.mata_kuliah_id and join to a kurikulum whose program_studi_id equals kelas_kuliah.program_studi_id. This is required for opening a class in the initial system.
-- DIBUKA accepts selections and approvals. DITUTUP prevents new enrollment while existing enrollments remain valid. DIBATALKAN requires transactional cancellation of related active details.
+- DIBUKA accepts selections and approvals. DITUTUP prevents new enrollment while existing enrollments remain valid. DIBATALKAN requires transactional cancellation of related active details and any remaining TERJADWAL meetings; completed meetings and attendance remain historical.
 - Do not change semester, course, or offering program after selections exist. Capacity reductions must not fall below approved active enrollment count.
 - Initial enrollment is limited to the student's program and curriculum membership; cross-program enrollment requires a documented design extension.
 
-**Relationships:** Belongs to a semester, course, and program; has many schedules, lecturer assignments, and KRS details.
+**Relationships:** Belongs to a semester, course, and program; has many schedules, lecturer assignments, KRS details, and meetings.
 
 ### kelas_dosen
 
@@ -457,6 +462,96 @@ Recurring weekly room/time slots for a class over its semester dates.
 
 **Relationships:** Belongs to one class and one room; lecturers and semester are derived from the class.
 
+### pertemuan
+
+An actual class meeting. It records what occurred or was planned for one date independently of the class's recurring weekly jadwal_kuliah slots.
+
+| Column | PostgreSQL type | Nullable | Default | Meaning / reference |
+| --- | --- | --- | --- | --- |
+| `id` | `uuid` | No | gen_random_uuid() | Primary key |
+| `kelas_kuliah_id` | `uuid` | No | — | FK kelas_kuliah.id |
+| `nomor_pertemuan` | `smallint` | No | — | Positive sequence number within the class |
+| `tanggal` | `date` | No | — | Actual or planned local meeting date |
+| `jam_mulai` | `time without time zone` | No | — | Actual or planned local start time |
+| `jam_selesai` | `time without time zone` | No | — | Actual or planned local end time |
+| `materi` | `text` | Yes | — | Topic or material; null while not yet specified |
+| `status` | `varchar(16)` | No | TERJADWAL | TERJADWAL, SELESAI, or DIBATALKAN |
+| `created_at` | `timestamptz` | No | now() | Creation instant |
+| `updated_at` | `timestamptz` | No | now() | Last mutation or factual-correction instant |
+
+**Primary key:** `id`.
+
+**Foreign keys:** `kelas_kuliah_id` → kelas_kuliah.id.
+
+**Unique constraints:** `UNIQUE (kelas_kuliah_id, nomor_pertemuan)`, including cancelled meetings. Cancelling a meeting does not release its number for reuse.
+
+**Additional indexes:** `(tanggal, status)` supports date-oriented operational lists; the unique index covers class-scoped meeting lists and lookups.
+
+**CHECK constraints:**
+
+- `nomor_pertemuan > 0`.
+- `jam_mulai < jam_selesai`; an overnight meeting must be represented as separate records or by a future documented extension.
+- `status IN ('TERJADWAL', 'SELESAI', 'DIBATALKAN')`.
+- `materi IS NULL` or contains at least one non-whitespace character.
+
+**Business rules:**
+
+- A meeting belongs to exactly one class. Do not store semester_id, mata_kuliah_id, program_studi_id, or recurring jadwal_kuliah values here; derive them through kelas_kuliah.
+- tanggal and times are the actual/planned occurrence and need not equal any recurring jadwal_kuliah weekday or time. A make-up meeting may therefore differ from the weekly schedule, but tanggal must remain within the owning class's semester date range. This cross-table date rule is enforced by the service. The table does not reserve a room or lecturer and does not perform resource-conflict detection; actual-room/resource tracking requires a separately reviewed extension.
+- Meetings may normally be created only for DIBUKA or DITUTUP classes. DRAFT classes are not yet teaching, and DIBATALKAN classes cannot receive new meetings.
+- TERJADWAL may transition to SELESAI or DIBATALKAN. DIBATALKAN is terminal and remains historical. SELESAI is terminal for normal workflow operations.
+- Completing a meeting requires explicit attendance coverage for every student effectively enrolled at finalization time; an empty effective roster is valid. Completion and attendance finalization are one transaction.
+- Class cancellation must cancel its remaining TERJADWAL meetings in the same transaction. Existing SELESAI meetings and all attendance remain unchanged.
+- Ordinary edits to a SELESAI meeting are prohibited. An explicit authorized factual correction may change tanggal, times, or materi after revalidation, but never kelas_kuliah_id, nomor_pertemuan, or status. The initial model retains the corrected value and mutation timestamp, not every previous value.
+
+**Relationships:** Belongs to one kelas_kuliah and has many absensi rows. Semester, course, program, schedules, and lecturers are derived through the class.
+
+**Retention/history behavior:** A DIBATALKAN or SELESAI meeting is never hard-deleted. Hard deletion is limited to an unreferenced TERJADWAL setup mistake with no attendance; otherwise cancel it. Completed history remains even if the class or an associated enrollment is later closed or cancelled.
+
+### absensi
+
+One student's attendance result for one actual meeting.
+
+| Column | PostgreSQL type | Nullable | Default | Meaning / reference |
+| --- | --- | --- | --- | --- |
+| `id` | `uuid` | No | gen_random_uuid() | Primary key |
+| `pertemuan_id` | `uuid` | No | — | FK pertemuan.id |
+| `mahasiswa_id` | `uuid` | No | — | FK mahasiswa.id |
+| `status` | `varchar(8)` | No | — | HADIR, IZIN, SAKIT, or ALPHA; always explicit |
+| `keterangan` | `text` | Yes | — | Optional attendance or correction note |
+| `dicatat_oleh` | `uuid` | No | — | FK users.id; account that first recorded the row |
+| `diubah_oleh` | `uuid` | No | — | FK users.id; account that most recently wrote the row, initially equal to dicatat_oleh |
+| `created_at` | `timestamptz` | No | now() | Initial recording instant; unchanged by correction |
+| `updated_at` | `timestamptz` | No | now() | Most recent correction instant |
+
+**Primary key:** `id`.
+
+**Foreign keys:** `pertemuan_id` → pertemuan.id; `mahasiswa_id` → mahasiswa.id; `dicatat_oleh` → users.id; `diubah_oleh` → users.id.
+
+**Unique constraints:** `UNIQUE (pertemuan_id, mahasiswa_id)`. One student has at most one current attendance result per meeting, including after KRS changes.
+
+**Additional indexes:** `(mahasiswa_id, pertemuan_id)` supports student attendance history. The unique index covers meeting roster queries. Actor columns are not indexed initially because no actor-oriented list is planned; add measured query indexes rather than speculative ones.
+
+**CHECK constraints:**
+
+- `status IN ('HADIR', 'IZIN', 'SAKIT', 'ALPHA')`.
+- `keterangan IS NULL` or contains at least one non-whitespace character.
+
+**Business rules:**
+
+- Every row belongs to exactly one meeting and one student. Do not store kelas_kuliah_id, semester_id, mata_kuliah_id, program_studi_id, NIM, or student name; derive them through pertemuan and mahasiswa.
+- At initial insertion, the student must normally have an effective enrollment in the meeting's class: an AKTIF krs_detail for that kelas_kuliah whose parent KRS is DISETUJUI. PostgreSQL cannot enforce this cross-table, time-sensitive rule with the row foreign keys, so the service validates it transactionally.
+- Recording and correction require an active authorized account: an ADMIN/AKADEMIK account or a DOSEN account linked to a lecturer assigned to the class. Later account deactivation or lecturer reassignment does not alter the recorded actor references.
+- Attendance rows are created lazily when attendance is entered, not eagerly when a meeting is created. Creating a meeting therefore does not fan out writes, does not snapshot a roster prematurely, and does not create records for a meeting later cancelled. A missing row means “not recorded,” never ALPHA.
+- Attendance entry may be incremental while the meeting is TERJADWAL. Finalizing it as SELESAI must atomically create or update explicit statuses for the complete effective roster and reject incomplete coverage. ALPHA must be deliberately recorded; it is not inferred merely from absence of a row.
+- A student approved only after a meeting is completed is not automatically backfilled. An authorized administrative correction may add the row later only after confirming that the late enrollment is academically intended to apply to that meeting; this is an explicit exception to the current-effective-enrollment check.
+- A correction updates the existing row rather than deleting and reinserting it. Preserve dicatat_oleh and created_at; update status and/or keterangan together with diubah_oleh and updated_at. Corrections require an authorized actor and an explicit note when policy requires justification.
+- The initial model stores the latest corrected result plus the first and latest actors; it is not a full revision log. If every prior status, correction reason, and actor must be auditable, add a documented append-only attendance revision table before implementation rather than overloading this row.
+
+**Relationships:** Belongs to one pertemuan and one mahasiswa; references the users that initially and most recently recorded it. Its class, term, course, and program are derived through pertemuan → kelas_kuliah.
+
+**Retention/history behavior:** Attendance is never hard-deleted. It remains attached to the same student and meeting if the student's approved KRS is later reopened or cancelled, the detail becomes DIBATALKAN, the student changes status, or the class closes/cancels. Such a row is historical evidence, not proof of current effective enrollment.
+
 ### krs
 
 A student's study plan for one semester, including approval state.
@@ -538,7 +633,9 @@ The initial transitions are:
 
 Students edit selections only in DRAFT. Reopening clears submission and approval fields and releases any seats because the parent is no longer approved. Resubmission records a new diajukan_at. This initial model stores the latest workflow state, not a complete approval-event audit trail. Cancelled plans are terminal; they remain subject to the unique student/semester constraint.
 
-Cancelling a plan cancels its active details in the same transaction. Preserve existing approval fields on cancellation if it was approved. Cancelling an individual detail from an approved plan releases that seat while retaining the plan's approval; adding/reactivating details requires reopening and fresh approval. Class cancellation cancels related active details, including those on approved plans. Do not silently cancel other classes in the same plan.
+Cancelling a plan cancels its active details in the same transaction. Preserve existing approval fields on cancellation if it was approved. Cancelling an individual detail from an approved plan releases that seat while retaining the plan's approval; adding/reactivating details requires reopening and fresh approval. Class cancellation cancels related active details, including those on approved plans, and any remaining TERJADWAL meetings. Do not silently cancel other classes in the same plan; preserve completed meetings and attendance.
+
+Reopening or cancelling an approved KRS remains permitted by the existing authorized workflow after attendance exists. The operation changes effective enrollment prospectively but must not delete, reassign, or invalidate existing absensi rows. Attendance and KRS mutations must share the concurrency protocol below so an attendance insertion is ordered deterministically before or after the enrollment change rather than racing it.
 
 At submission and approval, require at least one AKTIF detail, and calculate selected SKS as the sum of mata_kuliah.sks through AKTIF details and their classes. Enforce this total against krs.batas_sks. Do not count cancelled details or store total_sks. A later administrative cancellation may leave an approved plan with zero effective enrollments.
 
@@ -560,6 +657,21 @@ GROUP BY kk.id;
 ```
 
 This returns zero for empty classes. The unique KRS/student/semester and KRS/detail/class constraints, together with semester compatibility, ensure one effective enrollment per student per class. Do not add a permanent jumlah_mahasiswa column or materialized counter in this initial design.
+
+## Pertemuan and attendance lifecycle
+
+Meeting transitions are intentionally small:
+
+| From | To | Required behavior |
+| --- | --- | --- |
+| TERJADWAL | SELESAI | Finalize the meeting and complete attendance for the effective roster atomically |
+| TERJADWAL | DIBATALKAN | Retain the meeting number and history; reject new attendance |
+
+DIBATALKAN and SELESAI are terminal workflow states. A completed meeting is not reopened for ordinary editing. Authorized factual corrections update the permitted meeting fields or existing attendance rows in place, set updated_at, and retain stable identifiers and creation metadata. A cancelled meeting accepts no attendance. A meeting with attendance cannot be cancelled; correct erroneous attendance and meeting facts through the authorized correction process instead of disguising a held meeting as a cancellation.
+
+Attendance eligibility is evaluated from effective approved enrollment at the write/finalization transaction. When a meeting is finalized, every currently effective student needs one explicit attendance row; existing rows for students whose enrollment ceased before finalization remain historical and are not deleted. Later approval does not backfill past meetings automatically. Later KRS reopening, cancellation, detail cancellation, student status change, class closure, or class cancellation likewise does not remove attendance already recorded.
+
+Because the current KRS model stores its latest state rather than an enrollment event log, a later reopen can erase the approval fields even though attendance proves that the student was accepted by the attendance workflow at an earlier point. The direct pertemuan/mahasiswa attendance row is the retained historical fact. If the product must reconstruct a legally exact roster-at-time or every approval/correction event, that requirement needs an append-only enrollment/audit extension before implementation.
 
 ## Schedule validity
 
@@ -584,10 +696,15 @@ Future implementation must use transactions for changes that form a logical oper
 - Approval must lock all selected kelas_kuliah rows in a consistent UUID order, recalculate approved active counts, and reject if adding this plan would exceed any capacity. Status changes, detail cancellations, class cancellations, and capacity changes that alter available seats must follow the same class-lock protocol. Pending plans do not reserve seats, so a valid submission can still fail approval.
 - Schedule and lecturer-assignment writes need a shared concurrency protocol. Use SERIALIZABLE transactions with bounded retries on serialization failures for these mutations and KRS submission/approval, including all conflict reads. Apply it also to semester date changes and resource changes that affect validity. Preflight reads outside the transaction cannot guarantee conflict prevention.
 - Use consistent lock ordering across all operations and retry transaction conflicts as a unit; never partially commit a multi-class approval.
+- Creating, updating, completing, cancelling, or deleting an allowed setup-only pertemuan must run in a transaction that locks its parent kelas_kuliah and the meeting when it exists. Allocating a meeting number must rely on the class/number unique constraint as the final concurrency guard.
+- Incremental attendance entry, bulk attendance submission, late authorized insertion, and attendance correction must lock the pertemuan and affected absensi rows and revalidate the meeting state. Initial insertion/finalization must also lock and revalidate the relevant effective KRS enrollment rows and participate in the existing class-lock protocol.
+- Finalizing a meeting must insert/update the complete effective roster and change pertemuan.status to SELESAI in one SERIALIZABLE transaction with bounded retries. Any validation or row failure rolls back both attendance and status. The same transaction must tolerate retained rows for formerly effective students while ensuring the current roster has complete explicit statuses.
+- KRS reopen/cancel and attendance creation must preserve the existing KRS-before-class lock ordering. Lock affected KRS rows by UUID first, then class rows by UUID, then the meeting and attendance rows, and revalidate after locks. If the enrollment change commits first, an ordinary new attendance row is rejected; if attendance commits first, the later authorized enrollment change leaves it intact.
+- Cancelling a class must cancel its active KRS details and remaining TERJADWAL meetings in the same transaction while retaining SELESAI meetings and all absensi rows.
 - Authorization is server-side: students access only their own KRS, and administrative actions require an authorized active account. Foreign keys are not an authorization mechanism.
 
 ## Retention and design boundaries
 
 Use is_active and academic/workflow statuses to retain referenced records. Hard deletion is limited to unreferenced setup mistakes; services must explicitly validate and delete dependent draft records in a transaction if a permitted cleanup requires it. Foreign-key restrictions remain authoritative. No general soft-delete column or implicit cascade is part of this design.
 
-The following are deliberately outside these 15 tables: curriculum equivalency/transfer history, prerequisites, per-meeting scheduling, attendance, assessment components, grades, IPS/IPK calculations, authentication sessions, multi-role accounts, and a full workflow audit log. Extend this document before introducing their tables or rules. The assigned batas_sks is the integration point for a future documented academic-limit policy.
+The following are deliberately outside these 17 tables: curriculum equivalency/transfer history, prerequisites, actual meeting room/resource reservations, assessment components, grades, IPS/IPK calculations, authentication sessions, multi-role accounts, exact historical enrollment snapshots, and full workflow/attendance revision logs. Extend this document before introducing their tables or rules. The assigned batas_sks is the integration point for a future documented academic-limit policy.
