@@ -1,10 +1,10 @@
 # Kampusia database package
 
-The schema implements the 15 tables in [DATABASE.md](../../docs/DATABASE.md). Each table has its own file under `schema/`; `schema/index.ts` exports the tables and Drizzle query relations. PostgreSQL names use snake_case; TypeScript properties use camelCase.
+The schema implements the 17 tables in [DATABASE.md](../../docs/DATABASE.md). Each table has its own file under `schema/`; `schema/index.ts` exports the tables and Drizzle query relations. PostgreSQL names use snake_case; TypeScript properties use camelCase.
 
-The initial migration is `migrations/0000_initial.sql`, with Drizzle snapshot and journal metadata in `migrations/meta/`. It was applied and verified against the local Podman `kampusia` development database on 2026-09-05. Other databases must run their own migration command.
+The initial migration is `migrations/0000_initial.sql`; the additive `migrations/0001_hard_weapon_omega.sql` migration creates `pertemuan` and `absensi`. Their Drizzle snapshots and journal metadata are in `migrations/meta/`. The initial migration was applied and verified against the local Podman `kampusia` development database on 2026-09-05, and the attendance migration on 2026-09-14. Other databases must run their own migration command.
 
-Local migration verification confirmed 15 application tables, 21 foreign keys, 20 unique constraints, 53 CHECK constraints, and 50 indexes including two partial unique indexes. The composite student/curriculum reference is validated. The migration hash and timestamp match the single entry in `drizzle.__drizzle_migrations`; rerunning the migration command made no changes. Application tables were empty before development seeding.
+Local migration verification confirmed 17 application tables, 26 foreign keys, 22 unique constraints, 59 CHECK constraints, and 56 indexes including two partial unique indexes. The composite student/curriculum reference and both attendance actor references are validated. Application tables were empty before development seeding; attendance integration fixtures always roll back.
 
 Use `bun run db:seed` for repeatable development data. See [development setup](../../docs/DEVELOPMENT.md) for fixture contents, credentials, environment settings, and the opt-in live seed test.
 
@@ -19,6 +19,7 @@ bun run check
 bun test packages/db/src/schema.test.ts
 bun run db:generate
 bun run db:check
+RUN_ATTENDANCE_DB_TESTS=1 bun --env-file=packages/db/.env test packages/db/src/attendance-schema.integration.test.ts
 ```
 
 Generation and migration-history checks do not need a database connection. `db:check` validates Drizzle migration metadata; it does not execute the SQL or compare a live database. The tests compare schema metadata with DATABASE.md and compile relational queries without connecting to PostgreSQL.
@@ -44,6 +45,8 @@ The following documented rules require future service logic and transactions rat
 - KRS/class semester compatibility, student program and curriculum eligibility, duplicate course selections across different classes, total SKS limits, and at least one selection at submission/approval.
 - Room, class, lecturer, and student schedule conflicts; room capacity versus class capacity; class capacity versus derived approved active enrollment counts; occurrence of weekly slots within semester dates.
 - Workflow transitions, timestamp changes across transitions, coordinated cancellation/reactivation, record immutability, permitted deletion, deactivation, and historical retention policies beyond foreign-key restrictions. The database CHECKs enforce valid timestamp combinations within each KRS row, not the sequence of changes.
+- Meeting dates within the owning semester, allowed class states for meeting creation, meeting lifecycle transitions, coordinated class cancellation, completion with full effective-roster coverage, and authorized factual corrections.
+- Attendance eligibility through effective approved enrollment, actor role/activity/lecturer-assignment authorization, incremental entry and finalization behavior, late insertion policy, correction requirements, and preservation across later KRS changes. Missing attendance rows remain unrecorded and are never interpreted or defaulted to ALPHA by the schema.
 - The shared locking/serializable transaction and retry protocol, explicit active-semester switching, and updates to `updated_at` on mutations.
 
 Student counts and selected SKS remain derived as specified in DATABASE.md; no counters or extra columns have been introduced. These service rules must be implemented before exposing academic mutations through an API. No triggers or undocumented tables have been added to approximate them.

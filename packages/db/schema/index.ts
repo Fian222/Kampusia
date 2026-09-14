@@ -11,6 +11,8 @@ export * from './kelas-kuliah';
 export * from './kelas-dosen';
 export * from './ruangan';
 export * from './jadwal-kuliah';
+export * from './pertemuan';
+export * from './absensi';
 export * from './krs';
 export * from './krs-detail';
 export * from './relations';

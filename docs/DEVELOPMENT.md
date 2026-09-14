@@ -317,3 +317,19 @@ The 19 isolated KRS tests cover lifecycle, timestamps, ownership, role/CSRF chec
 The opt-in rendered-page test requires running API/web servers and `KRS_INITIAL_BATAS_SKS` configured. It creates temporary student/reviewer accounts, submits the student and administrative forms through SvelteKit/Eden across the full lifecycle, checks confirmations and ADMIN access to shared pages, logs out, and removes its fixture IDs. `KRS_WEB_ORIGIN` can select a different local frontend port. It verifies HTTP-rendered pages and form actions; interactive browser automation is not included.
 
 No database schema, migrations, or development seed records are changed. Attendance, grades, prerequisites, KHS/IPS/IPK, automatic credit-limit calculation, and a full audit log remain outside scope. Individual approved-detail cancellation and automatic class-wide cancellation are not exposed by this module; cancel/reopen the affected KRS through the authorized workflow. Existing class cancellation guards remain in force.
+
+## Pertemuan Kuliah and Absensi Mahasiswa database extension
+
+The database package implements the documented `pertemuan` and `absensi` tables and their Drizzle relations. Migration `0001_hard_weapon_omega.sql` adds only these tables, their restrictive foreign keys, unique constraints, row-local CHECK constraints, and documented indexes. Attendance status has no database default: rows are created lazily, and a missing row is not ALPHA.
+
+Run the schema contract and opt-in local PostgreSQL integration tests from the repository root:
+
+```sh
+bun test packages/db/src/schema.test.ts
+RUN_ATTENDANCE_DB_TESTS=1 bun --env-file=packages/db/.env test packages/db/src/attendance-schema.integration.test.ts
+bun run check
+```
+
+The PostgreSQL test requires the migrated local `kampusia` database. It validates both tables, foreign keys and actor references, then proves that duplicate meeting numbers, duplicate student attendance, missing/invalid explicit statuses, invalid row-local values, and invalid references are rejected. All test fixtures roll back.
+
+Semester-range validation, effective-enrollment checks, attendance authorization, meeting/attendance transitions, complete-roster finalization, coordinated cancellation, historical correction policy, and concurrency locking remain service-level rules. No API, repository/service workflow, frontend, attendance fan-out, or automatic ALPHA behavior is implemented by this extension.

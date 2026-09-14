@@ -12,6 +12,8 @@ import { kelasKuliah } from './kelas-kuliah';
 import { kelasDosen } from './kelas-dosen';
 import { ruangan } from './ruangan';
 import { jadwalKuliah } from './jadwal-kuliah';
+import { pertemuan } from './pertemuan';
+import { absensi } from './absensi';
 import { krs } from './krs';
 import { krsDetail } from './krs-detail';
 
@@ -19,6 +21,8 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   mahasiswa: one(mahasiswa),
   dosen: one(dosen),
   krsDisetujui: many(krs),
+  absensiDicatat: many(absensi, { relationName: 'absensi_dicatat_oleh' }),
+  absensiDiubah: many(absensi, { relationName: 'absensi_diubah_oleh' }),
 }));
 
 export const fakultasRelations = relations(fakultas, ({ many }) => ({
@@ -50,6 +54,7 @@ export const mahasiswaRelations = relations(mahasiswa, ({ one, many }) => ({
     references: [kurikulum.id, kurikulum.programStudiId],
   }),
   krs: many(krs),
+  absensi: many(absensi),
 }));
 
 export const dosenRelations = relations(dosen, ({ one, many }) => ({
@@ -110,6 +115,7 @@ export const kelasKuliahRelations = relations(kelasKuliah, ({ one, many }) => ({
   kelasDosen: many(kelasDosen),
   jadwalKuliah: many(jadwalKuliah),
   krsDetail: many(krsDetail),
+  pertemuan: many(pertemuan),
 }));
 
 export const kelasDosenRelations = relations(kelasDosen, ({ one }) => ({
@@ -135,6 +141,35 @@ export const jadwalKuliahRelations = relations(jadwalKuliah, ({ one }) => ({
   ruangan: one(ruangan, {
     fields: [jadwalKuliah.ruanganId],
     references: [ruangan.id],
+  }),
+}));
+
+export const pertemuanRelations = relations(pertemuan, ({ one, many }) => ({
+  kelasKuliah: one(kelasKuliah, {
+    fields: [pertemuan.kelasKuliahId],
+    references: [kelasKuliah.id],
+  }),
+  absensi: many(absensi),
+}));
+
+export const absensiRelations = relations(absensi, ({ one }) => ({
+  pertemuan: one(pertemuan, {
+    fields: [absensi.pertemuanId],
+    references: [pertemuan.id],
+  }),
+  mahasiswa: one(mahasiswa, {
+    fields: [absensi.mahasiswaId],
+    references: [mahasiswa.id],
+  }),
+  dicatatOleh: one(users, {
+    fields: [absensi.dicatatOleh],
+    references: [users.id],
+    relationName: 'absensi_dicatat_oleh',
+  }),
+  diubahOleh: one(users, {
+    fields: [absensi.diubahOleh],
+    references: [users.id],
+    relationName: 'absensi_diubah_oleh',
   }),
 }));
 

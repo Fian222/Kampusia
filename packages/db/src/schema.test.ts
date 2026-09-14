@@ -16,7 +16,7 @@ const normalizeType = (value: string) => value
 
 describe('DATABASE.md schema contract', () => {
   test('exports exactly the documented tables', () => {
-    expect(sections).toHaveLength(15);
+    expect(sections).toHaveLength(17);
     expect(tables.map((table) => getTableConfig(table).name).sort())
       .toEqual(sections.map((section) => section[1]!).sort());
   });
@@ -63,7 +63,7 @@ describe('DATABASE.md schema contract', () => {
 
   test('all foreign keys restrict deletion and updates', () => {
     const keys = tables.flatMap((table) => getTableConfig(table).foreignKeys);
-    expect(keys).toHaveLength(21);
+    expect(keys).toHaveLength(26);
     for (const key of keys) {
       expect(key.onDelete).toBe('restrict');
       expect(key.onUpdate).toBe('restrict');
@@ -90,7 +90,30 @@ describe('DATABASE.md schema contract', () => {
     expect(sqlText(coordinator.config.where)).toBe('"kelas_dosen"."is_koordinator" = true');
   });
 
-  test('query relations resolve enrollment, team teaching, and the composite curriculum join', async () => {
+  test('attendance constraints and actor references match the documented contract', () => {
+    const meeting = getTableConfig(schema.pertemuan);
+    expect(meeting.uniqueConstraints.map((key) => key.columns.map((column) => column.name)))
+      .toContainEqual(['kelas_kuliah_id', 'nomor_pertemuan']);
+    expect(meeting.checks.map((entry) => entry.name).sort()).toEqual([
+      'pertemuan_jam_range_check',
+      'pertemuan_materi_nonblank_check',
+      'pertemuan_nomor_pertemuan_positive_check',
+      'pertemuan_status_check',
+    ]);
+
+    const attendance = getTableConfig(schema.absensi);
+    expect(attendance.columns.find((column) => column.name === 'status')?.default).toBeUndefined();
+    expect(attendance.uniqueConstraints.map((key) => key.columns.map((column) => column.name)))
+      .toContainEqual(['pertemuan_id', 'mahasiswa_id']);
+    expect(attendance.checks.map((entry) => entry.name).sort()).toEqual([
+      'absensi_keterangan_nonblank_check',
+      'absensi_status_check',
+    ]);
+    const actorKeys = attendance.foreignKeys.filter((key) => key.reference().foreignTable === schema.users);
+    expect(actorKeys.map((key) => key.reference().columns[0]?.name).sort()).toEqual(['dicatat_oleh', 'diubah_oleh']);
+  });
+
+  test('query relations resolve enrollment, attendance actors, team teaching, and the composite curriculum join', async () => {
     // postgres.js connects lazily; SQL generation does not contact this address.
     const { db, client } = createDatabase('postgresql://localhost/kampusia_schema_validation');
     try {
@@ -105,6 +128,7 @@ describe('DATABASE.md schema contract', () => {
             krsDetail: { with: { kelasKuliah: { with: {
               kelasDosen: { with: { dosen: true } },
               jadwalKuliah: { with: { ruangan: true } },
+              pertemuan: { with: { absensi: { with: { dicatatOleh: true, diubahOleh: true } } } },
             } } } },
           } },
         },
@@ -112,7 +136,7 @@ describe('DATABASE.md schema contract', () => {
       expect(studentQuery.sql).toContain('"mahasiswa_kurikulum"."id" = "mahasiswa"."kurikulum_id"');
       expect(studentQuery.sql).toContain('"mahasiswa_kurikulum"."program_studi_id" = "mahasiswa"."program_studi_id"');
       expect(() => db.query.users.findMany({
-        with: { mahasiswa: true, dosen: true, krsDisetujui: true },
+        with: { mahasiswa: true, dosen: true, krsDisetujui: true, absensiDicatat: true, absensiDiubah: true },
       }).toSQL()).not.toThrow();
       expect(() => db.query.kurikulum.findMany({ with: { mahasiswa: true } }).toSQL()).not.toThrow();
     } finally {
