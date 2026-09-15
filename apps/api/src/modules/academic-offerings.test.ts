@@ -27,7 +27,7 @@ function setup(role: Role = 'AKADEMIK') {
   const programs: (typeof programStudi.$inferSelect)[] = [{ ...stamps(), fakultasId: missing, kode: 'IF', nama: 'Informatika', jenjang: 'S1', isActive: true }];
   const courses: (typeof mataKuliah.$inferSelect)[] = [{ ...stamps(), kode: 'IF101', nama: 'Basis Data', sks: 3, isActive: true }];
   const lecturers: (typeof dosen.$inferSelect)[] = ['A', 'B'].map(kodeDosen => ({ ...stamps(), kodeDosen, nama: kodeDosen, nidn: null, userId: null, programStudiId: null, isActive: true }));
-  const history = new Set<string>(); const selections = new Set<string>(); const scheduled = new Set<string>(); const enrollments = new Map<string, number>();
+  const history = new Set<string>(); const selections = new Set<string>(); const scheduled = new Set<string>(); const finalized = new Set<string>(); const enrollments = new Map<string, number>();
   const eligible = new Set<string>();
   const relatedAssignments = (id: string) => assignments.filter(row => row.kelasKuliahId === id).map(row => ({ ...row, dosen: lecturers.find(item => item.id === row.dosenId)! }));
   const relatedClass = (row: Class) => ({ ...row, semester: terms.find(item => item.id === row.semesterId)!, programStudi: programs.find(item => item.id === row.programStudiId)!, mataKuliah: courses.find(item => item.id === row.mataKuliahId)!, dosen: relatedAssignments(row.id) });
@@ -66,7 +66,7 @@ function setup(role: Role = 'AKADEMIK') {
     list: async query => slice(classes.filter(row => (!query.semester_id || row.semesterId === query.semester_id) && (!query.program_studi_id || row.programStudiId === query.program_studi_id) && (!query.mata_kuliah_id || row.mataKuliahId === query.mata_kuliah_id) && (!query.status || row.status === query.status) && (!query.search || (row.namaKelas + courses[0]!.kode + courses[0]!.nama).toLowerCase().includes(query.search.toLowerCase()))).map(relatedClass), query),
     transaction: async operation => operation({ scheduling,
       findById: async id => classes.find(row => row.id === id), lockSemester: async id => terms.find(row => row.id === id), lockProgram: async id => programs.find(row => row.id === id), lockCourse: async id => courses.find(row => row.id === id), hasCurriculum: async id => eligible.has(id),
-      hasSelections: async id => selections.has(id), hasActiveDetails: async id => selections.has(id), scheduledMeetingHasAttendance: async () => false, cancelScheduledMeetings: async () => {}, enrollmentCount: async id => enrollments.get(id) ?? 0,
+      hasSelections: async id => selections.has(id), hasActiveDetails: async id => selections.has(id), hasFinalizedResults: async id => finalized.has(id), scheduledMeetingHasAttendance: async () => false, cancelScheduledMeetings: async () => {}, enrollmentCount: async id => enrollments.get(id) ?? 0,
       schedules: async id => scheduled.has(id) ? [{ ...stamps(), kelasKuliahId: id, ruanganId: missing, hari: 1, jamMulai: '08:00', jamSelesai: '10:00', roomCapacity: 30 }] : [], assignments: async id => relatedAssignments(id),
       create: async input => { duplicate(classes.some(row => row.semesterId === input.semesterId && row.programStudiId === input.programStudiId && row.mataKuliahId === input.mataKuliahId && row.namaKelas === input.namaKelas), 'kelas_kuliah_offering_unique'); const row = { ...stamps(), ...input, status: input.status ?? 'DRAFT' }; classes.push(row); return row; },
       update: async (id, input) => Object.assign(classes.find(row => row.id === id)!, input),
@@ -87,7 +87,7 @@ function setup(role: Role = 'AKADEMIK') {
   const term = async (year = 2026) => services.semester.create(termBody(year));
   const classBody = (semester_id: string, nama_kelas = 'A') => ({ semester_id, mata_kuliah_id: courses[0]!.id, program_studi_id: programs[0]!.id, nama_kelas, kapasitas: 30 });
   const kelas = async () => services.kelasKuliah.create(classBody((await term()).id));
-  return { request, term, kelas, classBody, services, terms, classes, assignments, lecturers, courses, programs, history, selections, scheduled, enrollments, eligible, user };
+  return { request, term, kelas, classBody, services, terms, classes, assignments, lecturers, courses, programs, history, selections, scheduled, finalized, enrollments, eligible, user };
 }
 
 test('Semester API create, detail, update, list, filtering and pagination', async () => {
@@ -156,6 +156,11 @@ test('Kelas preserves selections, approved capacity, room capacity and cancellat
   ctx.scheduled.add(row.id);
   expect((await ctx.request(path, 'PATCH', { kapasitas: 31 })).status).toBe(409);
   expect((await ctx.request(path, 'PATCH', { status: 'DITUTUP' })).status).toBe(200);
+});
+test('Kelas with finalized results cannot be cancelled through the ordinary workflow', async () => {
+  const ctx = setup(); const row = await ctx.kelas(); ctx.finalized.add(row.id);
+  const response = await ctx.request('/kelas-kuliah/' + row.id, 'PATCH', { status: 'DIBATALKAN' });
+  expect(response.status).toBe(409); expect((await read(response)).message).toContain('hasil studi final');
 });
 test('Kelas Dosen API list/add, duplicate, inactive, missing, coordinator uniqueness and safe removal', async () => {
   const ctx = setup(); const row = await ctx.kelas(); const path = `/kelas-kuliah/${row.id}/dosen`;

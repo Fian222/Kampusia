@@ -20,14 +20,14 @@ function fixture() {
     return { ...common(), id, semesterId: term.id, programStudiId: owner.programStudiId, mataKuliahId: course.id, namaKelas: 'A', kapasitas: 1, status: 'DIBUKA', mataKuliah: course, dosen: [lecturer], jadwal: [{ ...common(), kelasKuliahId: id, ruanganId: room.id, hari: i + 1, jamMulai: '08:00:00', jamSelesai: '10:00:00', ruangan: room }], jumlahMahasiswa: 0, sisaKapasitas: 1 };
   });
   const members = classes.map(row => ({ id: row.mataKuliahId }));
-  let inactive = false; const locks: string[][] = [];
+  let inactive = false; const locks: string[][] = []; const finalized = new Set<string>();
   const tx: KrsTransaction = {
     actor: async id => ({ id, role: id === admin.id ? admin.role : user.role, isActive: !inactive }),
     student: async id => id === user.id ? owner : { ...owner, id: uuid(), userId: id }, studentById: async () => owner,
     term: async id => id === term.id ? term : undefined, activeTerm: async () => term.isActive ? term : null,
     program: async () => ({ isActive: true, facultyActive: true }), memberships: async () => members,
     lockPlan: async id => plans.find(row => row.id === id), findPlan: async (studentId, termId) => plans.find(row => row.mahasiswaId === studentId && row.semesterId === termId),
-    lockClasses: async ids => { locks.push(ids); }, details: async id => details.filter(row => row.krsId === id),
+    lockClasses: async ids => { locks.push(ids); }, finalizedClassIds: async ids => ids.filter(id => finalized.has(id)), details: async id => details.filter(row => row.krsId === id),
     classes: async ids => classes.filter(row => ids.includes(row.id)).map(row => { const count = details.filter(detail => detail.kelasKuliahId === row.id && detail.status === 'AKTIF' && plans.some(plan => plan.id === detail.krsId && plan.status === 'DISETUJUI')).length; return { ...row, jumlahMahasiswa: count, sisaKapasitas: row.kapasitas - count }; }),
     detail: async id => { const plan = plans.find(row => row.id === id); if (!plan) return undefined; const rows = details.filter(row => row.krsId === id).map(row => ({ ...row, kelas: classes.find(kelas => kelas.id === row.kelasKuliahId)! })); return { ...plan, mahasiswa: owner, semester: term, programStudi: { id: owner.programStudiId, kode: 'IF', nama: 'IF' }, details: rows, totalSks: rows.reduce((sum, row) => sum + (row.status === 'AKTIF' ? row.kelas.mataKuliah.sks : 0), 0) }; },
     list: async () => ({ data: [], meta: { page: 1, limit: 20, total: 0 } }), available: async () => ({ data: classes, meta: { page: 1, limit: 20, total: classes.length } }),
@@ -42,7 +42,7 @@ function fixture() {
   const draft = () => service.create(user, term.id);
   const selected = async () => { const plan = await draft(); await service.add(user, plan.id, classes[0]!.id); return plan; };
   const submitted = async () => { const plan = await selected(); await service.submit(user, plan.id); return plan; };
-  return { user, admin, owner, term, plans, details, classes, members, tx, repository, service, locks, draft, selected, submitted, deactivate: () => { inactive = true; } };
+  return { user, admin, owner, term, plans, details, classes, members, finalized, tx, repository, service, locks, draft, selected, submitted, deactivate: () => { inactive = true; } };
 }
 
 test('KRS creates/gets the same draft with server-assigned limit; missing policy fails closed', async () => {
@@ -61,6 +61,10 @@ test('KRS valid selection, duplicate class/course prevention and cancelled detai
   await expect(f.service.add(f.user, plan.id, f.classes[1]!.id)).rejects.toThrow('kelas lain');
   await f.service.remove(f.user, plan.id, detail.id); expect(detail.status).toBe('DIBATALKAN');
   expect((await f.service.add(f.user, plan.id, f.classes[0]!.id)).id).toBe(detail.id); expect(f.details).toHaveLength(1);
+});
+test('KRS cannot add or reactivate enrollment in a finalized class', async () => {
+  const f = fixture(); const plan = await f.draft(); f.finalized.add(f.classes[0]!.id);
+  await expect(f.service.add(f.user, plan.id, f.classes[0]!.id)).rejects.toThrow('difinalisasi');
 });
 for (const [label, change, message] of [
   ['wrong semester', (f: ReturnType<typeof fixture>) => { f.classes[0]!.semesterId = uuid(); }, 'Semester kelas'],

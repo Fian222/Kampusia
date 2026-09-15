@@ -30,6 +30,8 @@ import { createDosenRepository } from './modules/dosen/dosen.repository';
 import { createDosenService } from './modules/dosen/dosen.service';
 import { createPertemuanRepository } from './modules/pertemuan/pertemuan.repository';
 import { createPertemuanService } from './modules/pertemuan/pertemuan.service';
+import { createNilaiRepository } from './modules/nilai/nilai.repository';
+import { createNilaiService } from './modules/nilai/nilai.service';
 
 const port = Number(Bun.env.API_PORT ?? 3000);
 
@@ -42,6 +44,7 @@ const webOrigin = new URL(Bun.env.WEB_URL ?? 'http://localhost:5173').origin;
 if (production && !webOrigin.startsWith('https://')) throw new Error('Production WEB_URL must use HTTPS.');
 const { db, client } = createDatabase(Bun.env.DATABASE_URL ?? '');
 const app = createApp(createAuthService(createAuthRepository(db)), { webOrigin, production }, {
+  nilai: createNilaiService(createNilaiRepository(db)),
   pertemuan: createPertemuanService(createPertemuanRepository(db)),
   krs: createKrsService(createKrsRepository(db), Bun.env.KRS_INITIAL_BATAS_SKS ? Number(Bun.env.KRS_INITIAL_BATAS_SKS) : undefined),
   semester: createSemesterService(createSemesterRepository(db)),

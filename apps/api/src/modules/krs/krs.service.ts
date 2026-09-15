@@ -96,7 +96,9 @@ export function createKrsService(repository: KrsRepository, initialLimit?: numbe
       const details = await tx.details(id); const existing = details.find(row => row.kelasKuliahId === classId);
       if (existing?.status === 'AKTIF') throw new MasterDataError(409, 'Kelas sudah dipilih.');
       const ids = [...details.filter(row => row.status === 'AKTIF').map(row => row.kelasKuliahId), classId];
-      await tx.lockClasses(ids); await validate(tx, plan, owner, ids);
+      await tx.lockClasses(ids);
+      if ((await tx.finalizedClassIds([classId])).length) throw new MasterDataError(409, 'Kelas yang nilainya telah difinalisasi tidak menerima penambahan atau pengaktifan ulang KRS.');
+      await validate(tx, plan, owner, ids);
       const result = existing ? await tx.selection(existing.id, 'AKTIF') : await tx.add(id, classId);
       await tx.update(id, {}); return result;
     }); },

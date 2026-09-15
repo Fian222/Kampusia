@@ -32,8 +32,10 @@ import type { MahasiswaService } from './modules/mahasiswa/mahasiswa.service';
 import type { DosenService } from './modules/dosen/dosen.service';
 import { pertemuanRoutes } from './modules/pertemuan/pertemuan.route';
 import type { PertemuanService } from './modules/pertemuan/pertemuan.service';
+import { nilaiRoutes } from './modules/nilai/nilai.route';
+import type { NilaiService } from './modules/nilai/nilai.service';
 
-export function createApp(auth: AuthService, options: { webOrigin: string; production: boolean }, academic?: { pertemuan?: PertemuanService; krs?: KrsService; jadwal?: JadwalService; ruangan?: RuanganService; kelasDosen?: KelasDosenService; kelasKuliah?: KelasKuliahService; semester?: SemesterService; kurikulumMatkul?: KurikulumMatkulService; kurikulum?: KurikulumService; mataKuliah?: MataKuliahService; fakultas?: FakultasService; programStudi?: ProgramStudiService; mahasiswa?: MahasiswaService; dosen?: DosenService }) {
+export function createApp(auth: AuthService, options: { webOrigin: string; production: boolean }, academic?: { nilai?: NilaiService; pertemuan?: PertemuanService; krs?: KrsService; jadwal?: JadwalService; ruangan?: RuanganService; kelasDosen?: KelasDosenService; kelasKuliah?: KelasKuliahService; semester?: SemesterService; kurikulumMatkul?: KurikulumMatkulService; kurikulum?: KurikulumService; mataKuliah?: MataKuliahService; fakultas?: FakultasService; programStudi?: ProgramStudiService; mahasiswa?: MahasiswaService; dosen?: DosenService }) {
   return new Elysia()
     .onRequest(({ set }) => { set.headers['cache-control'] = 'no-store'; })
     .onError(({ code, error, set }) => {
@@ -54,6 +56,7 @@ export function createApp(auth: AuthService, options: { webOrigin: string; produ
       return { success: false as const, message: 'Terjadi kesalahan pada server. Silakan coba lagi.' };
     })
     .use(authRoutes(auth, options))
+    .use(nilaiRoutes(auth, options.webOrigin, academic?.nilai))
     .use(pertemuanRoutes(auth, options.webOrigin, academic?.pertemuan))
     .use(krsRoutes(auth, options.webOrigin, academic?.krs))
     .use(jadwalRoutes(auth, options.webOrigin, academic?.jadwal))

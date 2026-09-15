@@ -1,6 +1,6 @@
 import { schedulingRepository } from '../jadwal/jadwal.repository';
 import type { createDatabase } from '@kampusia/db';
-import { kelasKuliah, semester, mataKuliah, programStudi, kurikulum, kurikulumMatkul, kelasDosen, dosen, jadwalKuliah, ruangan, krsDetail, krs, pertemuan, absensi } from '@kampusia/db/schema';
+import { kelasKuliah, semester, mataKuliah, programStudi, kurikulum, kurikulumMatkul, kelasDosen, dosen, jadwalKuliah, ruangan, krsDetail, krs, pertemuan, absensi, hasilStudi } from '@kampusia/db/schema';
 import { and, asc, count, eq, getTableColumns, ilike, inArray, or } from 'drizzle-orm';
 import { pagination, searchPattern } from '../../utils/master-data';
 import type { KelasKuliahQuery } from './kelas-kuliah.model';
@@ -30,6 +30,7 @@ function transactionRepository(tx: Transaction) {
     },
     async hasSelections(id: string) { return (await tx.select({ id: krsDetail.id }).from(krsDetail).where(eq(krsDetail.kelasKuliahId, id)).limit(1)).length > 0; },
     async hasActiveDetails(id: string) { return (await tx.select({ id: krsDetail.id }).from(krsDetail).where(and(eq(krsDetail.kelasKuliahId, id), eq(krsDetail.status, 'AKTIF'))).limit(1)).length > 0; },
+    async hasFinalizedResults(id: string) { return (await tx.select({ id: hasilStudi.id }).from(hasilStudi).where(eq(hasilStudi.kelasKuliahId, id)).limit(1)).length > 0; },
     async scheduledMeetingHasAttendance(id: string) { return (await tx.select({ id: absensi.id }).from(pertemuan).innerJoin(absensi, eq(absensi.pertemuanId, pertemuan.id)).where(and(eq(pertemuan.kelasKuliahId, id), eq(pertemuan.status, 'TERJADWAL'))).limit(1)).length > 0; },
     async cancelScheduledMeetings(id: string) { await tx.update(pertemuan).set({ status: 'DIBATALKAN', updatedAt: new Date() }).where(and(eq(pertemuan.kelasKuliahId, id), eq(pertemuan.status, 'TERJADWAL'))); },
     async enrollmentCount(id: string) {

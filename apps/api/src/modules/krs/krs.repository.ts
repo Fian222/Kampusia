@@ -1,5 +1,5 @@
 import type { createDatabase } from '@kampusia/db';
-import { krs, krsDetail, mahasiswa, semester, kelasKuliah, mataKuliah, programStudi, fakultas, kurikulumMatkul, jadwalKuliah, ruangan, kelasDosen, dosen, users } from '@kampusia/db/schema';
+import { krs, krsDetail, mahasiswa, semester, kelasKuliah, mataKuliah, programStudi, fakultas, kurikulumMatkul, jadwalKuliah, ruangan, kelasDosen, dosen, users, hasilStudi } from '@kampusia/db/schema';
 import { and, asc, desc, count, eq, getTableColumns, ilike, inArray, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { pagination, searchPattern, type ListQuery } from '../../utils/master-data';
 import { classAssignments } from '../kelas-kuliah/kelas-kuliah.repository';
@@ -28,6 +28,7 @@ export function krsTransaction(tx: Transaction) {
     async lockPlan(id: string) { return (await tx.select().from(krs).where(eq(krs.id, id)).for('update'))[0]; },
     async findPlan(studentId: string, semesterId: string) { return (await tx.select().from(krs).where(and(eq(krs.mahasiswaId, studentId), eq(krs.semesterId, semesterId))).for('update'))[0]; },
     async lockClasses(ids: string[]) { if (ids.length) await tx.select({ id: kelasKuliah.id }).from(kelasKuliah).where(inArray(kelasKuliah.id, ids)).orderBy(asc(kelasKuliah.id)).for('update'); },
+    async finalizedClassIds(ids: string[]) { return ids.length ? (await tx.selectDistinct({ id: hasilStudi.kelasKuliahId }).from(hasilStudi).where(inArray(hasilStudi.kelasKuliahId, ids))).map(row => row.id) : []; },
     async details(id: string) { return tx.select().from(krsDetail).where(eq(krsDetail.krsId, id)).orderBy(asc(krsDetail.id)); },
     async classes(ids: string[]) { return enrich(ids.length ? await classes().where(inArray(kelasKuliah.id, ids)).orderBy(asc(kelasKuliah.id)) : []); },
     async detail(id: string) {

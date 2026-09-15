@@ -22,6 +22,9 @@ export async function academicWrite<T>(operation: () => Promise<T>): Promise<T> 
     kelas_dosen_koordinator_unique: 'Kelas hanya boleh memiliki satu koordinator.',
     pertemuan_kelas_kuliah_id_nomor_pertemuan_unique: 'Nomor pertemuan sudah digunakan pada kelas ini, termasuk oleh pertemuan yang dibatalkan.',
     absensi_pertemuan_id_mahasiswa_id_unique: 'Absensi mahasiswa pada pertemuan ini sudah tercatat.',
+    komponen_nilai_active_nama_unique: 'Nama komponen aktif sudah digunakan pada kelas ini.',
+    nilai_mahasiswa_komponen_nilai_id_mahasiswa_id_unique: 'Nilai mahasiswa untuk komponen ini sudah tercatat.',
+    hasil_studi_kelas_kuliah_id_mahasiswa_id_unique: 'Hasil studi mahasiswa pada kelas ini sudah difinalisasi.',
   };
   for (let attempt = 0; ; attempt++) {
     try { return await operation(); }

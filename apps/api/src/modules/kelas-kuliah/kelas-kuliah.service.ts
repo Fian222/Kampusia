@@ -47,6 +47,7 @@ export function createKelasKuliahService(repository: KelasKuliahRepository) {
         if (next.kapasitas < existing.kapasitas && next.kapasitas < await tx.enrollmentCount(id)) throw new MasterDataError(409, 'Kapasitas tidak boleh kurang dari jumlah mahasiswa pada KRS disetujui yang aktif.');
         if (next.kapasitas !== existing.kapasitas && schedules.some(slot => slot.roomCapacity < next.kapasitas)) throw new MasterDataError(409, 'Kapasitas kelas melebihi kapasitas ruangan pada jadwal.');
         if (next.status === 'DIBATALKAN' && existing.status !== 'DIBATALKAN') {
+          if (await tx.hasFinalizedResults(id)) throw new MasterDataError(409, 'Kelas dengan hasil studi final tidak dapat dibatalkan melalui alur biasa.');
           if (await tx.hasActiveDetails(id)) throw new MasterDataError(409, 'Pembatalan kelas dengan pilihan aktif memerlukan alur pembatalan KRS.');
           if (await tx.scheduledMeetingHasAttendance(id)) throw new MasterDataError(409, 'Kelas memiliki pertemuan terjadwal dengan absensi; koreksi riwayat sebelum pembatalan kelas.');
           await tx.cancelScheduledMeetings(id);

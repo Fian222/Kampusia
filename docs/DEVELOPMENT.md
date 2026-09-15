@@ -333,7 +333,58 @@ bun run check
 
 PostgreSQL enforces component weight and order ranges, nonblank names, case-insensitive active-name uniqueness per class, score ranges, one score per student/component, one final result per student/class, result numeric and canonical-letter validity, correction metadata consistency, correction time ordering, actor references, and restrictive historical references. The integration fixtures always roll back.
 
-The database deliberately does not enforce cross-row active component weights totaling exactly 100.00, effective approved-enrollment eligibility, authorization, grading lifecycle transitions, full-roster atomic finalization, component freezing, score/result synchronization during correction, numeric-to-letter/index mapping, or rounding. Those require the future grading service and documented SERIALIZABLE transaction protocol. KHS, IPS, and IPK remain derived from `hasil_studi`; no persistent tables or dynamic KRS credit-limit behavior are added.
+The database deliberately does not enforce cross-row active component weights totaling exactly 100.00, effective approved-enrollment eligibility, authorization, grading lifecycle transitions, full-roster atomic finalization, component freezing, score/result synchronization during correction, numeric-to-letter/index mapping, or rounding. Those rules are implemented by the grading service and its documented SERIALIZABLE transaction protocol below. KHS, IPS, and IPK remain derived from `hasil_studi`; no persistent tables or dynamic KRS credit-limit behavior are added.
+
+## Grading application module
+
+The grading application layer uses the existing Route → Service → Repository → Drizzle structure and the existing authenticated, origin-checked server flow. ADMIN/AKADEMIK can inspect and manage every class. An active DOSEN can access only classes assigned through `kelas_dosen`; when a coordinator is configured, only that coordinator can finalize. MAHASISWA cannot mutate grading data.
+
+Class-scoped endpoints are:
+
+- `GET/POST /kelas-kuliah/:id/komponen-nilai`
+- `PATCH/DELETE /kelas-kuliah/:id/komponen-nilai/:componentId`
+- `GET /kelas-kuliah/:id/nilai`
+- `PUT /kelas-kuliah/:id/nilai/:componentId/mahasiswa/:mahasiswaId`
+- `POST /kelas-kuliah/:id/nilai/finalize`
+- `POST /kelas-kuliah/:id/nilai/corrections/:mahasiswaId`
+
+Component configuration may temporarily total less or more than 100.00%. The API reports the current exact active total. A scored component cannot be deleted; deactivate it before finalization to retain its scores while excluding it from completeness and calculation. Once any `hasil_studi` exists for the class, all component changes and ordinary score writes are frozen.
+
+The roster includes only effective enrollment (`krs_detail.status = AKTIF` and parent `krs.status = DISETUJUI`). Score rows are lazy. No row or a retained null score is shown as **Belum dinilai**; the explicit numeric score `0.00` is retained and displayed as a valid value. Former-enrollment and inactive-component score rows remain stored as history but do not enter ordinary finalization.
+
+Finalization requires a `DITUTUP` class, at least one effective student, at least one active component, exactly 100.00% total active weight, and an explicit non-null score for every active component and effective student. It locks related KRS rows before the class, then locks configuration, scores, and results in stable order inside a retryable SERIALIZABLE transaction. Every result is calculated before the complete class result set is inserted, and every row shares one finalizer and timestamp. Any failure rolls back the whole class.
+
+Calculations use integer hundredths with `BigInt`, not JavaScript binary floating point. The weighted numerator is summed exactly and rounded once to two decimals using round-half-up. The replaceable Kampusia development/default mapping is:
+
+| Minimum numeric score | Letter | Index |
+| ---: | :---: | ---: |
+| 85.00 | A | 4.00 |
+| 80.00 | A- | 3.70 |
+| 75.00 | B+ | 3.30 |
+| 70.00 | B | 3.00 |
+| 65.00 | B- | 2.70 |
+| 60.00 | C+ | 2.30 |
+| 55.00 | C | 2.00 |
+| 45.00 | D | 1.00 |
+| 0.00 | E | 0.00 |
+
+This is a development policy, not a statutory or universal university scale. It lives in `apps/api/src/modules/nilai/grading-policy.ts` so a future validated institutional policy can replace it without scattering thresholds through routes or services. Finalized numeric, letter, and index values remain historical snapshots if the policy later changes.
+
+Post-finalization correction is restricted to ADMIN/AKADEMIK and requires a nonblank reason. One retained active-component score and the existing result snapshot are updated and recalculated atomically under the same policy. The original result id, class/student identity, creation time, finalization time, and finalizer are preserved; only the latest correction metadata is retained. A full revision ledger, manual final-result override, KHS/IPS/IPK UI, repeat-course policy, and result annulment remain outside this milestone.
+
+The DOSEN and ADMIN/AKADEMIK class-detail pages include component management, an inline score grid, saved/loading/error feedback, incomplete-score and weight indicators, finalization confirmation, frozen-state messaging, and manager-only reason-required correction forms.
+
+Verification:
+
+```sh
+bun test
+bun run check
+bun run build
+RUN_GRADING_DB_TESTS=1 bun --env-file=packages/db/.env test packages/db/src/grading-schema.integration.test.ts
+RUN_GRADING_APP_DB_TESTS=1 bun --env-file=packages/db/.env test apps/api/src/modules/nilai/nilai.integration.test.ts
+RUN_GRADING_E2E=1 bun --env-file=packages/db/.env test apps/web/src/lib/server/grading-flow.test.ts
+git diff --check
+```
 
 ## Pertemuan Kuliah and Absensi Mahasiswa database extension
 
