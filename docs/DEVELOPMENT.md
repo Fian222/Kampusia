@@ -316,7 +316,7 @@ The 19 isolated KRS tests cover lifecycle, timestamps, ownership, role/CSRF chec
 
 The opt-in rendered-page test requires running API/web servers and `KRS_INITIAL_BATAS_SKS` configured. It creates temporary student/reviewer accounts, submits the student and administrative forms through SvelteKit/Eden across the full lifecycle, checks confirmations and ADMIN access to shared pages, logs out, and removes its fixture IDs. `KRS_WEB_ORIGIN` can select a different local frontend port. It verifies HTTP-rendered pages and form actions; interactive browser automation is not included.
 
-No database schema, migrations, or development seed records are changed. Attendance, grades, prerequisites, KHS/IPS/IPK, automatic credit-limit calculation, and a full audit log remain outside scope. Individual approved-detail cancellation and automatic class-wide cancellation are not exposed by this module; cancel/reopen the affected KRS through the authorized workflow. Existing class cancellation guards remain in force.
+No database schema, migrations, or development seed records are changed. Attendance, grades, prerequisites, automatic credit-limit calculation, and a full audit log remain outside the KRS module scope. KHS/IPS/IPK are implemented separately from finalized `hasil_studi`. Individual approved-detail cancellation and automatic class-wide cancellation are not exposed by this module; cancel/reopen the affected KRS through the authorized workflow. Existing class cancellation guards remain in force.
 
 ## Grading and academic-result database extension
 
@@ -370,7 +370,7 @@ Calculations use integer hundredths with `BigInt`, not JavaScript binary floatin
 
 This is a development policy, not a statutory or universal university scale. It lives in `apps/api/src/modules/nilai/grading-policy.ts` so a future validated institutional policy can replace it without scattering thresholds through routes or services. Finalized numeric, letter, and index values remain historical snapshots if the policy later changes.
 
-Post-finalization correction is restricted to ADMIN/AKADEMIK and requires a nonblank reason. One retained active-component score and the existing result snapshot are updated and recalculated atomically under the same policy. The original result id, class/student identity, creation time, finalization time, and finalizer are preserved; only the latest correction metadata is retained. A full revision ledger, manual final-result override, KHS/IPS/IPK UI, repeat-course policy, and result annulment remain outside this milestone.
+Post-finalization correction is restricted to ADMIN/AKADEMIK and requires a nonblank reason. One retained active-component score and the existing result snapshot are updated and recalculated atomically under the same policy. The original result id, class/student identity, creation time, finalization time, and finalizer are preserved; only the latest correction metadata is retained. A full revision ledger, manual final-result override, institutional repeat-course replacement policy, and result annulment remain outside this milestone. KHS/IPS/IPK consume the corrected snapshot through the separate read-only module below.
 
 The DOSEN and ADMIN/AKADEMIK class-detail pages include component management, an inline score grid, saved/loading/error feedback, incomplete-score and weight indicators, finalization confirmation, frozen-state messaging, and manager-only reason-required correction forms.
 
@@ -383,6 +383,52 @@ bun run build
 RUN_GRADING_DB_TESTS=1 bun --env-file=packages/db/.env test packages/db/src/grading-schema.integration.test.ts
 RUN_GRADING_APP_DB_TESTS=1 bun --env-file=packages/db/.env test apps/api/src/modules/nilai/nilai.integration.test.ts
 RUN_GRADING_E2E=1 bun --env-file=packages/db/.env test apps/web/src/lib/server/grading-flow.test.ts
+git diff --check
+```
+
+## KHS, IPS, and IPK
+
+Academic results use the read-only `hasil-studi` Route → Service → Repository → Drizzle module. No KHS, IPS, IPK, total-credit, or weighted-point snapshot is stored. `hasil_studi` is the authoritative finalized course-attempt history; current grading component configuration, preview calculations, current grade mapping, and later KRS state are never used to reinterpret it.
+
+Authenticated MAHASISWA endpoints are scoped from the session-linked student profile and accept no student id:
+
+- `GET /mahasiswa/me/hasil-studi` lists semesters containing finalized results and a concise cumulative summary.
+- `GET /mahasiswa/me/khs/:semesterId` returns one semester's finalized course attempts and IPS summary.
+- `GET /mahasiswa/me/ipk` returns the cumulative result.
+
+ADMIN and AKADEMIK use the same service calculations through:
+
+- `GET /mahasiswa/:id/hasil-studi`
+- `GET /mahasiswa/:id/khs/:semesterId`
+- `GET /mahasiswa/:id/ipk`
+
+DOSEN receives no general KHS or cumulative IPK access. A student cannot supply or alter a student id on self-service routes. Every service read verifies the current database account remains active with the same authorized role.
+
+KHS joins each finalized `hasil_studi` to its `kelas_kuliah`, `semester`, and immutable-in-use `mata_kuliah` identity/SKS. Only semesters with at least one finalized result appear in the semester list. An effective approved KRS course without a result is reported only through `unfinishedCourseCount` and makes that semester summary `provisional`; it is excluded from both the KHS course rows and calculation. A cancelled-before-finalization enrollment likewise contributes nothing. A finalized result remains after KRS reopen/cancellation, including after the enrollment is no longer effective.
+
+IPS for one semester is:
+
+```text
+SUM(mata_kuliah.sks × hasil_studi.nilai_indeks)
+------------------------------------------------
+             SUM(mata_kuliah.sks)
+```
+
+IPK uses the same formula over all of the student's finalized results across semesters. A finalized zero index is a real awarded result: its weighted contribution is zero and its SKS remains in the denominator. No result means unfinished, not failure. The stored `hasil_studi.nilai_indeks` is used directly; neither the stored letter nor numeric score is mapped again.
+
+Calculations in `academic-result.ts` parse PostgreSQL numeric strings into integer hundredths and accumulate `SKS × index` with `BigInt`. The API returns exact weighted grade-point totals with two decimals. Only the final IPS/IPK quotient is rounded for display to two decimals, deterministically using round-half-up. An empty finalized result set returns `0.00` weighted points, zero SKS, and a null IPS/IPK instead of inventing a zero academic index. Frontend pages render these backend values and do not recalculate them.
+
+The current development inclusion behavior counts every finalized course attempt, including the same mata kuliah repeated in different semesters. Responses expose `COUNT_ALL_FINALIZED_ATTEMPTS` and whether repeated courses are present; the UI states this limitation. This is a simple interim inclusion model, not an institutional replacement/exclusion rule. Best/latest-attempt replacement, retained-credit rules, transfer credit, equivalency, result annulment, graduation rules, and official transcript/KHS issuance remain future academic-policy extensions.
+
+Students use `/mahasiswa/khs`. ADMIN/AKADEMIK open the shared results component from a student's row at `/akademik/mahasiswa/:id/hasil-studi`. Both views provide a finalized-result semester selector, course code/name/class/SKS, stored numeric/letter/index values, semester SKS and weighted points, IPS, cumulative SKS and weighted points, and IPK. IPS is labeled as semester performance and IPK as cumulative performance.
+
+Verification:
+
+```sh
+bun test
+bun run check
+bun run build
+RUN_ACADEMIC_RESULTS_DB_TESTS=1 bun --env-file=packages/db/.env test apps/api/src/modules/hasil-studi/hasil-studi.integration.test.ts
 git diff --check
 ```
 

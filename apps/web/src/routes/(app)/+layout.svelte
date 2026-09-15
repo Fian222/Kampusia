@@ -23,6 +23,7 @@
       {#if data.user.role === 'DOSEN'}<a href="/dosen/kelas-kuliah" class="mt-1 block rounded-lg px-3 py-3 text-sm font-medium text-teal-800">Kelas yang Diajar</a>{/if}
       {#if data.user.role === 'MAHASISWA'}
         <a href="/mahasiswa/krs" class="mt-1 block rounded-lg px-3 py-3 text-sm font-medium text-teal-800">KRS</a>
+        <a href="/mahasiswa/khs" class="mt-1 block rounded-lg px-3 py-3 text-sm font-medium text-teal-800">KHS &amp; IPK</a>
         <a href="/mahasiswa/absensi" class="mt-1 block rounded-lg px-3 py-3 text-sm font-medium text-teal-800">Riwayat Absensi</a>
       {/if}
     </nav>
