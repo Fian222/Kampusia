@@ -15,4 +15,7 @@ export * from './pertemuan';
 export * from './absensi';
 export * from './krs';
 export * from './krs-detail';
+export * from './komponen-nilai';
+export * from './nilai-mahasiswa';
+export * from './hasil-studi';
 export * from './relations';

@@ -1,8 +1,8 @@
 # Kampusia database design
 
-This document is the source of truth for the database design. Seventeen PostgreSQL tables are currently implemented in `packages/db/schema/`: the initial 15 tables from `packages/db/migrations/0000_initial.sql`, followed by the `pertemuan` and `absensi` extension. The initial migration was applied and verified on the local Podman development database on 2026-09-05; the attendance extension was applied and verified there on 2026-09-14. Migration state is specific to each database.
+This document is the source of truth for the database design. Twenty PostgreSQL tables are implemented in `packages/db/schema/`: the initial 15 tables from `packages/db/migrations/0000_initial.sql`, followed by the `pertemuan` and `absensi` extension and the `komponen_nilai`, `nilai_mahasiswa`, and `hasil_studi` extension. The initial migration was applied and verified on the local Podman development database on 2026-09-05, the attendance extension on 2026-09-14, and the grading extension on 2026-09-15. Migration state is specific to each database.
 
-The next extension documented below adds three proposed tables—`komponen_nilai`, `nilai_mahasiswa`, and `hasil_studi`—for a 20-table target model. Those tables and the related rules are design only: they are not yet present in Drizzle, migrations, the API, or the frontend. This document must be updated before any later design change and implemented schema must be checked against it. See [database package notes](../packages/db/README.md) for verification commands and the boundary between database constraints and service rules.
+The grading tables are implemented only at the database layer; their application APIs, service policies, and frontend remain future work. This document must be updated before any later design change and implemented schema must be checked against it. See [database package notes](../packages/db/README.md) for verification commands and the boundary between database constraints and service rules.
 
 ## Shared conventions
 
@@ -630,7 +630,7 @@ Individual class selections in a study plan; the enrollment junction.
 
 **Relationships:** Belongs to one KRS and one class. Student, semester, and course are derived through those relationships.
 
-### komponen_nilai (proposed; not yet implemented)
+### komponen_nilai
 
 Assessment components configured for one class offering. Examples include Tugas, Quiz, UTS, UAS, Praktikum, Project, and Presentasi; they are rows, not hardcoded columns.
 
@@ -671,7 +671,7 @@ Assessment components configured for one class offering. Examples include Tugas,
 
 **Retention/history behavior:** Never delete a component that has a score or belongs to a finalized class. Deactivate it before finalization when it must no longer participate. Inactive and finalized configuration remains queryable for historical explanation of the calculation.
 
-### nilai_mahasiswa (proposed; not yet implemented)
+### nilai_mahasiswa
 
 The latest recorded numeric score for one student on one assessment component.
 
@@ -710,7 +710,7 @@ The latest recorded numeric score for one student on one assessment component.
 
 **Retention/history behavior:** Score rows are never hard-deleted. They remain evidence of entered grading data even when enrollment later changes or their component is deactivated. Pre-final mistakes are cleared to null; post-final changes use the controlled correction process.
 
-### hasil_studi (proposed; not yet implemented)
+### hasil_studi
 
 The official, finalized historical result for one student in one class offering. `hasil_studi` is preferred over a table named `nilai_akhir` because the row preserves not only a calculated number but also the awarded letter/index and the academic outcome consumed by KHS, IPS, and IPK.
 

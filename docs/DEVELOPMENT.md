@@ -318,6 +318,23 @@ The opt-in rendered-page test requires running API/web servers and `KRS_INITIAL_
 
 No database schema, migrations, or development seed records are changed. Attendance, grades, prerequisites, KHS/IPS/IPK, automatic credit-limit calculation, and a full audit log remain outside scope. Individual approved-detail cancellation and automatic class-wide cancellation are not exposed by this module; cancel/reopen the affected KRS through the authorized workflow. Existing class cancellation guards remain in force.
 
+## Grading and academic-result database extension
+
+The database package implements the documented `komponen_nilai`, `nilai_mahasiswa`, and `hasil_studi` tables and their Drizzle relations. Additive migration `0002_furry_yellow_claw.sql` creates only those tables, restrictive foreign keys, documented unique constraints and indexes, and row-local CHECK constraints. Scores use exact `numeric(5,2)` values; `nilai_mahasiswa.nilai` is nullable with no default, so missing remains distinct from the valid numeric score zero.
+
+Run the schema contract, migration-history check, and opt-in local PostgreSQL integration test from the repository root:
+
+```sh
+bun test packages/db/src/schema.test.ts
+bun run db:check
+RUN_GRADING_DB_TESTS=1 bun --env-file=packages/db/.env test packages/db/src/grading-schema.integration.test.ts
+bun run check
+```
+
+PostgreSQL enforces component weight and order ranges, nonblank names, case-insensitive active-name uniqueness per class, score ranges, one score per student/component, one final result per student/class, result numeric and canonical-letter validity, correction metadata consistency, correction time ordering, actor references, and restrictive historical references. The integration fixtures always roll back.
+
+The database deliberately does not enforce cross-row active component weights totaling exactly 100.00, effective approved-enrollment eligibility, authorization, grading lifecycle transitions, full-roster atomic finalization, component freezing, score/result synchronization during correction, numeric-to-letter/index mapping, or rounding. Those require the future grading service and documented SERIALIZABLE transaction protocol. KHS, IPS, and IPK remain derived from `hasil_studi`; no persistent tables or dynamic KRS credit-limit behavior are added.
+
 ## Pertemuan Kuliah and Absensi Mahasiswa database extension
 
 The database package implements the documented `pertemuan` and `absensi` tables and their Drizzle relations. Migration `0001_hard_weapon_omega.sql` adds only these tables, their restrictive foreign keys, unique constraints, row-local CHECK constraints, and documented indexes. Attendance status has no database default: rows are created lazily, and a missing row is not ALPHA.

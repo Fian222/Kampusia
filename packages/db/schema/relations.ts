@@ -16,6 +16,9 @@ import { pertemuan } from './pertemuan';
 import { absensi } from './absensi';
 import { krs } from './krs';
 import { krsDetail } from './krs-detail';
+import { komponenNilai } from './komponen-nilai';
+import { nilaiMahasiswa } from './nilai-mahasiswa';
+import { hasilStudi } from './hasil-studi';
 
 export const usersRelations = relations(users, ({ one, many }) => ({
   mahasiswa: one(mahasiswa),
@@ -23,6 +26,10 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   krsDisetujui: many(krs),
   absensiDicatat: many(absensi, { relationName: 'absensi_dicatat_oleh' }),
   absensiDiubah: many(absensi, { relationName: 'absensi_diubah_oleh' }),
+  nilaiMahasiswaDicatat: many(nilaiMahasiswa, { relationName: 'nilai_mahasiswa_dicatat_oleh' }),
+  nilaiMahasiswaDiubah: many(nilaiMahasiswa, { relationName: 'nilai_mahasiswa_diubah_oleh' }),
+  hasilStudiDifinalisasi: many(hasilStudi, { relationName: 'hasil_studi_difinalisasi_oleh' }),
+  hasilStudiDikoreksi: many(hasilStudi, { relationName: 'hasil_studi_dikoreksi_oleh' }),
 }));
 
 export const fakultasRelations = relations(fakultas, ({ many }) => ({
@@ -55,6 +62,8 @@ export const mahasiswaRelations = relations(mahasiswa, ({ one, many }) => ({
   }),
   krs: many(krs),
   absensi: many(absensi),
+  nilaiMahasiswa: many(nilaiMahasiswa),
+  hasilStudi: many(hasilStudi),
 }));
 
 export const dosenRelations = relations(dosen, ({ one, many }) => ({
@@ -116,6 +125,8 @@ export const kelasKuliahRelations = relations(kelasKuliah, ({ one, many }) => ({
   jadwalKuliah: many(jadwalKuliah),
   krsDetail: many(krsDetail),
   pertemuan: many(pertemuan),
+  komponenNilai: many(komponenNilai),
+  hasilStudi: many(hasilStudi),
 }));
 
 export const kelasDosenRelations = relations(kelasDosen, ({ one }) => ({
@@ -197,5 +208,55 @@ export const krsDetailRelations = relations(krsDetail, ({ one }) => ({
   kelasKuliah: one(kelasKuliah, {
     fields: [krsDetail.kelasKuliahId],
     references: [kelasKuliah.id],
+  }),
+}));
+
+export const komponenNilaiRelations = relations(komponenNilai, ({ one, many }) => ({
+  kelasKuliah: one(kelasKuliah, {
+    fields: [komponenNilai.kelasKuliahId],
+    references: [kelasKuliah.id],
+  }),
+  nilaiMahasiswa: many(nilaiMahasiswa),
+}));
+
+export const nilaiMahasiswaRelations = relations(nilaiMahasiswa, ({ one }) => ({
+  komponenNilai: one(komponenNilai, {
+    fields: [nilaiMahasiswa.komponenNilaiId],
+    references: [komponenNilai.id],
+  }),
+  mahasiswa: one(mahasiswa, {
+    fields: [nilaiMahasiswa.mahasiswaId],
+    references: [mahasiswa.id],
+  }),
+  dicatatOleh: one(users, {
+    fields: [nilaiMahasiswa.dicatatOleh],
+    references: [users.id],
+    relationName: 'nilai_mahasiswa_dicatat_oleh',
+  }),
+  diubahOleh: one(users, {
+    fields: [nilaiMahasiswa.diubahOleh],
+    references: [users.id],
+    relationName: 'nilai_mahasiswa_diubah_oleh',
+  }),
+}));
+
+export const hasilStudiRelations = relations(hasilStudi, ({ one }) => ({
+  kelasKuliah: one(kelasKuliah, {
+    fields: [hasilStudi.kelasKuliahId],
+    references: [kelasKuliah.id],
+  }),
+  mahasiswa: one(mahasiswa, {
+    fields: [hasilStudi.mahasiswaId],
+    references: [mahasiswa.id],
+  }),
+  difinalisasiOleh: one(users, {
+    fields: [hasilStudi.difinalisasiOleh],
+    references: [users.id],
+    relationName: 'hasil_studi_difinalisasi_oleh',
+  }),
+  dikoreksiOleh: one(users, {
+    fields: [hasilStudi.dikoreksiOleh],
+    references: [users.id],
+    relationName: 'hasil_studi_dikoreksi_oleh',
   }),
 }));

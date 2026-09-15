@@ -12,11 +12,12 @@ const sections = [...design.matchAll(/^### ([a-z_]+)\r?\n([\s\S]*?)(?=^### |^## 
 const sqlText = (value: unknown) => is(value, SQL) ? dialect.sqlToQuery(value).sql : value;
 const normalizeType = (value: string) => value
   .replace('timestamp with time zone', 'timestamptz')
-  .replace('time without time zone', 'time');
+  .replace('time without time zone', 'time')
+  .replace(/,\s+/g, ',');
 
 describe('DATABASE.md schema contract', () => {
   test('exports exactly the documented tables', () => {
-    expect(sections).toHaveLength(17);
+    expect(sections).toHaveLength(20);
     expect(tables.map((table) => getTableConfig(table).name).sort())
       .toEqual(sections.map((section) => section[1]!).sort());
   });
@@ -63,7 +64,7 @@ describe('DATABASE.md schema contract', () => {
 
   test('all foreign keys restrict deletion and updates', () => {
     const keys = tables.flatMap((table) => getTableConfig(table).foreignKeys);
-    expect(keys).toHaveLength(26);
+    expect(keys).toHaveLength(35);
     for (const key of keys) {
       expect(key.onDelete).toBe('restrict');
       expect(key.onUpdate).toBe('restrict');
@@ -113,6 +114,45 @@ describe('DATABASE.md schema contract', () => {
     expect(actorKeys.map((key) => key.reference().columns[0]?.name).sort()).toEqual(['dicatat_oleh', 'diubah_oleh']);
   });
 
+  test('grading constraints, uniqueness, partial component-name index, and actor references match the contract', () => {
+    const components = getTableConfig(schema.komponenNilai);
+    expect(components.checks.map((entry) => entry.name).sort()).toEqual([
+      'komponen_nilai_bobot_range_check',
+      'komponen_nilai_nama_nonblank_check',
+      'komponen_nilai_urutan_positive_check',
+    ]);
+    const activeName = components.indexes.find((entry) => entry.config.unique)!;
+    expect(activeName).toBeDefined();
+    expect(sqlText(activeName.config.where)).toBe('"komponen_nilai"."is_active" = true');
+    expect(activeName.config.columns).toHaveLength(2);
+    expect('name' in activeName.config.columns[0]!).toBe(true);
+    expect('name' in activeName.config.columns[0]! ? activeName.config.columns[0]!.name : undefined)
+      .toBe('kelas_kuliah_id');
+    expect(sqlText(activeName.config.columns[1])).toBe('lower(btrim("komponen_nilai"."nama"))');
+
+    const scores = getTableConfig(schema.nilaiMahasiswa);
+    expect(scores.columns.find((column) => column.name === 'nilai')?.notNull).toBe(false);
+    expect(scores.columns.find((column) => column.name === 'nilai')?.default).toBeUndefined();
+    expect(scores.uniqueConstraints.map((key) => key.columns.map((column) => column.name)))
+      .toContainEqual(['komponen_nilai_id', 'mahasiswa_id']);
+    expect(scores.checks.map((entry) => entry.name)).toEqual(['nilai_mahasiswa_nilai_range_check']);
+    expect(scores.foreignKeys.filter((key) => key.reference().foreignTable === schema.users)
+      .map((key) => key.reference().columns[0]?.name).sort()).toEqual(['dicatat_oleh', 'diubah_oleh']);
+
+    const results = getTableConfig(schema.hasilStudi);
+    expect(results.uniqueConstraints.map((key) => key.columns.map((column) => column.name)))
+      .toContainEqual(['kelas_kuliah_id', 'mahasiswa_id']);
+    expect(results.checks.map((entry) => entry.name).sort()).toEqual([
+      'hasil_studi_dikoreksi_at_range_check',
+      'hasil_studi_koreksi_fields_check',
+      'hasil_studi_nilai_angka_range_check',
+      'hasil_studi_nilai_huruf_canonical_check',
+      'hasil_studi_nilai_indeks_nonnegative_check',
+    ]);
+    expect(results.foreignKeys.filter((key) => key.reference().foreignTable === schema.users)
+      .map((key) => key.reference().columns[0]?.name).sort()).toEqual(['difinalisasi_oleh', 'dikoreksi_oleh']);
+  });
+
   test('query relations resolve enrollment, attendance actors, team teaching, and the composite curriculum join', async () => {
     // postgres.js connects lazily; SQL generation does not contact this address.
     const { db, client } = createDatabase('postgresql://localhost/kampusia_schema_validation');
@@ -129,6 +169,12 @@ describe('DATABASE.md schema contract', () => {
               kelasDosen: { with: { dosen: true } },
               jadwalKuliah: { with: { ruangan: true } },
               pertemuan: { with: { absensi: { with: { dicatatOleh: true, diubahOleh: true } } } },
+              komponenNilai: { with: { nilaiMahasiswa: { with: {
+                mahasiswa: true,
+                dicatatOleh: true,
+                diubahOleh: true,
+              } } } },
+              hasilStudi: { with: { difinalisasiOleh: true, dikoreksiOleh: true } },
             } } } },
           } },
         },
@@ -136,7 +182,17 @@ describe('DATABASE.md schema contract', () => {
       expect(studentQuery.sql).toContain('"mahasiswa_kurikulum"."id" = "mahasiswa"."kurikulum_id"');
       expect(studentQuery.sql).toContain('"mahasiswa_kurikulum"."program_studi_id" = "mahasiswa"."program_studi_id"');
       expect(() => db.query.users.findMany({
-        with: { mahasiswa: true, dosen: true, krsDisetujui: true, absensiDicatat: true, absensiDiubah: true },
+        with: {
+          mahasiswa: true,
+          dosen: true,
+          krsDisetujui: true,
+          absensiDicatat: true,
+          absensiDiubah: true,
+          nilaiMahasiswaDicatat: true,
+          nilaiMahasiswaDiubah: true,
+          hasilStudiDifinalisasi: true,
+          hasilStudiDikoreksi: true,
+        },
       }).toSQL()).not.toThrow();
       expect(() => db.query.kurikulum.findMany({ with: { mahasiswa: true } }).toSQL()).not.toThrow();
     } finally {
