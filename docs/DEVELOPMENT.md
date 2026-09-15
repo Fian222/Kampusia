@@ -274,7 +274,25 @@ No database schemas, migrations, or seed records are changed. KRS workflows, att
 
 Students use `/mahasiswa/krs`; ADMIN and AKADEMIK share `/akademik/krs` and `/akademik/krs/:id`. The sidebar links to the appropriate area. Student accounts must already be linked to their academic profiles; the development seed deliberately does not provision student logins.
 
-Set `KRS_INITIAL_BATAS_SKS` in `apps/api/.env` to the authorized initial credit limit, for example `18` for the development policy. This server setting is required only when creating a new plan. Existing plans retain `krs.batas_sks`, and neither student request bodies nor subsequent configuration changes overwrite it. Missing/invalid configuration returns a clear service-unavailable message for new plans. There is no IP-based calculation or limit-edit endpoint in this increment.
+Set `KRS_INITIAL_BATAS_SKS` in `apps/api/.env` to the authorized fallback credit limit, for example `18` for development. The service validates it as a positive PostgreSQL smallint whenever a new plan needs the fallback. Existing plans retain `krs.batas_sks`, and neither student request bodies nor subsequent configuration changes overwrite it. Missing/invalid fallback configuration returns a clear service-unavailable message only when a new plan cannot use a complete previous-semester IPS. There is no credit-limit edit endpoint.
+
+New KRS creation resolves the most recent valid academic semester before the target by the documented `tahun_mulai` and GANJIL/GENAP sequence. A candidate must be a different semester, occupy an earlier academic position, and end before the target starts; UUID order and ID arithmetic are never used. For a GANJIL target, the latest earlier academic year is considered. For a GENAP target, GANJIL in the same academic year may be considered first. Missing academic periods are not invented: the latest stored valid predecessor is used, or creation falls back when none exists.
+
+The predecessor is usable only when it has at least one finalized `hasil_studi` row for the student and no unfinished course under the existing KHS semantics. IPS is calculated with the shared `academic-result.ts` utility from immutable `hasil_studi.nilai_indeks` snapshots and `mata_kuliah.sks`; current numeric-to-letter/index grading rules are not consulted. A non-null IPS is rounded with the same deterministic two-decimal round-half-up behavior exposed by KHS.
+
+The isolated `credit-limit-policy.ts` module currently contains this replaceable Kampusia development/default mapping:
+
+| Previous IPS minimum | Maximum SKS |
+| ---: | ---: |
+| 3.00 | 24 |
+| 2.50 | 21 |
+| 2.00 | 18 |
+| 1.50 | 15 |
+| 0.00 | 12 |
+
+This mapping is not an official or universal university policy. Decimal comparison uses exact hundredths rather than binary floating point. The institution's validated ranges can replace this single module later. `KRS_INITIAL_BATAS_SKS` remains the fallback when there is no predecessor, no finalized result, or an unfinished previous-semester result prevents a complete IPS.
+
+The selected limit is written once to `krs.batas_sks` in the same retryable SERIALIZABLE creation transaction. Concurrent creation remains arbitrated by the unique mahasiswa/semester constraint; a losing request reads the winning existing DRAFT. Grade corrections, IPS changes, policy/configuration changes, rejection reopening, and administrative reopening do not recalculate the stored snapshot. Student input cannot supply `batas_sks`. The creation API response temporarily identifies `PREVIOUS_IPS`, `INITIAL_FALLBACK`, or `EXISTING_SNAPSHOT`; this source is not persisted and later reads do not guess it.
 
 Student endpoints (authenticated MAHASISWA):
 
@@ -300,7 +318,7 @@ New selections, submission, and approval require an AKTIF student, the explicitl
 
 All KRS operations use SERIALIZABLE transactions with the existing bounded retry utility (three attempts). Mutations lock the parent KRS and relevant class rows in UUID order. Approval counts only AKTIF details on DISETUJUI parents after acquiring the class locks; pending plans consume no seats. A full class rolls back the entire approval. Cancellation and reopening participate in the same class-lock protocol. Concurrent initial creation uses the student/semester unique constraint and returns the winning draft. Class details already expose derived enrollment counts; KRS class lists also return counts and remaining capacity, including zero for empty classes. Full classes remain selectable, but approval requires capacity.
 
-The student page shows active semester, selected/remaining SKS, state, searchable available classes, lecturer/schedule/room information, draft editing, submission, rejected-plan correction, approved plans, and paginated history. The administrative page provides paginated filters and detail review. Status actions use confirmation dialogs, with a checkbox fallback when JavaScript is disabled. Validation errors remain visible after failed form actions. All calls use Eden Treaty through the existing server session handling.
+The student page shows active semester, maximum/selected/remaining SKS, snapshot semantics, state, searchable available classes, lecturer/schedule/room information, draft editing, submission, rejected-plan correction, approved plans, and paginated history. Immediately after creation it explains whether a complete previous IPS or the initial fallback resolved the limit; existing records do not receive a guessed source. The administrative page provides paginated filters and detail review. Status actions use confirmation dialogs, with a checkbox fallback when JavaScript is disabled. Validation errors remain visible after failed form actions. All calls use Eden Treaty through the existing server session handling.
 
 Verification:
 
@@ -312,11 +330,11 @@ RUN_KRS_DB_TESTS=1 bun --env-file=packages/db/.env test apps/api/src/modules/krs
 RUN_KRS_E2E=1 bun --env-file=packages/db/.env test apps/api/src/modules/krs/krs-flow.test.ts
 ```
 
-The 19 isolated KRS tests cover lifecycle, timestamps, ownership, role/CSRF checks, eligibility, duplicates, SKS, schedules, reactivation, immutability, and capacity release. Three PostgreSQL tests exercise real repositories, filtered queries, uniqueness/timestamp constraints, atomic multi-class approval, effective counts, concurrent final-seat approval with forced overlapping transactions and retries, and concurrent draft creation. Integration tests require the existing active development semester; most fixtures roll back, while concurrency fixtures delete only their own committed IDs in `finally`. They never alter the active semester or development seed.
+The isolated KRS tests cover lifecycle, timestamps, ownership, role/CSRF checks, eligibility, duplicates, SKS, schedules, reactivation, immutability, capacity release, previous-semester selection, IPS snapshot reuse, every development-policy boundary, fallback behavior, and non-retroactive limits. PostgreSQL tests exercise real repositories, finalized stored indexes, unfinished-result fallback, filtered queries, uniqueness/timestamp constraints, atomic multi-class approval, effective counts, concurrent final-seat approval with forced overlapping transactions and retries, and concurrent draft creation. Integration fixtures roll back or precisely remove their own committed IDs.
 
 The opt-in rendered-page test requires running API/web servers and `KRS_INITIAL_BATAS_SKS` configured. It creates temporary student/reviewer accounts, submits the student and administrative forms through SvelteKit/Eden across the full lifecycle, checks confirmations and ADMIN access to shared pages, logs out, and removes its fixture IDs. `KRS_WEB_ORIGIN` can select a different local frontend port. It verifies HTTP-rendered pages and form actions; interactive browser automation is not included.
 
-No database schema, migrations, or development seed records are changed. Attendance, grades, prerequisites, automatic credit-limit calculation, and a full audit log remain outside the KRS module scope. KHS/IPS/IPK are implemented separately from finalized `hasil_studi`. Individual approved-detail cancellation and automatic class-wide cancellation are not exposed by this module; cancel/reopen the affected KRS through the authorized workflow. Existing class cancellation guards remain in force.
+No database schema, migrations, or development seed records are changed. Prerequisites and a full audit log remain outside the KRS module scope. Official institutional IPS-to-SKS ranges are still unresolved; the explicitly labeled development policy is replaceable. KHS/IPS/IPK remain derived separately from finalized `hasil_studi`. Individual approved-detail cancellation and automatic class-wide cancellation are not exposed by this module; cancel/reopen the affected KRS through the authorized workflow. Existing class cancellation guards remain in force.
 
 ## Grading and academic-result database extension
 

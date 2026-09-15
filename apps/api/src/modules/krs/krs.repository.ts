@@ -1,6 +1,6 @@
 import type { createDatabase } from '@kampusia/db';
 import { krs, krsDetail, mahasiswa, semester, kelasKuliah, mataKuliah, programStudi, fakultas, kurikulumMatkul, jadwalKuliah, ruangan, kelasDosen, dosen, users, hasilStudi } from '@kampusia/db/schema';
-import { and, asc, desc, count, eq, getTableColumns, ilike, inArray, notInArray, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, count, eq, getTableColumns, ilike, inArray, isNull, lt, ne, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { pagination, searchPattern, type ListQuery } from '../../utils/master-data';
 import { classAssignments } from '../kelas-kuliah/kelas-kuliah.repository';
 import type { KrsQuery } from './krs.model';
@@ -22,6 +22,43 @@ export function krsTransaction(tx: Transaction) {
     async student(userId: string) { return (await tx.select().from(mahasiswa).where(eq(mahasiswa.userId, userId)).for('share'))[0]; },
     async studentById(id: string) { return (await tx.select().from(mahasiswa).where(eq(mahasiswa.id, id)).for('share'))[0]; },
     async term(id: string) { return (await tx.select().from(semester).where(eq(semester.id, id)).for('share'))[0]; },
+    async previousTerm(target: typeof semester.$inferSelect) {
+      const earlierAcademicPosition = target.jenis === 'GENAP'
+        ? or(lt(semester.tahunMulai, target.tahunMulai), and(eq(semester.tahunMulai, target.tahunMulai), eq(semester.jenis, 'GANJIL')))
+        : lt(semester.tahunMulai, target.tahunMulai);
+      return (await tx.select().from(semester).where(and(
+        ne(semester.id, target.id),
+        earlierAcademicPosition,
+        lt(semester.tanggalSelesai, target.tanggalMulai),
+      )).orderBy(
+        desc(semester.tahunMulai),
+        desc(sql<number>`CASE WHEN ${semester.jenis} = 'GENAP' THEN 2 ELSE 1 END`),
+        desc(semester.tanggalSelesai),
+        desc(semester.tanggalMulai),
+        desc(semester.kode),
+        asc(semester.id),
+      ).limit(1).for('share'))[0];
+    },
+    async academicResults(studentId: string, semesterId: string) {
+      return await tx.select({ sks: mataKuliah.sks, nilaiIndeks: hasilStudi.nilaiIndeks }).from(hasilStudi)
+        .innerJoin(kelasKuliah, eq(hasilStudi.kelasKuliahId, kelasKuliah.id))
+        .innerJoin(mataKuliah, eq(kelasKuliah.mataKuliahId, mataKuliah.id))
+        .where(and(eq(hasilStudi.mahasiswaId, studentId), eq(kelasKuliah.semesterId, semesterId)));
+    },
+    async unfinishedResultCount(studentId: string, semesterId: string) {
+      const rows = await tx.select({ id: krsDetail.id }).from(krsDetail)
+        .innerJoin(krs, eq(krsDetail.krsId, krs.id))
+        .innerJoin(kelasKuliah, eq(krsDetail.kelasKuliahId, kelasKuliah.id))
+        .leftJoin(hasilStudi, and(eq(hasilStudi.kelasKuliahId, kelasKuliah.id), eq(hasilStudi.mahasiswaId, studentId)))
+        .where(and(
+          eq(krs.mahasiswaId, studentId),
+          eq(krs.semesterId, semesterId),
+          eq(krs.status, 'DISETUJUI'),
+          eq(krsDetail.status, 'AKTIF'),
+          isNull(hasilStudi.id),
+        ));
+      return rows.length;
+    },
     async activeTerm() { return (await tx.select().from(semester).where(eq(semester.isActive, true)))[0] ?? null; },
     async program(id: string) { return (await tx.select({ isActive: programStudi.isActive, facultyActive: fakultas.isActive }).from(programStudi).innerJoin(fakultas, eq(programStudi.fakultasId, fakultas.id)).where(eq(programStudi.id, id)).for('share'))[0]; },
     async memberships(id: string) { return tx.select({ id: kurikulumMatkul.mataKuliahId }).from(kurikulumMatkul).where(eq(kurikulumMatkul.kurikulumId, id)); },
@@ -37,7 +74,8 @@ export function krsTransaction(tx: Transaction) {
       const selections = await tx.select().from(krsDetail).where(eq(krsDetail.krsId, id)).orderBy(asc(krsDetail.createdAt), asc(krsDetail.id));
       const offerings = await enrich(selections.length ? await classes().where(inArray(kelasKuliah.id, selections.map(item => item.kelasKuliahId))) : []);
       const details = selections.map(item => ({ ...item, kelas: offerings.find(kelas => kelas.id === item.kelasKuliahId)! }));
-      return { ...row, details, totalSks: details.reduce((total, item) => total + (item.status === 'AKTIF' ? item.kelas.mataKuliah.sks : 0), 0) };
+      const totalSks = details.reduce((total, item) => total + (item.status === 'AKTIF' ? item.kelas.mataKuliah.sks : 0), 0);
+      return { ...row, details, totalSks, remainingSks: Math.max(0, row.batasSks - totalSks) };
     },
     async list(query: KrsQuery, studentId?: string) {
       const { page, limit } = pagination(query);

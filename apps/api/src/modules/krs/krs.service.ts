@@ -3,12 +3,23 @@ import { AuthError, type AuthUser } from '../auth/auth.model';
 import { academicWrite, postgresError } from '../../utils/academic-write';
 import { MasterDataError, type ListQuery } from '../../utils/master-data';
 import { slotsOverlap, validateTime, hasWeekday } from '../jadwal/jadwal.service';
+import { calculateAcademicIndex } from '../hasil-studi/academic-result';
+import { getMaximumCreditsFromIps } from './credit-limit-policy';
 import type { KrsRepository, KrsTransaction } from './krs.repository';
 import type { KrsQuery } from './krs.model';
 type Plan = NonNullable<Awaited<ReturnType<KrsTransaction['lockPlan']>>>;
 type Student = NonNullable<Awaited<ReturnType<KrsTransaction['student']>>>;
 const adminRoles = ['ADMIN', 'AKADEMIK'] as const;
-export function createKrsService(repository: KrsRepository, initialLimit?: number) {
+type MaximumCreditsPolicy = (ips: string) => number;
+type LimitResolution = {
+  batasSks: number;
+  batasSksSource: 'PREVIOUS_IPS' | 'INITIAL_FALLBACK';
+  previousSemester: Awaited<ReturnType<KrsTransaction['previousTerm']>> | null;
+  previousIps: string | null;
+  fallbackReason: 'NO_PREVIOUS_SEMESTER' | 'NO_FINALIZED_RESULTS' | 'UNFINISHED_RESULTS' | null;
+};
+
+export function createKrsService(repository: KrsRepository, initialLimit?: number, maximumCreditsPolicy: MaximumCreditsPolicy = getMaximumCreditsFromIps) {
   const run = <T>(operation: (tx: KrsTransaction) => Promise<T>) => academicWrite(() => repository.transaction(operation));
   async function actor(tx: KrsTransaction, user: AuthUser, admin: boolean) {
     requireRole(user, admin ? adminRoles : ['MAHASISWA']);
@@ -29,6 +40,25 @@ export function createKrsService(repository: KrsRepository, initialLimit?: numbe
     if (!program?.isActive || !program.facultyActive) throw new MasterDataError(400, 'Program studi dan fakultas harus aktif.');
     // An inactive assigned curriculum remains valid for its existing students.
     return term;
+  }
+  function fallbackLimit(reason: NonNullable<LimitResolution['fallbackReason']>, previousSemester: LimitResolution['previousSemester'] = null): LimitResolution {
+    if (!Number.isInteger(initialLimit) || initialLimit! < 1 || initialLimit! > 32767) throw new MasterDataError(503, 'Kebijakan batas SKS awal belum dikonfigurasi oleh pengelola.');
+    return { batasSks: initialLimit!, batasSksSource: 'INITIAL_FALLBACK', previousSemester, previousIps: null, fallbackReason: reason };
+  }
+  async function resolveLimit(tx: KrsTransaction, owner: Student, targetSemester: NonNullable<Awaited<ReturnType<KrsTransaction['term']>>>): Promise<LimitResolution> {
+    const previousSemester = await tx.previousTerm(targetSemester);
+    if (!previousSemester) return fallbackLimit('NO_PREVIOUS_SEMESTER');
+    const [results, unfinishedResultCount] = await Promise.all([
+      tx.academicResults(owner.id, previousSemester.id),
+      tx.unfinishedResultCount(owner.id, previousSemester.id),
+    ]);
+    if (!results.length) return fallbackLimit('NO_FINALIZED_RESULTS', previousSemester);
+    if (unfinishedResultCount > 0) return fallbackLimit('UNFINISHED_RESULTS', previousSemester);
+    const calculation = calculateAcademicIndex(results);
+    if (calculation.index === null) return fallbackLimit('NO_FINALIZED_RESULTS', previousSemester);
+    const batasSks = maximumCreditsPolicy(calculation.index);
+    if (!Number.isInteger(batasSks) || batasSks < 1 || batasSks > 32767) throw new MasterDataError(503, 'Kebijakan batas SKS menghasilkan nilai yang tidak valid.');
+    return { batasSks, batasSksSource: 'PREVIOUS_IPS', previousSemester, previousIps: calculation.index, fallbackReason: null };
   }
   function state(plan: Plan, expected: Plan['status']) {
     if (plan.status !== expected) throw new MasterDataError(409, `Tindakan membutuhkan KRS ${expected}; status saat ini ${plan.status}.`);
@@ -79,10 +109,10 @@ export function createKrsService(repository: KrsRepository, initialLimit?: numbe
       const operation = () => run(async tx => {
         await actor(tx, user, false); const owner = await student(tx, user);
         const existing = await tx.findPlan(owner.id, semesterId);
-        if (existing) { state(existing, 'DRAFT'); return existing; }
-        await eligible(tx, owner, semesterId);
-        if (!Number.isInteger(initialLimit) || initialLimit! < 1 || initialLimit! > 32767) throw new MasterDataError(503, 'Kebijakan batas SKS belum dikonfigurasi oleh pengelola.');
-        return tx.create(owner.id, semesterId, initialLimit!);
+        if (existing) { state(existing, 'DRAFT'); return { ...existing, batasSksSource: 'EXISTING_SNAPSHOT' as const, previousSemester: null, previousIps: null, fallbackReason: null }; }
+        const targetSemester = await eligible(tx, owner, semesterId);
+        const resolution = await resolveLimit(tx, owner, targetSemester);
+        return Object.assign(await tx.create(owner.id, semesterId, resolution.batasSks), resolution);
       });
       try { return await operation(); } catch (error) {
         // The unique pair arbitrates simultaneous initial creation. Read the winner in a fresh transaction.

@@ -6,7 +6,13 @@
 <div class="my-5 rounded-lg border border-slate-200 bg-white p-5">
   <h2 class="font-semibold">{krs.mahasiswa.nama} · {krs.mahasiswa.nim}</h2>
   <p>{krs.programStudi.nama} · {krs.semester.nama}</p>
-  <p class="mt-3 font-semibold">{krs.status} · {krs.totalSks} / {krs.batasSks} SKS · Sisa {Math.max(0, krs.batasSks - krs.totalSks)} SKS</p>
+  <p class="mt-3 font-semibold">Status: {krs.status}</p>
+  <dl class="mt-3 grid gap-3 sm:grid-cols-3">
+    <div class="rounded-lg bg-slate-50 p-3"><dt class="text-sm text-slate-500">Batas SKS maksimum</dt><dd class="text-xl font-semibold">{krs.batasSks} SKS</dd></div>
+    <div class="rounded-lg bg-slate-50 p-3"><dt class="text-sm text-slate-500">SKS dipilih</dt><dd class="text-xl font-semibold">{krs.totalSks} SKS</dd></div>
+    <div class="rounded-lg bg-slate-50 p-3"><dt class="text-sm text-slate-500">Sisa SKS</dt><dd class="text-xl font-semibold">{krs.remainingSks} SKS</dd></div>
+  </dl>
+  <p class="mt-3 text-sm text-slate-500">Batas SKS adalah snapshot saat KRS dibuat dan tidak dihitung ulang ketika KRS dibuka kembali.</p>
   {#if krs.diajukanAt}<p class="mt-2 text-sm">Diajukan: {new Date(krs.diajukanAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}</p>{/if}
   {#if krs.disetujuiAt}<p class="text-sm">Disetujui: {new Date(krs.disetujuiAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}</p>{/if}
 </div>

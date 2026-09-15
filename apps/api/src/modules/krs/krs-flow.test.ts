@@ -20,10 +20,10 @@ test.skipIf(Bun.env.RUN_KRS_E2E !== '1')('SvelteKit student/admin KRS forms comp
     const student = cookies[0]!, admin = cookies[1]!; const path = '/mahasiswa/krs';
     expect((await request(path)).status).toBe(303); expect((await request('/akademik/krs', student)).status).toBe(403);
     expect(await (await request(path, student)).text()).toContain('Buat DRAFT KRS');
-    const created = await request(path, student, { mode: 'create', id: f.term.id }); expect(created.status).toBe(200); expect(await created.text()).toContain('KRS berhasil diperbarui');
+    const created = await request(path, student, { mode: 'create', id: f.term.id }); expect(created.status).toBe(200); expect(await created.text()).toContain('belum tersedia IPS semester sebelumnya yang lengkap');
     const service = createKrsService(createKrsRepository(db), 6); const plan = (await service.bySemester(f.user, f.term.id)).krs!; expect(plan).toBeDefined();
     const add = await request(path, student, { mode: 'add', id: plan.id, kelas_id: f.classes[0]!.id }); expect(add.status).toBe(200);
-    const html = await add.text(); for (const label of [f.courses[0]!.kode, f.lecturer.nama, f.room.kode, 'Ajukan KRS', 'Hapus']) expect(html).toContain(label);
+    const html = await add.text(); for (const label of [f.courses[0]!.kode, f.lecturer.nama, f.room.kode, 'Ajukan KRS', 'Hapus', 'Batas SKS maksimum', 'SKS dipilih', 'Sisa SKS']) expect(html).toContain(label);
     const detail = (await service.bySemester(f.user, f.term.id)).krs!.details[0]!;
     expect((await request(path, student, { mode: 'remove', id: plan.id, detail_id: detail.id })).status).toBe(200);
     await request(path, student, { mode: 'add', id: plan.id, kelas_id: f.classes[0]!.id });

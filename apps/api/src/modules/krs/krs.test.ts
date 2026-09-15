@@ -12,6 +12,9 @@ function fixture() {
   const admin: AuthUser = { id: uuid(), email: 'admin@test.local', role: 'AKADEMIK' };
   const owner: typeof mahasiswa.$inferSelect = { ...common(), userId: user.id, programStudiId: uuid(), kurikulumId: uuid(), nim: '001', nama: 'Student', angkatan: 2026, status: 'AKTIF' };
   const term: typeof semester.$inferSelect = { ...common(), kode: '20261', nama: 'Ganjil', tahunMulai: 2026, jenis: 'GANJIL', tanggalMulai: '2026-08-24', tanggalSelesai: '2027-01-15', isActive: true };
+  const terms: (typeof semester.$inferSelect)[] = [term];
+  const academicResults = new Map<string, { sks: number; nilaiIndeks: string }[]>();
+  const unfinishedResults = new Map<string, number>();
   const plans: (typeof krs.$inferSelect)[] = []; const details: (typeof krsDetail.$inferSelect)[] = [];
   const classes: Awaited<ReturnType<KrsTransaction['classes']>> = [0, 1, 2].map(i => {
     const course = { ...common(), kode: `MK${i}`, nama: `Course ${i}`, sks: 3, isActive: true };
@@ -24,12 +27,16 @@ function fixture() {
   const tx: KrsTransaction = {
     actor: async id => ({ id, role: id === admin.id ? admin.role : user.role, isActive: !inactive }),
     student: async id => id === user.id ? owner : { ...owner, id: uuid(), userId: id }, studentById: async () => owner,
-    term: async id => id === term.id ? term : undefined, activeTerm: async () => term.isActive ? term : null,
+    term: async id => terms.find(item => item.id === id),
+    previousTerm: async target => terms.filter(item => item.id !== target.id && item.tanggalSelesai < target.tanggalMulai && (item.tahunMulai < target.tahunMulai || (item.tahunMulai === target.tahunMulai && target.jenis === 'GENAP' && item.jenis === 'GANJIL'))).sort((a, b) => b.tahunMulai - a.tahunMulai || (b.jenis === 'GENAP' ? 2 : 1) - (a.jenis === 'GENAP' ? 2 : 1) || b.tanggalSelesai.localeCompare(a.tanggalSelesai))[0],
+    academicResults: async (studentId, semesterId) => academicResults.get(`${studentId}:${semesterId}`) ?? [],
+    unfinishedResultCount: async (studentId, semesterId) => unfinishedResults.get(`${studentId}:${semesterId}`) ?? 0,
+    activeTerm: async () => term.isActive ? term : null,
     program: async () => ({ isActive: true, facultyActive: true }), memberships: async () => members,
     lockPlan: async id => plans.find(row => row.id === id), findPlan: async (studentId, termId) => plans.find(row => row.mahasiswaId === studentId && row.semesterId === termId),
     lockClasses: async ids => { locks.push(ids); }, finalizedClassIds: async ids => ids.filter(id => finalized.has(id)), details: async id => details.filter(row => row.krsId === id),
     classes: async ids => classes.filter(row => ids.includes(row.id)).map(row => { const count = details.filter(detail => detail.kelasKuliahId === row.id && detail.status === 'AKTIF' && plans.some(plan => plan.id === detail.krsId && plan.status === 'DISETUJUI')).length; return { ...row, jumlahMahasiswa: count, sisaKapasitas: row.kapasitas - count }; }),
-    detail: async id => { const plan = plans.find(row => row.id === id); if (!plan) return undefined; const rows = details.filter(row => row.krsId === id).map(row => ({ ...row, kelas: classes.find(kelas => kelas.id === row.kelasKuliahId)! })); return { ...plan, mahasiswa: owner, semester: term, programStudi: { id: owner.programStudiId, kode: 'IF', nama: 'IF' }, details: rows, totalSks: rows.reduce((sum, row) => sum + (row.status === 'AKTIF' ? row.kelas.mataKuliah.sks : 0), 0) }; },
+    detail: async id => { const plan = plans.find(row => row.id === id); if (!plan) return undefined; const rows = details.filter(row => row.krsId === id).map(row => ({ ...row, kelas: classes.find(kelas => kelas.id === row.kelasKuliahId)! })); const totalSks = rows.reduce((sum, row) => sum + (row.status === 'AKTIF' ? row.kelas.mataKuliah.sks : 0), 0); return { ...plan, mahasiswa: owner, semester: term, programStudi: { id: owner.programStudiId, kode: 'IF', nama: 'IF' }, details: rows, totalSks, remainingSks: Math.max(0, plan.batasSks - totalSks) }; },
     list: async () => ({ data: [], meta: { page: 1, limit: 20, total: 0 } }), available: async () => ({ data: classes, meta: { page: 1, limit: 20, total: classes.length } }),
     create: async (mahasiswaId, semesterId, batasSks) => { const row: typeof krs.$inferSelect = { ...common(), mahasiswaId, semesterId, batasSks, status: 'DRAFT', diajukanAt: null, disetujuiAt: null, disetujuiOleh: null }; plans.push(row); return row; },
     update: async (id, changes) => { const row = plans.find(row => row.id === id)!; Object.assign(row, changes, { updatedAt: new Date() }); return row; },
@@ -42,12 +49,47 @@ function fixture() {
   const draft = () => service.create(user, term.id);
   const selected = async () => { const plan = await draft(); await service.add(user, plan.id, classes[0]!.id); return plan; };
   const submitted = async () => { const plan = await selected(); await service.submit(user, plan.id); return plan; };
-  return { user, admin, owner, term, plans, details, classes, members, finalized, tx, repository, service, locks, draft, selected, submitted, deactivate: () => { inactive = true; } };
+  function addPreviousTerm(year: number, jenis: 'GANJIL' | 'GENAP', dates: [string, string], results: { sks: number; nilaiIndeks: string }[] = []) {
+    const previous: typeof semester.$inferSelect = { ...common(), kode: `${year}${jenis === 'GANJIL' ? '1' : '2'}`, nama: `${jenis} ${year}`, tahunMulai: year, jenis, tanggalMulai: dates[0], tanggalSelesai: dates[1], isActive: false };
+    terms.push(previous); academicResults.set(`${owner.id}:${previous.id}`, results); return previous;
+  }
+  return { user, admin, owner, term, terms, plans, details, classes, members, finalized, academicResults, unfinishedResults, tx, repository, service, locks, draft, selected, submitted, addPreviousTerm, deactivate: () => { inactive = true; } };
 }
 
 test('KRS creates/gets the same draft with server-assigned limit; missing policy fails closed', async () => {
-  const f = fixture(); const plan = await f.draft(); expect((await f.draft()).id).toBe(plan.id); expect(plan.batasSks).toBe(6); expect(plan.diajukanAt).toBeNull();
+  const f = fixture(); const plan = await f.draft(); expect((await f.draft()).id).toBe(plan.id); expect(plan.batasSks).toBe(6); expect(plan.batasSksSource).toBe('INITIAL_FALLBACK'); expect(plan.diajukanAt).toBeNull();
   const other = fixture(); await expect(createKrsService(other.repository).create(other.user, other.term.id)).rejects.toThrow('belum dikonfigurasi');
+});
+test('KRS resolves the latest valid prior semester, reuses stored finalized indexes, and excludes the target term', async () => {
+  const f = fixture();
+  f.addPreviousTerm(2024, 'GENAP', ['2025-01-01', '2025-06-30'], [{ sks: 3, nilaiIndeks: '1.00' }]);
+  const previous = f.addPreviousTerm(2025, 'GENAP', ['2026-01-01', '2026-06-30'], [{ sks: 2, nilaiIndeks: '2.49' }, { sks: 3, nilaiIndeks: '3.00' }]);
+  f.academicResults.set(`${f.owner.id}:${f.term.id}`, [{ sks: 20, nilaiIndeks: '4.00' }]);
+  const plan = await f.service.create(f.user, f.term.id);
+  expect(plan).toMatchObject({ batasSks: 21, batasSksSource: 'PREVIOUS_IPS', previousIps: '2.80', fallbackReason: null });
+  expect(plan.previousSemester?.id).toBe(previous.id);
+});
+test('KRS falls back with no prior semester, no finalized result, or unfinished prior result', async () => {
+  const first = fixture(); expect((await first.draft()).fallbackReason).toBe('NO_PREVIOUS_SEMESTER');
+  const empty = fixture(); const emptyTerm = empty.addPreviousTerm(2025, 'GENAP', ['2026-01-01', '2026-06-30']);
+  expect((await empty.draft()).fallbackReason).toBe('NO_FINALIZED_RESULTS');
+  const unfinished = fixture(); const prior = unfinished.addPreviousTerm(2025, 'GENAP', ['2026-01-01', '2026-06-30'], [{ sks: 3, nilaiIndeks: '4.00' }]);
+  unfinished.unfinishedResults.set(`${unfinished.owner.id}:${prior.id}`, 1);
+  expect(await unfinished.draft()).toMatchObject({ batasSks: 6, batasSksSource: 'INITIAL_FALLBACK', fallbackReason: 'UNFINISHED_RESULTS', previousSemester: { id: prior.id } });
+  expect(emptyTerm.id).toBeDefined();
+});
+test('complete previous IPS does not require the initial fallback configuration', async () => {
+  const f = fixture(); f.addPreviousTerm(2025, 'GENAP', ['2026-01-01', '2026-06-30'], [{ sks: 3, nilaiIndeks: '3.00' }]);
+  expect(await createKrsService(f.repository).create(f.user, f.term.id)).toMatchObject({ batasSks: 24, batasSksSource: 'PREVIOUS_IPS' });
+});
+test('calculated KRS limit is enforced and later result/policy changes do not rewrite its snapshot', async () => {
+  const f = fixture(); const previous = f.addPreviousTerm(2025, 'GENAP', ['2026-01-01', '2026-06-30'], [{ sks: 3, nilaiIndeks: '4.00' }]);
+  const initialPolicy = createKrsService(f.repository, 6, () => 6); const plan = await initialPolicy.create(f.user, f.term.id);
+  await initialPolicy.add(f.user, plan.id, f.classes[0]!.id); await initialPolicy.add(f.user, plan.id, f.classes[1]!.id);
+  await expect(initialPolicy.add(f.user, plan.id, f.classes[2]!.id)).rejects.toThrow('9 SKS melebihi batas 6');
+  f.academicResults.set(`${f.owner.id}:${previous.id}`, [{ sks: 3, nilaiIndeks: '1.00' }]);
+  const changedPolicy = createKrsService(f.repository, 6, () => 3); const retained = await changedPolicy.create(f.user, f.term.id);
+  expect(retained).toMatchObject({ id: plan.id, batasSks: 6, batasSksSource: 'EXISTING_SNAPSHOT' });
 });
 test('KRS ownership scopes all student mutations and semester reads', async () => {
   const f = fixture(); const plan = await f.selected(); const stranger = { ...f.user, id: uuid() };
@@ -84,7 +126,7 @@ test('KRS dynamically validates SKS and ignores cancelled details', async () => 
   const f = fixture(); const plan = await f.selected(); await f.service.add(f.user, plan.id, f.classes[1]!.id);
   await expect(f.service.add(f.user, plan.id, f.classes[2]!.id)).rejects.toThrow('9 SKS melebihi batas 6');
   await f.service.remove(f.user, plan.id, f.details[0]!.id); await f.service.add(f.user, plan.id, f.classes[2]!.id);
-  expect((await f.service.bySemester(f.user, f.term.id)).krs?.totalSks).toBe(6);
+  expect((await f.service.bySemester(f.user, f.term.id)).krs).toMatchObject({ totalSks: 6, remainingSks: 0 });
   plan.batasSks = 3; await expect(f.service.submit(f.user, plan.id)).rejects.toThrow('SKS');
 });
 test('KRS rejects schedule overlap but permits adjacent slots using Jadwal semantics', async () => {
@@ -114,6 +156,7 @@ test('KRS approval, student immutability, administrative reopen and terminal can
   await expect(f.service.submit(f.user, plan.id)).rejects.toThrow('DRAFT'); await expect(f.service.reopen(f.user, plan.id)).rejects.toThrow('DITOLAK');
   f.term.isActive = false; await expect(f.service.reopen(f.admin, plan.id, true)).rejects.toThrow('semester aktif'); f.term.isActive = true;
   await f.service.reopen(f.admin, plan.id, true); expect(plan.disetujuiOleh).toBeNull(); expect(plan.diajukanAt).toBeNull(); expect(f.details[0]!.status).toBe('AKTIF');
+  expect(plan.batasSks).toBe(6);
   await f.service.submit(f.user, plan.id); await f.service.approve(f.admin, plan.id); const approvedAt = plan.disetujuiAt;
   await f.service.cancel(f.admin, plan.id); expect(plan.disetujuiAt).toBe(approvedAt); expect(plan.disetujuiOleh).toBe(f.admin.id); expect(f.details[0]!.status).toBe('DIBATALKAN');
   await expect(f.draft()).rejects.toThrow('DIBATALKAN'); await expect(f.service.cancel(f.admin, plan.id)).rejects.toThrow('final');

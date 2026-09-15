@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { krs, krsDetail } from '@kampusia/db/schema';
+import { hasilStudi, kelasKuliah, krs, krsDetail, semester } from '@kampusia/db/schema';
 import { eq } from 'drizzle-orm';
 import { createKrsRepository, krsTransaction } from './krs.repository';
 import { createKrsService } from './krs.service';
@@ -48,6 +48,45 @@ test.skipIf(!enabled)('PostgreSQL KRS lifecycle, scoped queries, uniqueness, eff
       await expect(tx.transaction(inner => inner.insert(krs).values({ mahasiswaId: f.students[0]!.id, semesterId: f.term.id, batasSks: 6 }))).rejects.toThrow();
       await expect(tx.transaction(inner => inner.insert(krsDetail).values({ krsId: plan.id, kelasKuliahId: a.id }))).rejects.toThrow();
       await expect(tx.transaction(inner => inner.update(krs).set({ status: 'DRAFT' }).where(eq(krs.id, plan.id)))).rejects.toThrow();
+      throw rollback;
+    }, { isolationLevel: 'serializable' })).rejects.toBe(rollback);
+  } finally { await client.end(); }
+}, 30000);
+
+test.skipIf(!enabled)('PostgreSQL KRS creation derives a complete previous IPS snapshot and falls back for unfinished results', async () => {
+  const { db, client } = connect(); const rollback = new Error('Rollback dynamic KRS-limit fixture');
+  try {
+    await expect(db.transaction(async tx => {
+      const usedYears = new Set((await tx.select({ year: semester.tahunMulai }).from(semester)).map(row => row.year));
+      let year = 8998; while (usedYears.has(year) && year > 1900) year--;
+      if (usedYears.has(year)) throw new Error('No unused academic year is available for the KRS limit test.');
+      await tx.update(semester).set({ isActive: false }).where(eq(semester.isActive, true));
+      const [previous, target] = await tx.insert(semester).values([
+        { kode: `${year}1`, nama: `Ganjil ${year}`, tahunMulai: year, jenis: 'GANJIL', tanggalMulai: `${year}-01-01`, tanggalSelesai: `${year}-06-30` },
+        { kode: `${year}2`, nama: `Genap ${year}`, tahunMulai: year, jenis: 'GENAP', tanggalMulai: `${year}-08-01`, tanggalSelesai: `${year}-12-31`, isActive: true },
+      ]).returning();
+      const f = await fixture(tx); expect(f.term.id).toBe(target!.id);
+      const previousClasses = await tx.insert(kelasKuliah).values(f.courses.slice(0, 2).map(course => ({
+        semesterId: previous!.id, mataKuliahId: course.id, programStudiId: f.program.id, namaKelas: 'P', kapasitas: 30, status: 'DITUTUP' as const,
+      }))).returning();
+      const finalizedAt = new Date();
+      await tx.insert(hasilStudi).values([
+        { kelasKuliahId: previousClasses[0]!.id, mahasiswaId: f.students[0]!.id, nilaiAngka: '99.00', nilaiHuruf: 'A', nilaiIndeks: '2.50', difinalisasiAt: finalizedAt, difinalisasiOleh: f.admin.id },
+        { kelasKuliahId: previousClasses[0]!.id, mahasiswaId: f.students[1]!.id, nilaiAngka: '99.00', nilaiHuruf: 'A', nilaiIndeks: '4.00', difinalisasiAt: finalizedAt, difinalisasiOleh: f.admin.id },
+      ]);
+      const [unfinishedPlan] = await tx.insert(krs).values({ mahasiswaId: f.students[1]!.id, semesterId: previous!.id, batasSks: 18, status: 'DISETUJUI', diajukanAt: finalizedAt, disetujuiAt: finalizedAt, disetujuiOleh: f.admin.id }).returning();
+      await tx.insert(krsDetail).values(previousClasses.map(kelas => ({ krsId: unfinishedPlan!.id, kelasKuliahId: kelas.id })));
+
+      const service = createKrsService(createKrsRepository(tx), 6);
+      const calculated = await service.create(f.user, target!.id);
+      expect(calculated).toMatchObject({ batasSks: 21, batasSksSource: 'PREVIOUS_IPS', previousIps: '2.50', previousSemester: { id: previous!.id } });
+      const fallback = await service.create(f.other, target!.id);
+      expect(fallback).toMatchObject({ batasSks: 6, batasSksSource: 'INITIAL_FALLBACK', fallbackReason: 'UNFINISHED_RESULTS' });
+
+      await tx.update(hasilStudi).set({ nilaiIndeks: '1.00' }).where(eq(hasilStudi.mahasiswaId, f.students[0]!.id));
+      expect(await service.create(f.user, target!.id)).toMatchObject({ id: calculated.id, batasSks: 21, batasSksSource: 'EXISTING_SNAPSHOT' });
+      await service.add(f.user, calculated.id, f.classes[0]!.id); await service.submit(f.user, calculated.id); await service.approve(f.admin, calculated.id); await service.reopen(f.admin, calculated.id, true);
+      expect((await service.get(f.admin, calculated.id)).batasSks).toBe(21);
       throw rollback;
     }, { isolationLevel: 'serializable' })).rejects.toBe(rollback);
   } finally { await client.end(); }

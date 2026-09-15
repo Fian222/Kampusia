@@ -53,6 +53,17 @@ export async function saveKrs(event: RequestEvent, admin = false) {
   const mode = String(form.get('mode') ?? ''); const id = admin ? event.params.id! : String(form.get('id') ?? '');
   if (['submit', 'approve', 'reject', 'cancel', 'reopen'].includes(mode) && form.get('confirmed') !== 'yes') return fail(400, { message: 'Konfirmasikan perubahan status terlebih dahulu.' });
   const client = serverApi(event); let result;
+  if (!admin && mode === 'create') {
+    let creation;
+    try { creation = await client.mahasiswa.me.krs({ id }).post({}); }
+    catch { return fail(503, { message: apiMessage(null) }); }
+    if (creation.status === 401) redirect(303, '/login');
+    if (creation.error || !creation.data?.success) return fail(creation.status >= 400 && creation.status < 500 ? creation.status : 503, { message: apiMessage(creation.error?.value) });
+    const created = creation.data.data;
+    if (created.batasSksSource === 'PREVIOUS_IPS') return { saved: true, message: `KRS dibuat dengan batas ${created.batasSks} SKS berdasarkan IPS ${created.previousIps} dari ${created.previousSemester?.nama ?? 'semester sebelumnya'}.` };
+    if (created.batasSksSource === 'INITIAL_FALLBACK') return { saved: true, message: `KRS dibuat dengan batas awal ${created.batasSks} SKS karena belum tersedia IPS semester sebelumnya yang lengkap.` };
+    return { saved: true, message: 'DRAFT KRS yang sudah ada digunakan kembali dengan batas SKS tersimpan.' };
+  }
   try {
     if (admin) {
       const api = client.krs({ id });
@@ -63,8 +74,7 @@ export async function saveKrs(event: RequestEvent, admin = false) {
       else return fail(400, { message: 'Tindakan tidak valid.' });
     } else {
       const api = client.mahasiswa.me.krs({ id });
-      if (mode === 'create') result = await api.post({});
-      else if (mode === 'add') result = await api.kelas.post({ kelas_kuliah_id: String(form.get('kelas_id') ?? '') });
+      if (mode === 'add') result = await api.kelas.post({ kelas_kuliah_id: String(form.get('kelas_id') ?? '') });
       else if (mode === 'remove') result = await api.kelas({ detailId: String(form.get('detail_id') ?? '') }).delete();
       else if (mode === 'submit') result = await api.submit.post({});
       else if (mode === 'reopen') result = await api.reopen.post({});
