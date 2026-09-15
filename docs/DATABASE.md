@@ -1,8 +1,8 @@
 # Kampusia database design
 
-This document is the source of truth for the database design. The 17-table PostgreSQL model is implemented in `packages/db/schema/`. Its initial 15 tables are created by `packages/db/migrations/0000_initial.sql`, and the `pertemuan` and `absensi` extension is added by the next migration. The initial migration was applied and verified on the local Podman development database on 2026-09-05; the attendance extension was applied and verified there on 2026-09-14. Migration state is specific to each database. Changes to the model must update this document before implementation. See [database package notes](../packages/db/README.md) for verification commands and the boundary between database constraints and future service rules.
+This document is the source of truth for the database design. Seventeen PostgreSQL tables are currently implemented in `packages/db/schema/`: the initial 15 tables from `packages/db/migrations/0000_initial.sql`, followed by the `pertemuan` and `absensi` extension. The initial migration was applied and verified on the local Podman development database on 2026-09-05; the attendance extension was applied and verified there on 2026-09-14. Migration state is specific to each database.
 
-The design covers the 17 tables below. The initial 15-table academic model is extended here with `pertemuan` and `absensi`; assessment components, grades, and other future modules require separate documented extensions.
+The next extension documented below adds three proposed tables—`komponen_nilai`, `nilai_mahasiswa`, and `hasil_studi`—for a 20-table target model. Those tables and the related rules are design only: they are not yet present in Drizzle, migrations, the API, or the frontend. This document must be updated before any later design change and implemented schema must be checked against it. See [database package notes](../packages/db/README.md) for verification commands and the boundary between database constraints and service rules.
 
 ## Shared conventions
 
@@ -49,9 +49,20 @@ erDiagram
     mahasiswa ||--o{ absensi : attends
     users ||--o{ absensi : records_initially
     users ||--o{ absensi : changes_last
+    kelas_kuliah ||--o{ komponen_nilai : assesses_with
+    komponen_nilai ||--o{ nilai_mahasiswa : receives_scores
+    mahasiswa ||--o{ nilai_mahasiswa : earns_scores
+    users ||--o{ nilai_mahasiswa : records_initially
+    users ||--o{ nilai_mahasiswa : changes_last
+    kelas_kuliah ||--o{ hasil_studi : produces
+    mahasiswa ||--o{ hasil_studi : earns
+    users ||--o{ hasil_studi : finalizes
+    users o|--o{ hasil_studi : corrects
 ```
 
 Each student's faculty is derived through program_studi. Course membership and recommended semester belong in kurikulum_matkul. Students select semester-specific offerings through krs and krs_detail. Lecturer assignments use kelas_dosen, including team teaching. Actual class meetings belong to kelas_kuliah, and attendance joins each meeting directly to a student. Semester, course, program, and class are derived through the meeting's class rather than copied into attendance.
+
+Grading configuration belongs to a class offering through komponen_nilai, and each component has student scores through nilai_mahasiswa. Before finalization, an effective approved enrollment is the eligibility source. Finalization writes one hasil_studi snapshot for each eligible student and class. After that point, hasil_studi—not the mutable current KRS status—is the authoritative historical course result from which KHS, IPS, and IPK are derived.
 
 ## Table definitions
 
@@ -367,8 +378,9 @@ A course offering by a program in a particular academic semester.
 - DIBUKA accepts selections and approvals. DITUTUP prevents new enrollment while existing enrollments remain valid. DIBATALKAN requires transactional cancellation of related active details and any remaining TERJADWAL meetings; completed meetings and attendance remain historical.
 - Do not change semester, course, or offering program after selections exist. Capacity reductions must not fall below approved active enrollment count.
 - Initial enrollment is limited to the student's program and curriculum membership; cross-program enrollment requires a documented design extension.
+- Grading can be finalized only while the class is DITUTUP. Once hasil_studi exists, the class cannot be changed to DIBATALKAN through the ordinary workflow and its grading configuration is frozen as documented below.
 
-**Relationships:** Belongs to a semester, course, and program; has many schedules, lecturer assignments, KRS details, and meetings.
+**Relationships:** Belongs to a semester, course, and program; has many schedules, lecturer assignments, KRS details, meetings, assessment components, and finalized study results.
 
 ### kelas_dosen
 
@@ -618,6 +630,137 @@ Individual class selections in a study plan; the enrollment junction.
 
 **Relationships:** Belongs to one KRS and one class. Student, semester, and course are derived through those relationships.
 
+### komponen_nilai (proposed; not yet implemented)
+
+Assessment components configured for one class offering. Examples include Tugas, Quiz, UTS, UAS, Praktikum, Project, and Presentasi; they are rows, not hardcoded columns.
+
+| Column | PostgreSQL type | Nullable | Default | Meaning / reference |
+| --- | --- | --- | --- | --- |
+| `id` | `uuid` | No | gen_random_uuid() | Primary key |
+| `kelas_kuliah_id` | `uuid` | No | — | FK kelas_kuliah.id |
+| `nama` | `varchar(100)` | No | — | Component display name within the class |
+| `bobot` | `numeric(5,2)` | No | — | Percentage weight, from 0.01 through 100.00 |
+| `urutan` | `smallint` | No | — | Positive display order; ties use id as a stable secondary order |
+| `is_active` | `boolean` | No | true | Whether the component participates in completeness checks and calculation |
+| `created_at` | `timestamptz` | No | now() | Creation instant |
+| `updated_at` | `timestamptz` | No | now() | Last pre-finalization mutation instant |
+
+**Primary key:** `id`.
+
+**Foreign keys:** `kelas_kuliah_id` → kelas_kuliah.id.
+
+**Unique constraints:** No ordinary unique constraint beyond the primary key. A unique expression index on `(kelas_kuliah_id, lower(btrim(nama))) WHERE is_active = true` makes active component names case-insensitively unique within one class. Thus Tugas 1 and Tugas 2 are valid, but two active components both named Tugas are not. An inactive historical component does not prevent reuse of its display name.
+
+**Additional indexes:** `(kelas_kuliah_id, is_active, urutan, id)` supports deterministic class configuration and calculation reads. The partial unique index also serves active-name lookups.
+
+**CHECK constraints:**
+
+- `bobot > 0 AND bobot <= 100`.
+- `urutan > 0`.
+- `nama` contains at least one non-whitespace character.
+
+**Business rules:**
+
+- A component belongs to exactly one class and cannot be reassigned. Do not add separate semester_id, mata_kuliah_id, or program_studi_id columns; derive them through kelas_kuliah.
+- `numeric(5,2)` is exact decimal arithmetic and represents percentage increments of 0.01 without floating-point drift. The service must sum active component weights as exact numeric values and require exactly 100.00 before finalization; intermediate configuration may total to a different value.
+- `is_active` is the only component lifecycle flag needed. Before finalization, deactivation allows a component that already has score rows to be excluded without deleting history. Scores on inactive components remain stored but are excluded from finalization completeness and calculation. A component with no scores may instead be hard-deleted as an unreferenced setup mistake.
+- Before any result for the class is finalized, an authorized ADMIN/AKADEMIK or active DOSEN assigned through kelas_dosen may create components and edit nama, bobot, urutan, or is_active. Changes after score entry are allowed only before finalization, must be explicit, and immediately change the nonofficial preview calculation; existing score values remain attached to the same stable component id.
+- Once the class has any hasil_studi row, its complete component configuration is frozen: no component may be added, edited, activated, deactivated, reassigned, or deleted. A final-grade correction changes score/result values under the controlled correction flow; it does not rewrite the historical weighting configuration.
+
+**Relationships:** Belongs to one kelas_kuliah and has many nilai_mahasiswa rows.
+
+**Retention/history behavior:** Never delete a component that has a score or belongs to a finalized class. Deactivate it before finalization when it must no longer participate. Inactive and finalized configuration remains queryable for historical explanation of the calculation.
+
+### nilai_mahasiswa (proposed; not yet implemented)
+
+The latest recorded numeric score for one student on one assessment component.
+
+| Column | PostgreSQL type | Nullable | Default | Meaning / reference |
+| --- | --- | --- | --- | --- |
+| `id` | `uuid` | No | gen_random_uuid() | Primary key |
+| `komponen_nilai_id` | `uuid` | No | — | FK komponen_nilai.id |
+| `mahasiswa_id` | `uuid` | No | — | FK mahasiswa.id |
+| `nilai` | `numeric(5,2)` | Yes | — | Score from 0.00 through 100.00; null means deliberately cleared/not recorded |
+| `dicatat_oleh` | `uuid` | No | — | FK users.id; account that first created the score row |
+| `diubah_oleh` | `uuid` | No | — | FK users.id; account that most recently wrote the row, initially equal to dicatat_oleh |
+| `created_at` | `timestamptz` | No | now() | Initial recording instant; unchanged by correction |
+| `updated_at` | `timestamptz` | No | now() | Most recent score mutation instant |
+
+**Primary key:** `id`.
+
+**Foreign keys:** `komponen_nilai_id` → komponen_nilai.id; `mahasiswa_id` → mahasiswa.id; `dicatat_oleh` → users.id; `diubah_oleh` → users.id.
+
+**Unique constraints:** `UNIQUE (komponen_nilai_id, mahasiswa_id)`. One student has at most one current score row for a component, including after enrollment changes.
+
+**Additional indexes:** `(mahasiswa_id, komponen_nilai_id)` supports student-oriented grade reads. The unique index covers component roster reads. Actor columns are not indexed until an actor-oriented audit query is required.
+
+**CHECK constraints:** `nilai IS NULL OR (nilai >= 0 AND nilai <= 100)`.
+
+**Business rules:**
+
+- A score row references only its component and student. Do not duplicate kelas_kuliah_id, semester_id, mata_kuliah_id, program_studi_id, NIM, or student name; all are safely derivable through komponen_nilai and mahasiswa.
+- Score rows are created lazily when a score is first entered, normally with a non-null nilai. No row means never recorded; a retained row with null means explicitly cleared. Both are missing for completeness checks, while numeric zero is an actual score and is never confused with missing data.
+- On initial entry, the student must have effective approved enrollment in the component's class: an AKTIF krs_detail for that class whose parent KRS is DISETUJUI. PostgreSQL cannot enforce this cross-table rule, so the service validates it inside the grading transaction.
+- Before class finalization, authorized ADMIN/AKADEMIK or an active assigned DOSEN may enter and correct scores. A correction updates the existing row, preserving dicatat_oleh and created_at while updating diubah_oleh and updated_at. Explicitly clearing a mistaken pre-final score sets nilai to null rather than deleting the row.
+- KRS reopening, KRS/detail cancellation, class closure, class cancellation, student-status changes, or lecturer reassignment never delete or reassign existing score rows. A row for a no-longer-effective student remains historical and is excluded from a later ordinary finalization roster.
+- After class finalization, ordinary score edits and nulling are prohibited. ADMIN/AKADEMIK may perform a documented grade correction; it must keep every required active-component score non-null and atomically recalculate the matching hasil_studi snapshot. A result may not diverge from its retained component scores. Exceptional manual overrides not explainable by the components require a separately documented future design.
+- Like attendance, this table stores the first/latest actors and latest corrected value, not every revision. A legally complete revision trail would require a future append-only grade-revision table.
+
+**Relationships:** Belongs to one komponen_nilai and one mahasiswa; references the accounts that first and most recently recorded it. Its class, term, course, and program are derived through the component's class.
+
+**Retention/history behavior:** Score rows are never hard-deleted. They remain evidence of entered grading data even when enrollment later changes or their component is deactivated. Pre-final mistakes are cleared to null; post-final changes use the controlled correction process.
+
+### hasil_studi (proposed; not yet implemented)
+
+The official, finalized historical result for one student in one class offering. `hasil_studi` is preferred over a table named `nilai_akhir` because the row preserves not only a calculated number but also the awarded letter/index and the academic outcome consumed by KHS, IPS, and IPK.
+
+| Column | PostgreSQL type | Nullable | Default | Meaning / reference |
+| --- | --- | --- | --- | --- |
+| `id` | `uuid` | No | gen_random_uuid() | Primary key |
+| `kelas_kuliah_id` | `uuid` | No | — | FK kelas_kuliah.id |
+| `mahasiswa_id` | `uuid` | No | — | FK mahasiswa.id |
+| `nilai_angka` | `numeric(5,2)` | No | — | Final weighted numeric score snapshot, 0.00 through 100.00 |
+| `nilai_huruf` | `varchar(8)` | No | — | Final canonical letter/symbol actually awarded |
+| `nilai_indeks` | `numeric(5,2)` | No | — | Nonnegative grade-index value actually awarded |
+| `difinalisasi_at` | `timestamptz` | No | — | Original finalization instant |
+| `difinalisasi_oleh` | `uuid` | No | — | FK users.id; account that finalized the class results |
+| `dikoreksi_at` | `timestamptz` | Yes | — | Most recent controlled correction instant |
+| `dikoreksi_oleh` | `uuid` | Yes | — | FK users.id; account that made the most recent correction |
+| `alasan_koreksi` | `text` | Yes | — | Required explanation for the most recent correction |
+| `created_at` | `timestamptz` | No | now() | Snapshot creation instant |
+| `updated_at` | `timestamptz` | No | now() | Most recent controlled correction instant |
+
+**Primary key:** `id`.
+
+**Foreign keys:** `kelas_kuliah_id` → kelas_kuliah.id; `mahasiswa_id` → mahasiswa.id; `difinalisasi_oleh` → users.id; `dikoreksi_oleh` → users.id.
+
+**Unique constraints:** `UNIQUE (kelas_kuliah_id, mahasiswa_id)`. This directly prevents multiple official results for the same student and class attempt.
+
+**Additional indexes:** `(mahasiswa_id, kelas_kuliah_id)` supports KHS and cumulative student-history reads. The unique index covers class result lists. Actor columns are not initially indexed.
+
+**CHECK constraints:**
+
+- `nilai_angka >= 0 AND nilai_angka <= 100`.
+- `nilai_indeks >= 0`; the upper bound belongs to the selected institutional grading policy rather than this generic database model.
+- `nilai_huruf = upper(btrim(nilai_huruf)) AND nilai_huruf <> ''`.
+- dikoreksi_at, dikoreksi_oleh, and alasan_koreksi are either all null or all non-null; a supplied reason satisfies `btrim(alasan_koreksi) <> ''`.
+- `dikoreksi_at IS NULL OR dikoreksi_at >= difinalisasi_at`.
+
+**Business rules:**
+
+- There are no draft hasil_studi rows. Absence means not finalized; presence means FINAL. This avoids a redundant one-value status column and prevents draft calculated copies from competing with component scores as the source of truth.
+- Finalization calculates each eligible student's exact decimal total as `SUM(nilai_mahasiswa.nilai * komponen_nilai.bobot / 100)` across active components. Round only once, after the full sum, to the two decimals stored in nilai_angka. The application grading policy must define the exact rounding mode before implementation.
+- The finalization-time grading policy maps that numeric result to nilai_huruf and nilai_indeks. The mapping initially belongs in validated application policy/configuration, not database tables: one institution-wide mapping does not yet justify a versioned relational policy model. The awarded letter and index are stored here so later configuration changes cannot rewrite history. Multiple program-, curriculum-, or period-specific policies would justify a separately documented policy/version table later.
+- Do not duplicate semester_id, mata_kuliah_id, program_studi_id, KRS state, NIM, course name, or SKS. Term/course/program are derived through kelas_kuliah, and mata_kuliah.sks is already documented as immutable after use. KRS is validated as finalization eligibility but is not retained as the authority for an already finalized result.
+- Finalization inserts the complete eligible class roster in one transaction. All rows from one class finalization use the same difinalisasi_at and difinalisasi_oleh. A class is grading-finalized when it has hasil_studi rows; finalizing a class with no effective enrolled students is rejected, so this existence-based lifecycle is unambiguous.
+- An active assigned DOSEN may finalize; where a coordinator exists, the coordinator is the lecturer authorized to finalize. ADMIN and AKADEMIK may also finalize. The actor must have an active account at action time. Authorization is always enforced server-side.
+- After finalization, ordinary lecturer editing is locked. A correction is restricted to ADMIN/AKADEMIK, requires a nonblank reason, updates the affected component score(s), recalculates nilai_angka, remaps nilai_huruf/nilai_indeks under the explicitly selected correction policy, and updates the same hasil_studi row in one transaction. Preserve id, kelas_kuliah_id, mahasiswa_id, difinalisasi_at, difinalisasi_oleh, and created_at. Set the latest correction fields and updated_at; never delete/reinsert the row.
+- The initial table retains the original finalizer and latest correction, not a complete sequence of revisions. If regulation requires every prior awarded value and approval step, add a documented append-only hasil_studi revision table before implementation.
+
+**Relationships:** Belongs to one kelas_kuliah and one mahasiswa and references finalization/latest-correction actors. It is the persistent source for derived KHS, IPS, and IPK.
+
+**Retention/history behavior:** Never hard-delete hasil_studi. Later KRS changes, class closure, student-status changes, lecturer reassignment, or grading-policy changes do not alter it. A class with finalized results cannot be changed to DIBATALKAN through the ordinary class workflow. Any institutional annulment/voiding requirement needs an explicit retained status and audit design rather than deletion.
+
 ## KRS lifecycle and derived values
 
 The initial transitions are:
@@ -635,7 +778,9 @@ Students edit selections only in DRAFT. Reopening clears submission and approval
 
 Cancelling a plan cancels its active details in the same transaction. Preserve existing approval fields on cancellation if it was approved. Cancelling an individual detail from an approved plan releases that seat while retaining the plan's approval; adding/reactivating details requires reopening and fresh approval. Class cancellation cancels related active details, including those on approved plans, and any remaining TERJADWAL meetings. Do not silently cancel other classes in the same plan; preserve completed meetings and attendance.
 
-Reopening or cancelling an approved KRS remains permitted by the existing authorized workflow after attendance exists. The operation changes effective enrollment prospectively but must not delete, reassign, or invalidate existing absensi rows. Attendance and KRS mutations must share the concurrency protocol below so an attendance insertion is ordered deterministically before or after the enrollment change rather than racing it.
+Reopening or cancelling an approved KRS remains permitted by the existing authorized workflow after attendance or pre-final grading scores exist. The operation changes effective enrollment prospectively but must not delete, reassign, or invalidate existing absensi or nilai_mahasiswa rows. Attendance, grading, and KRS mutations must share the concurrency protocol below so a fact insertion is ordered deterministically before or after the enrollment change rather than racing it.
+
+Once hasil_studi exists for a selected class, reopening or cancelling the KRS still must not remove that official result or make KHS/IPS/IPK depend on the KRS's newer state. Adding or reactivating a selection into an already grading-finalized class is prohibited in the ordinary KRS workflow. Removing a result-bearing attempt from academic history, or adding a late student and result after class finalization, is an institutional correction/annulment case outside the ordinary KRS state change and requires a separately documented retained audit process.
 
 At submission and approval, require at least one AKTIF detail, and calculate selected SKS as the sum of mata_kuliah.sks through AKTIF details and their classes. Enforce this total against krs.batas_sks. Do not count cancelled details or store total_sks. A later administrative cancellation may leave an approved plan with zero effective enrollments.
 
@@ -673,6 +818,87 @@ Attendance eligibility is evaluated from effective approved enrollment at the wr
 
 Because the current KRS model stores its latest state rather than an enrollment event log, a later reopen can erase the approval fields even though attendance proves that the student was accepted by the attendance workflow at an earlier point. The direct pertemuan/mahasiswa attendance row is the retained historical fact. If the product must reconstruct a legally exact roster-at-time or every approval/correction event, that requirement needs an append-only enrollment/audit extension before implementation.
 
+## Grading lifecycle and calculation
+
+The initial conventional grading workflow is class-scoped:
+
+| Stage | Persistent state | Required behavior |
+| --- | --- | --- |
+| Configuration | Active/inactive komponen_nilai; zero or more nilai_mahasiswa rows | Assigned lecturers or ADMIN/AKADEMIK configure components and enter scores. Calculations are previews only. |
+| Ready to finalize | No hasil_studi rows yet | The service validates the closed class, effective roster, active weight total, score completeness, numeric calculation, and policy mapping. |
+| Finalized | One hasil_studi row for every finalization-time effective student | Components and ordinary score editing are frozen; official results are read from hasil_studi. |
+| Corrected | Same hasil_studi identity plus latest correction metadata | ADMIN/AKADEMIK updates source scores and the result snapshot atomically with a reason. |
+
+Ordinary finalization requires all of the following after locks are acquired:
+
+- The class status is DITUTUP. DRAFT/DIBUKA classes can still change enrollment, and DIBATALKAN classes cannot be graded.
+- At least one effective enrolled student exists. Each is an AKTIF krs_detail whose parent KRS is DISETUJUI at finalization time.
+- At least one active component exists, active weights sum to exactly 100.00, and each weight is positive.
+- Every effective student has one non-null score from 0.00 through 100.00 for every active component. Missing is rejected, never silently converted to zero. Extra retained scores for no-longer-effective students and scores on inactive components are not calculated.
+- The configured grading policy can assign a canonical nilai_huruf and nonnegative nilai_indeks to every calculated numeric result.
+- No hasil_studi already exists for the class. Repeated finalization is rejected; corrections use the separate controlled path.
+
+The service calculates all students before writing anything, then inserts the complete hasil_studi set in one SERIALIZABLE transaction. Component values remain the explainable source data, while hasil_studi is deliberately stored rather than purely derived: it freezes the exact numeric, letter, and index awarded under the policy at that time. Later mapping or policy changes therefore do not silently recalculate old academic outcomes.
+
+The initial policy mapping and rounding mode live in validated application configuration. Before implementation, that configuration must cover the entire 0.00–100.00 range without overlaps or gaps and assign a canonical letter and index to each range. A database grading-policy table is deferred until the product actually needs multiple policies, effective dates, or program/curriculum-specific mappings. Migrating to such a table must not replace values already snapshotted in hasil_studi.
+
+## KHS and semester results (derived)
+
+KHS is a read model, not a persistent table. A redundant KHS header/detail copy would introduce synchronization risk without adding history because hasil_studi already is the immutable per-attempt historical snapshot. For one mahasiswa and semester, join:
+
+```text
+hasil_studi
+    → kelas_kuliah (filter semester_id)
+    → mata_kuliah (kode, nama, sks)
+```
+
+The view returns each finalized course attempt's mata kuliah, SKS, nilai_angka, nilai_huruf, and nilai_indeks. It derives total SKS semester as `SUM(mata_kuliah.sks)` and IPS from the same result set. Approved KRS details with no hasil_studi may be shown separately as unfinished/pending courses, but they do not contribute values and are not converted to failures. KHS and calculations never rely on mutable component previews.
+
+After hasil_studi exists, it remains in KHS even if the approved KRS is later reopened or administratively cancelled; that prospective workflow change does not rewrite a finalized academic fact. An official void/annulment policy is not defined in this milestone and must use retained status/audit data if introduced later. If the institution later requires an immutable issued document with publication number, signatures, or issue-time totals, that document snapshot is a separate future reporting requirement, not a reason to duplicate KHS now.
+
+## IPS (derived)
+
+IPS for one student and semester uses only hasil_studi rows whose classes belong to that semester:
+
+```text
+SUM(mata_kuliah.sks × hasil_studi.nilai_indeks)
+------------------------------------------------
+             SUM(mata_kuliah.sks)
+```
+
+Use exact decimal arithmetic and apply the configured display-rounding rule only to the final quotient. The calculation behavior is:
+
+- An enrollment cancelled before finalization has no hasil_studi and is excluded.
+- A course without hasil_studi is unfinished and excluded from both numerator and denominator; absence is not a zero grade. A consumer must label the semester result provisional when relevant approved course attempts are still unfinished.
+- A finalized failed course has its awarded zero (or other failing) nilai_indeks in the numerator and its SKS in the denominator. Failure is explicit policy output, not inferred from a missing result.
+- The existing KRS rules prevent multiple active classes for the same mata_kuliah in one semester. Cross-semester repeats do not affect the per-semester IPS for either attempt.
+- A controlled correction changes the affected derived IPS intentionally. Ordinary KRS, component-policy, or application-policy changes do not.
+
+Do not store IPS in this milestone. Its historical inputs are already stable: hasil_studi snapshots the awarded index, kelas_kuliah fixes the attempt's term/course, and mata_kuliah.sks is immutable once used. `krs.batas_sks` separately snapshots decisions previously made from an IPS, so later grade correction does not retroactively change the authorized limit.
+
+## IPK (derived)
+
+IPK uses the same weighted formula over the student's appropriate finalized hasil_studi rows across semesters. Cancelled-before-finalization and unfinished attempts are excluded, while finalized failures are included as described for IPS. It is not stored because doing so would duplicate stable source snapshots and require synchronization after a controlled grade correction.
+
+Treatment of repeated courses—count every attempt, latest attempt, best attempt, replacement with retained credits, or another rule—is intentionally unresolved institutional policy. The database preserves every attempt independently through mahasiswa + kelas_kuliah. Until a policy is explicitly configured and documented, the service must not silently choose a repeated-course rule or present an affected cumulative value as official. Course equivalency, transfer credit, and graduation rules remain outside scope.
+
+A later change to repeated-course/inclusion policy can legitimately change a newly calculated IPK even though the awarded course results remain stable. If the institution must preserve each previously issued official IPK under its original inclusion policy, introduce a versioned policy and/or issued-document snapshot in a separately documented extension. That reporting requirement is not yet established.
+
+## Dynamic KRS credit limit
+
+`krs.batas_sks` remains a non-null historical snapshot, not a live formula. The intended future creation flow is:
+
+```text
+previous-semester finalized hasil_studi
+    → derive IPS
+    → apply configured academic SKS-limit policy
+    → store the resulting limit once in krs.batas_sks
+```
+
+The policy must define which preceding academic semester is eligible, its IPS ranges, their maximum SKS values, and what counts as a complete semester result. Those ranges are intentionally not hardcoded in the database design. The service must reject ambiguous overlaps/gaps in policy configuration and must never accept batas_sks from a student request.
+
+`KRS_INITIAL_BATAS_SKS` remains the fallback for a student with no eligible prior finalized academic result, an unfinished prior semester, or during the transition before the SKS-limit policy is configured. It must retain the existing positive-smallint validation. Once a KRS is created, later grade corrections, policy changes, or environment changes do not overwrite its batas_sks. Any future authorized manual recalculation must be explicit and auditable; no such edit workflow is included in this milestone.
+
 ## Schedule validity
 
 Two weekly slots conflict if they share a weekday, their effective semester date ranges contain a shared occurrence of that weekday, and their times overlap: existing.jam_mulai < proposed.jam_selesai AND proposed.jam_mulai < existing.jam_selesai. Adjacent slots are permitted. A schedule must have at least one occurrence within its own semester dates.
@@ -701,10 +927,16 @@ Future implementation must use transactions for changes that form a logical oper
 - Finalizing a meeting must insert/update the complete effective roster and change pertemuan.status to SELESAI in one SERIALIZABLE transaction with bounded retries. Any validation or row failure rolls back both attendance and status. The same transaction must tolerate retained rows for formerly effective students while ensuring the current roster has complete explicit statuses.
 - KRS reopen/cancel and attendance creation must preserve the existing KRS-before-class lock ordering. Lock affected KRS rows by UUID first, then class rows by UUID, then the meeting and attendance rows, and revalidate after locks. If the enrollment change commits first, an ordinary new attendance row is rejected; if attendance commits first, the later authorized enrollment change leaves it intact.
 - Cancelling a class must cancel its active KRS details and remaining TERJADWAL meetings in the same transaction while retaining SELESAI meetings and all absensi rows.
+- Component creation/update/deactivation, score entry/correction, and class-result finalization must lock the owning class and affected component/score rows and revalidate authorization and class grading state. Score insertion must also lock and revalidate the student's effective KRS enrollment using the shared KRS-before-class ordering.
+- Finalization must lock all affected KRS rows in UUID order before the class row, then lock active components and score rows in stable UUID order. In one SERIALIZABLE transaction with bounded retries, it must revalidate the effective roster and prerequisites, calculate every result, and insert the complete hasil_studi set. Any missing score, policy gap, uniqueness race, or write failure rolls back every result.
+- KRS reopen/cancel and class cancellation must check grading state under the same locks. A KRS change never deletes scores or results; adding/reactivating enrollment in a finalized class is rejected. Class cancellation before finalization retains any component/score history and creates no hasil_studi; class cancellation after finalization is rejected by the ordinary workflow.
+- A post-final grade correction must lock the class, frozen component configuration, affected nilai_mahasiswa rows, and hasil_studi row. Update source score(s), recompute/remap the official result, and record correction actor/reason atomically. Never expose an intermediate state where source scores and the result snapshot disagree.
 - Authorization is server-side: students access only their own KRS, and administrative actions require an authorized active account. Foreign keys are not an authorization mechanism.
 
 ## Retention and design boundaries
 
-Use is_active and academic/workflow statuses to retain referenced records. Hard deletion is limited to unreferenced setup mistakes; services must explicitly validate and delete dependent draft records in a transaction if a permitted cleanup requires it. Foreign-key restrictions remain authoritative. No general soft-delete column or implicit cascade is part of this design.
+Use is_active and academic/workflow statuses to retain referenced records. Hard deletion is limited to unreferenced setup mistakes; services must explicitly validate and delete dependent draft records in a transaction if a permitted cleanup requires it. For grading, only an unscored component on a nonfinalized class may be hard-deleted. nilai_mahasiswa and hasil_studi are never hard-deleted, and component/score/result rows are never removed merely because a KRS, detail, class, student, or lecturer changes state. Foreign-key restrictions remain authoritative. No general soft-delete column or implicit cascade is part of this design.
 
-The following are deliberately outside these 17 tables: curriculum equivalency/transfer history, prerequisites, actual meeting room/resource reservations, assessment components, grades, IPS/IPK calculations, authentication sessions, multi-role accounts, exact historical enrollment snapshots, and full workflow/attendance revision logs. Extend this document before introducing their tables or rules. The assigned batas_sks is the integration point for a future documented academic-limit policy.
+The following remain deliberately outside the 20-table target model: OBE, CPL, CPMK, Sub-CPMK, assessment-to-CPMK mapping, curriculum equivalency, transfer credit, prerequisites, graduation rules, transcript/KHS document issuance, actual meeting room/resource reservations, database grading-policy versions, authentication sessions, multi-role accounts, exact historical enrollment snapshots, full workflow/attendance/grade revision logs, and persistent IPS/IPK snapshots. Extend this document before introducing their tables or rules.
+
+The intentionally unresolved academic-policy decisions are the numeric-to-letter/index mapping, final numeric and IPS/IPK rounding rules, repeated-course treatment, course equivalency/transfer handling, official result annulment, and the IPS-to-batas_sks ranges/completeness rule. Application implementation must provide validated policy for any behavior it exposes and must not invent silent defaults. `KRS_INITIAL_BATAS_SKS` remains only the documented fallback integration point.
