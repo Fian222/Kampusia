@@ -1,13 +1,18 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { goto } from '$app/navigation';
   import { page, navigating } from '$app/state';
   import type { ProfileData } from '$lib/server/academic-profiles';
   import Pagination from './Pagination.svelte';
   import StatusBadge from './StatusBadge.svelte';
   import PageHeader from './ui/PageHeader.svelte';
+  import Icon from './ui/Icon.svelte';
+  import Modal from './ui/Modal.svelte';
 
   let { data, form }: { data: ProfileData; form: { message: string; saved?: true; values?: Record<string, string> } | null } = $props();
   let saving = $state(false);
+  let formOpen = $state(false);
+  let openedEditId = $state<string>();
   let confirmation = $state<{ id: string; nama: string; isActive: boolean } | null>(null);
   let dialog: HTMLDialogElement;
   $effect(() => {
@@ -29,10 +34,13 @@
   }
   function value(key: string, fallback = '') { return form?.values?.[key] ?? fallback; }
   const programs = $derived([...data.programs.data, ...[data.edit?.programStudi, data.selectedProgram].filter(item => item && !data.programs.data.some(row => row.id === item.id))]);
+  $effect(() => { if (page.url.searchParams.get('modal') === 'create') { openedEditId = undefined; formOpen = true; } if (form?.values?.mode === 'save') formOpen = true; if (data.edit?.id && data.edit.id !== openedEditId) { openedEditId = data.edit.id; formOpen = true; } });
 </script>
 
 <svelte:head><title>{title} · Kampusia</title></svelte:head>
-<PageHeader eyebrow={`Master Data / ${title}`} {title} description="Kelola profil akademik dan pertahankan riwayatnya. Akun login bersifat opsional." />
+<PageHeader eyebrow={`Master Data / ${title}`} {title} description="Kelola profil akademik dan pertahankan riwayatnya. Akun login bersifat opsional.">
+  {#snippet actions()}<a class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800" href={href({ edit: null, modal: 'create' })} onclick={() => { if (!data.edit) formOpen = true; }}><Icon name="plus" size={16} /> Tambah {title}</a>{/snippet}
+</PageHeader>
 {#if navigating || saving}<p role="status" class="mt-4 text-sm text-brand-700">{saving ? 'Menyimpan perubahan…' : 'Memuat data…'}</p>{/if}
 {#if form?.message}<p role={form.saved ? 'status' : 'alert'} class={panelClass}>{form.message}</p>{/if}
 
@@ -65,12 +73,12 @@
     <tbody class="divide-y divide-slate-100">
       {#if data.kind === 'mahasiswa'}
         {#each data.records as row}<tr>
-          <td class="px-3 py-4 font-medium">{row.nim}</td><td class="px-3 py-4">{row.nama}</td><td class="px-3 py-4">{row.programStudi.nama}<span class="block text-xs text-slate-500">{row.fakultas.nama}</span></td><td class="px-3 py-4">{row.kurikulum.nama}</td><td class="px-3 py-4">{row.angkatan}</td><td class="px-3 py-4"><span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium">{row.status}</span></td><td class="px-3 py-4"><a class="mr-4 font-semibold text-brand-700" href={`/akademik/mahasiswa/${row.id}/hasil-studi`}>Hasil studi</a><a class="font-semibold text-brand-700" href={href({ edit: row.id }) + '#profile-form'}>Edit</a></td>
+          <td class="px-3 py-4 font-medium">{row.nim}</td><td class="px-3 py-4">{row.nama}</td><td class="px-3 py-4">{row.programStudi.nama}<span class="block text-xs text-slate-500">{row.fakultas.nama}</span></td><td class="px-3 py-4">{row.kurikulum.nama}</td><td class="px-3 py-4">{row.angkatan}</td><td class="px-3 py-4"><span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium">{row.status}</span></td><td class="px-3 py-4"><a class="mr-4 font-semibold text-brand-700" href={`/akademik/mahasiswa/${row.id}/hasil-studi`}>Hasil studi</a><a class="font-semibold text-brand-700" aria-label={`Edit ${row.nama}`} href={href({ edit: row.id, modal: null })} onclick={() => { if (data.edit?.id === row.id) formOpen = true; }}>Edit</a></td>
         </tr>{/each}
       {:else}
         {#each data.records as row}<tr>
           <td class="px-3 py-4 font-medium">{row.kodeDosen}</td><td class="px-3 py-4">{row.nidn ?? '—'}</td><td class="px-3 py-4">{row.nama}</td><td class="px-3 py-4">{row.programStudi?.nama ?? 'Tanpa homebase'}</td><td class="px-3 py-4"><StatusBadge active={row.isActive} /></td>
-          <td class="px-3 py-4"><a class="mr-4 font-semibold text-brand-700" href={href({ edit: row.id }) + '#profile-form'}>Edit</a><button class="text-slate-600" onclick={() => confirmation = row}>{row.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button></td>
+          <td class="px-3 py-4"><a class="mr-4 font-semibold text-brand-700" aria-label={`Edit ${row.nama}`} href={href({ edit: row.id, modal: null })} onclick={() => { if (data.edit?.id === row.id) formOpen = true; }}>Edit</a><button class="text-slate-600" onclick={() => confirmation = row}>{row.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button></td>
         </tr>{/each}
       {/if}
     </tbody>
@@ -100,12 +108,12 @@
   </section>
 {/if}
 
-<section id="profile-form" class={panelClass}>
-  <h2 class="font-semibold">{data.edit ? 'Edit' : 'Tambah'} {title}</h2>
+<Modal bind:open={formOpen} title={`${data.edit ? 'Edit' : 'Tambah'} ${title}`} description="Data profil akademik dapat disimpan tanpa akun login." closeDisabled={saving} width="lg" onClose={() => { if (data.edit || page.url.searchParams.has('modal') || form?.values?.mode === 'save') void goto(href({ edit: null, modal: null }), { replaceState: true, noScroll: true, keepFocus: true }); }}>
+  {#if form?.message && form.values?.mode === 'save'}<p role="alert" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}
   {#key data.edit?.id + JSON.stringify(form)}
     <form method="POST" class="mt-4 grid gap-4 sm:grid-cols-2" use:enhance={() => {
       saving = true;
-      return async ({ update }) => { try { await update({ reset: false }); } finally { saving = false; } };
+      return async ({ update, result }) => { try { await update({ reset: false }); if (result.type === 'success') formOpen = false; } finally { saving = false; } };
     }}>
       <input type="hidden" name="mode" value="save" /><input type="hidden" name="id" value={data.edit?.id ?? ''} />
       {#if data.kind === 'mahasiswa'}
@@ -129,10 +137,10 @@
         <p class="text-sm text-slate-500 sm:col-span-2">Status akademik tidak menonaktifkan login. Perubahan program studi atau kurikulum memerlukan peninjauan akademik dan ditolak bila ada riwayat KRS disetujui.</p>
       {:else}<p class="text-sm text-slate-500">Homebase tidak membatasi program studi tempat dosen mengajar. Ubah status melalui tindakan pada tabel.</p>{/if}
       <label class="text-sm font-medium sm:col-span-2">ID akun pengguna (opsional)<input class={inputClass} name="user_id" value={value('user_id', data.edit?.userId ?? '')} placeholder="UUID akun pengguna" /><span class="text-xs font-normal text-slate-500">Gunakan akun berperan {data.kind === 'mahasiswa' ? 'MAHASISWA' : 'DOSEN'}. Kosongkan untuk profil tanpa akun login.</span></label>
-      <div class="flex gap-4 sm:col-span-2"><button class={buttonClass} disabled={saving}>{saving ? 'Menyimpan…' : 'Simpan'}</button>{#if data.edit}<a class="py-2 text-sm text-slate-600" href={href({ edit: null })}>Batal edit</a>{/if}</div>
+      <div class="flex justify-end gap-3 sm:col-span-2"><button type="button" class="px-4 py-2 text-sm font-semibold text-slate-600" disabled={saving} onclick={() => formOpen = false}>Batal</button><button class={buttonClass} disabled={saving}>{saving ? 'Menyimpan…' : 'Simpan'}</button></div>
     </form>
   {/key}
-</section>
+</Modal>
 
 <dialog bind:this={dialog} onclose={() => confirmation = null} class="m-auto w-full max-w-md rounded-xl p-6 backdrop:bg-slate-900/40">
   {#if confirmation}

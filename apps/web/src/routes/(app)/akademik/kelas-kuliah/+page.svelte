@@ -1,14 +1,19 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import Pagination from '$lib/components/Pagination.svelte';
   import AcademicFields from '$lib/components/AcademicFields.svelte';
   import AcademicOptions from '$lib/components/AcademicOptions.svelte';
   import PageHeader from '$lib/components/ui/PageHeader.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
+  import Modal from '$lib/components/ui/Modal.svelte';
+  import Icon from '$lib/components/ui/Icon.svelte';
   import type { PageProps } from './$types';
   let { data, form }: PageProps = $props();
   let saving = $state(false);
+  let formOpen = $state(false);
+  let openedEditId = $state<string>();
   const box = 'surface-panel mt-6 p-5 sm:p-6';
   const input = 'control-base mt-1.5';
   const button = 'min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-50';
@@ -22,9 +27,10 @@
     { name: 'program_studi_id', label: 'Program Studi', value: data.filters.program_studi_id, rows: data.programs.data },
     { name: 'mata_kuliah_id', label: 'Mata Kuliah', value: data.filters.mata_kuliah_id, rows: data.courses.data },
   ]);
+  $effect(() => { if (page.url.searchParams.get('modal') === 'create') { openedEditId = undefined; formOpen = true; } if (form?.values?.mode === 'save') formOpen = true; if (data.edit?.id && data.edit.id !== openedEditId) { openedEditId = data.edit.id; formOpen = true; } });
 </script>
 <svelte:head><title>Kelas Kuliah · Kampusia</title></svelte:head>
-<PageHeader eyebrow="Akademik / Perkuliahan" title="Kelas Kuliah" description="Kelola penawaran mata kuliah, dosen pengajar, jadwal, pertemuan, dan penilaian." />
+<PageHeader eyebrow="Akademik / Perkuliahan" title="Kelas Kuliah" description="Kelola penawaran mata kuliah, dosen pengajar, jadwal, pertemuan, dan penilaian.">{#snippet actions()}<a class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm" href={href({ edit: '', modal: 'create' })} onclick={() => { if (!data.edit) formOpen = true; }}><Icon name="plus" size={16} /> Tambah Kelas</a>{/snippet}</PageHeader>
 <p class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Kelas baru dapat disimpan sebagai DRAFT. DIBUKA memerlukan kurikulum yang sesuai, dosen aktif, serta jadwal yang valid tanpa konflik. Tambahkan dosen dan jadwal melalui detail kelas sebelum membuka kelas.</p>
 {#if form?.message}<p class={box} role={form.saved ? 'status' : 'alert'}>{form.message}</p>{/if}
 {#if saving}<p role="status" class="mt-3">Menyimpan…</p>{/if}
@@ -36,19 +42,19 @@
   <div class="flex items-end gap-3"><button class={button}>Terapkan</button><a href={page.url.pathname}>Reset</a></div>
 </form>
 <section class={box}>
-  <div class="flex justify-between"><h2 class="font-semibold">Daftar Kelas Kuliah</h2><a class="text-teal-800" href={href({ edit: '' }) + '#kelas-form'}>Tambah Kelas</a></div>
+  <div class="flex justify-between"><h2 class="font-semibold">Daftar Kelas Kuliah</h2></div>
   <div class="mt-4 overflow-x-auto"><table class="w-full text-left text-sm"><thead class="border-b text-slate-500"><tr>{#each ['Mata Kuliah', 'Kelas', 'Semester', 'Program Studi', 'Kapasitas', 'Status', 'Tindakan'] as label}<th class="p-3">{label}</th>{/each}</tr></thead>
-    <tbody>{#each data.records.data as row}<tr class="border-b border-slate-100"><td class="p-3"><span class="font-mono text-xs text-slate-500">{row.mataKuliah.kode}</span><p class="font-semibold text-slate-900">{row.mataKuliah.nama}</p></td><td class="p-3">{row.namaKelas}</td><td class="p-3">{row.semester.nama}</td><td class="p-3">{row.programStudi.nama}</td><td class="p-3">{row.kapasitas}</td><td class="p-3"><Badge tone={row.status === 'DIBUKA' ? 'success' : row.status === 'DIBATALKAN' ? 'danger' : 'neutral'}>{row.status}</Badge></td><td class="p-3"><div class="flex gap-3"><a class="font-semibold text-brand-700" href={`/akademik/kelas-kuliah/${row.id}`}>Detail</a><a class="font-semibold text-brand-700" href={href({ edit: row.id }) + '#kelas-form'}>Edit</a></div></td></tr>{:else}<tr><td colspan="7" class="p-8 text-center text-slate-500">Tidak ada kelas yang cocok.</td></tr>{/each}</tbody>
+    <tbody>{#each data.records.data as row}<tr class="border-b border-slate-100"><td class="p-3"><span class="font-mono text-xs text-slate-500">{row.mataKuliah.kode}</span><p class="font-semibold text-slate-900">{row.mataKuliah.nama}</p></td><td class="p-3">{row.namaKelas}</td><td class="p-3">{row.semester.nama}</td><td class="p-3">{row.programStudi.nama}</td><td class="p-3">{row.kapasitas}</td><td class="p-3"><Badge tone={row.status === 'DIBUKA' ? 'success' : row.status === 'DIBATALKAN' ? 'danger' : 'neutral'}>{row.status}</Badge></td><td class="p-3"><div class="flex gap-3"><a class="font-semibold text-brand-700" href={`/akademik/kelas-kuliah/${row.id}`}>Detail</a><a class="font-semibold text-brand-700" aria-label={`Edit kelas ${row.mataKuliah.nama} ${row.namaKelas}`} href={href({ edit: row.id, modal: '' })} onclick={() => { if (data.edit?.id === row.id) formOpen = true; }}>Edit</a></div></td></tr>{:else}<tr><td colspan="7" class="p-8 text-center text-slate-500">Tidak ada kelas yang cocok.</td></tr>{/each}</tbody>
   </table></div><Pagination {...data.records.meta} href={number => href({ page: number })} />
 </section>
 <AcademicOptions prefix="semester_" label="Semester" meta={data.semesters.meta} />
 <AcademicOptions prefix="program_" label="Program Studi" meta={data.programs.meta} />
 <AcademicOptions prefix="course_" label="Mata Kuliah" meta={data.courses.meta} />
-<section id="kelas-form" class={box}>
-  <h2 class="font-semibold">{data.edit ? 'Edit' : 'Tambah'} Kelas Kuliah</h2>
+<Modal bind:open={formOpen} title={`${data.edit ? 'Edit' : 'Tambah'} Kelas Kuliah`} closeDisabled={saving} width="lg" onClose={() => { if (data.edit || page.url.searchParams.has('modal') || form?.values?.mode === 'save') void goto(href({ edit: '', modal: '' }), { replaceState: true, noScroll: true, keepFocus: true }); }}>
   <p class="mt-2 text-sm text-slate-500">Pilihan KRS atau jadwal mengunci identitas akademik. Kapasitas tidak boleh di bawah jumlah mahasiswa pada KRS disetujui atau melebihi ruangan terjadwal. Pembatalan dengan pilihan aktif memerlukan alur KRS.</p>
+  {#if form?.message && form.values?.mode === 'save'}<p role="alert" class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}
   {#key data.edit?.id + JSON.stringify(form)}
-  <form method="POST" class="mt-4 grid gap-4 sm:grid-cols-2" use:enhance={() => { saving = true; return async ({ update }) => { try { await update({ reset: false }); } finally { saving = false; } }; }}>
+  <form method="POST" class="mt-4 grid gap-4 sm:grid-cols-2" use:enhance={() => { saving = true; return async ({ update, result }) => { try { await update({ reset: false }); if (result.type === 'success') formOpen = false; } finally { saving = false; } }; }}>
     <input type="hidden" name="mode" value="save" /><input type="hidden" name="id" value={data.edit?.id ?? ''} />
     <AcademicFields values={form?.values} fields={[
       { name: 'semester_id', label: 'Semester', value: data.edit?.semesterId, options: options(data.semesters.data, data.edit?.semester, false) },
@@ -58,6 +64,6 @@
       { name: 'kapasitas', label: 'Kapasitas', type: 'number', min: 1, max: 2147483647, value: data.edit?.kapasitas },
       { name: 'status', label: 'Status', value: data.edit?.status ?? 'DRAFT', options: data.statuses.map(value => ({ value, label: value, disabled: value === 'DIBUKA' && data.edit?.status !== 'DIBUKA' })) },
     ]} />
-    <div><button class={button} disabled={saving}>Simpan</button> {#if data.edit}<a href={href({ edit: '' })}>Batal edit</a>{/if}</div>
+    <div class="flex justify-end gap-3 sm:col-span-2"><button type="button" class="px-4 py-2 text-sm font-semibold text-slate-600" disabled={saving} onclick={() => formOpen = false}>Batal</button><button class={button} disabled={saving}>{saving ? 'Menyimpan…' : 'Simpan'}</button></div>
   </form>{/key}
-</section>
+</Modal>

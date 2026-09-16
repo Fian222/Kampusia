@@ -39,7 +39,7 @@ export async function loadCatalog(event: RequestEvent, kind: CatalogKind) {
 export async function saveCatalog(event: RequestEvent, kind: CatalogKind) {
   requireMasterAccess(event);
   const form = await event.request.formData();
-  const values = Object.fromEntries(['id', 'kode', 'nama', 'sks', 'program_studi_id', 'tahun_berlaku', 'is_active'].map(key => [key, String(form.get(key) ?? '')]));
+  const values = Object.fromEntries(['mode', 'id', 'kode', 'nama', 'sks', 'program_studi_id', 'tahun_berlaku', 'is_active'].map(key => [key, String(form.get(key) ?? '')]));
   const invalid = (message: string) => fail(400, { values, message });
   const mode = form.get('mode');
   const submitted = mode === 'status' ? {} : { values };

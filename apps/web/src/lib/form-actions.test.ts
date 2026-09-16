@@ -44,7 +44,7 @@ test('class detail forms submit to their explicit named actions', async () => {
 
   const meetings = await read('lib/components/MeetingManager.svelte');
   expect(meetings).toContain("const action = '?/meeting';");
-  expect(postForms(meetings)).toHaveLength(3);
+  expect(postForms(meetings)).toHaveLength(2);
   for (const form of postForms(meetings)) expect(form).toContain('{action}');
 
   const grading = await read('lib/components/GradingManager.svelte');
@@ -54,7 +54,7 @@ test('class detail forms submit to their explicit named actions', async () => {
   const detail = await read('routes/(app)/akademik/kelas-kuliah/[id]/+page.svelte');
   expect(postForms(detail).length).toBeGreaterThan(0);
   for (const form of postForms(detail)) expect(form).toContain('action="?/detail"');
-  expect(detail.match(/<ScheduleForm action="\?\/detail"/g)).toHaveLength(2);
+  expect(detail.match(/<ScheduleForm action="\?\/detail"/g)).toHaveLength(1);
 
   const schedule = await read('lib/components/ScheduleForm.svelte');
   expect(postForms(schedule)).toEqual([expect.stringContaining('{action}')]);

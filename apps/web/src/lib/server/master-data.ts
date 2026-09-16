@@ -63,7 +63,7 @@ export async function loadMaster(event: RequestEvent, kind: MasterKind) {
 export async function saveMaster(event: RequestEvent, kind: MasterKind) {
   requireMasterAccess(event);
   const form = await event.request.formData();
-  const values = Object.fromEntries(['id', 'kode', 'nama', 'fakultas_id', 'jenjang', 'is_active'].map(key => [key, String(form.get(key) ?? '')]));
+  const values = Object.fromEntries(['mode', 'id', 'kode', 'nama', 'fakultas_id', 'jenjang', 'is_active'].map(key => [key, String(form.get(key) ?? '')]));
   const invalid = (message: string) => fail(400, { values, message });
   const mode = form.get('mode');
   const submitted = mode === 'status' ? {} : { values };

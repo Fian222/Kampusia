@@ -53,7 +53,7 @@ export async function loadProfiles(event: RequestEvent, kind: ProfileKind) {
 export async function saveProfile(event: RequestEvent, kind: ProfileKind) {
   requireMasterAccess(event);
   const form = await event.request.formData();
-  const values = Object.fromEntries(['id', 'user_id', 'program_studi_id', 'kurikulum_id', 'nim', 'nama', 'angkatan', 'status', 'kode_dosen', 'nidn', 'is_active'].map(key => [key, String(form.get(key) ?? '')]));
+  const values = Object.fromEntries(['mode', 'id', 'user_id', 'program_studi_id', 'kurikulum_id', 'nim', 'nama', 'angkatan', 'status', 'kode_dosen', 'nidn', 'is_active'].map(key => [key, String(form.get(key) ?? '')]));
   const invalid = (message: string) => fail(400, { values, message });
   const mode = form.get('mode');
   if (mode !== 'save' && mode !== 'status') return invalid('Tindakan tidak valid.');
