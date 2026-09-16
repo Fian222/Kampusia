@@ -3,15 +3,17 @@
   import { page } from '$app/state';
   import Pagination from '$lib/components/Pagination.svelte';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
+  import PageHeader from '$lib/components/ui/PageHeader.svelte';
+  import Icon from '$lib/components/ui/Icon.svelte';
   import type { PageProps } from './$types';
   let { data, form }: PageProps = $props();
   let saving = $state(false);
   let removing = $state<{ id: string; nama: string } | null>(null);
   let dialog: HTMLDialogElement;
   $effect(() => { if (removing && !dialog.open) dialog.showModal(); else if (!removing && dialog.open) dialog.close(); });
-  const inputClass = 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
-  const buttonClass = 'rounded-lg bg-teal-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50';
-  const sectionClass = 'mt-6 rounded-xl border border-slate-200 bg-white p-5';
+  const inputClass = 'control-base mt-1.5';
+  const buttonClass = 'min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-50';
+  const sectionClass = 'surface-panel mt-6 p-5 sm:p-6';
   function href(changes: Record<string, string | number>) {
     const params = new URLSearchParams(page.url.searchParams);
     for (const [key, value] of Object.entries(changes)) params.set(key, String(value));
@@ -28,9 +30,7 @@
   };
 </script>
 <svelte:head><title>{data.curriculum.nama} · Kampusia</title></svelte:head>
-<a class="text-sm text-teal-800" href="/akademik/kurikulum">← Kurikulum</a>
-<h1 class="mt-3 text-3xl font-semibold">{data.curriculum.kode} — {data.curriculum.nama}</h1>
-<p class="mt-2 text-sm text-slate-600">{data.curriculum.programStudi.nama} · Tahun {data.curriculum.tahunBerlaku}</p>
+<PageHeader eyebrow={`Kurikulum / ${data.curriculum.kode}`} title={data.curriculum.nama} description={`${data.curriculum.programStudi.nama} · Tahun ${data.curriculum.tahunBerlaku}`}>{#snippet actions()}<a class="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm" href="/akademik/kurikulum"><Icon name="arrow-right" size={16} class="rotate-180" /> Kembali</a>{/snippet}</PageHeader>
 <div class="mt-3"><StatusBadge active={data.curriculum.isActive} /></div>
 <p class="mt-3 text-sm text-slate-600">Kurikulum yang sudah digunakan mahasiswa mempertahankan mata kuliah dan persyaratannya. Buat versi baru untuk perubahan akademik. Keanggotaan dengan riwayat kelas pada program studi ini tidak dapat dihapus.</p>
 {#if saving}<p role="status" class="mt-4 text-sm">Menyimpan perubahan…</p>{/if}

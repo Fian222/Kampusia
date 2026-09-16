@@ -7,27 +7,30 @@
   import AcademicFields from '$lib/components/AcademicFields.svelte';
   import MeetingManager from '$lib/components/MeetingManager.svelte';
   import GradingManager from '$lib/components/GradingManager.svelte';
+  import PageHeader from '$lib/components/ui/PageHeader.svelte';
+  import StatCard from '$lib/components/ui/StatCard.svelte';
+  import Badge from '$lib/components/ui/Badge.svelte';
+  import Icon from '$lib/components/ui/Icon.svelte';
   import type { PageProps } from './$types';
   let { data, form }: PageProps = $props();
   let saving = $state(false);
-  const box = 'mt-6 rounded-xl border border-slate-200 bg-white p-5';
-  const button = 'rounded-lg bg-teal-700 px-4 py-2 text-sm text-white disabled:opacity-50';
+  const box = 'surface-panel mt-6 p-5 sm:p-6';
+  const button = 'min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-50';
   const submit = () => { saving = true; return async ({ update }: { update: (options: { reset: boolean }) => Promise<void> }) => { try { await update({ reset: false }); } finally { saving = false; } }; };
   const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
   function scheduleHref(number: number) { const p = new URLSearchParams(page.url.searchParams); p.set('schedule_page', String(number)); return '?' + p; }
   function href(number: number) { const p = new URLSearchParams(page.url.searchParams); p.set('page', String(number)); return '?' + p; }
 </script>
 <svelte:head><title>Kelas {data.kelas.namaKelas} · Kampusia</title></svelte:head>
-<a class="text-teal-800" href="/akademik/kelas-kuliah">← Kelas Kuliah</a>
-<h1 class="mt-3 text-3xl font-semibold">{data.kelas.mataKuliah.kode} — {data.kelas.mataKuliah.nama} / {data.kelas.namaKelas}</h1>
-<section class={box}>
-  <p>{data.kelas.semester.nama} · {data.kelas.programStudi.nama}</p>
-  <p class="mt-2">Kapasitas: {data.kelas.kapasitas} · Mahasiswa (KRS disetujui, pilihan aktif): {data.kelas.jumlahMahasiswa}</p>
-  <p class="mt-2 font-semibold">Status: {data.kelas.status}</p>
-  <p class="mt-2">Koordinator: {data.kelas.dosen.find(row => row.isKoordinator)?.dosen.nama ?? 'Belum ditunjuk (opsional)'}</p>
-  <a class="mt-3 inline-block text-teal-800" href={`/akademik/kelas-kuliah?edit=${data.kelas.id}#kelas-form`}>Edit informasi kelas</a>
-  <p class="mt-3 text-sm text-amber-900">Pembukaan kelas memerlukan prodi dan mata kuliah aktif, mata kuliah pada kurikulum prodi, dosen aktif, serta jadwal valid tanpa bentrok. Alasan penolakan akan ditampilkan saat menyimpan.</p>
+<PageHeader eyebrow={`${data.kelas.mataKuliah.kode} / Kelas ${data.kelas.namaKelas}`} title={data.kelas.mataKuliah.nama} description={`${data.kelas.semester.nama} · ${data.kelas.programStudi.nama}`}>{#snippet actions()}<a class="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm" href="/akademik/kelas-kuliah"><Icon name="arrow-right" size={16} class="rotate-180" /> Kembali</a><a class="inline-flex min-h-10 items-center rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm" href={`/akademik/kelas-kuliah?edit=${data.kelas.id}#kelas-form`}>Edit kelas</a>{/snippet}</PageHeader>
+<div class="mt-4"><Badge tone={data.kelas.status === 'DIBUKA' ? 'success' : data.kelas.status === 'DIBATALKAN' ? 'danger' : 'neutral'}>{data.kelas.status}</Badge></div>
+<section class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+  <StatCard label="Kapasitas" value={data.kelas.kapasitas} icon="users" />
+  <StatCard label="Mahasiswa aktif" value={data.kelas.jumlahMahasiswa} icon="graduation" accent />
+  <StatCard label="Jadwal" value={data.kelas.jumlahJadwal} icon="calendar" />
+  <StatCard label="Koordinator" value={data.kelas.dosen.find(row => row.isKoordinator)?.dosen.nama ?? '—'} icon="user" />
 </section>
+<p class="mt-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900"><Icon name="info" size={18} class="mt-0.5 shrink-0" /> Pembukaan kelas memerlukan prodi dan mata kuliah aktif, mata kuliah pada kurikulum prodi, dosen aktif, serta jadwal valid tanpa bentrok.</p>
 <MeetingManager meetings={data.meetings} area="akademik" {form} />
 <GradingManager grading={data.grading} area="akademik" {form} />
 {#if form?.message}<p class={box} role={form.saved ? 'status' : 'alert'}>{form.message}</p>{/if}

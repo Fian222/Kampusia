@@ -4,18 +4,18 @@
   import Pagination from '$lib/components/Pagination.svelte';
   import AcademicFields from '$lib/components/AcademicFields.svelte';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
+  import PageHeader from '$lib/components/ui/PageHeader.svelte';
   import type { PageProps } from './$types';
   let { data, form }: PageProps = $props();
   let saving = $state(false);
-  const box = 'mt-6 rounded-xl border border-slate-200 bg-white p-5';
-  const input = 'mt-1 w-full rounded-lg border border-slate-300 px-3 py-2';
-  const button = 'rounded-lg bg-teal-700 px-4 py-2 text-sm text-white disabled:opacity-50';
+  const box = 'surface-panel mt-6 p-5 sm:p-6';
+  const input = 'control-base mt-1.5';
+  const button = 'min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-50';
   function href(changes: Record<string, string | number>) { const p = new URLSearchParams(page.url.searchParams); for (const [key, value] of Object.entries(changes)) { if (value === '') p.delete(key); else p.set(key, String(value)); } return '?' + p; }
   const submit = () => { saving = true; return async ({ update }: { update: (options: { reset: boolean }) => Promise<void> }) => { try { await update({ reset: false }); } finally { saving = false; } }; };
 </script>
 <svelte:head><title>Ruangan · Kampusia</title></svelte:head>
-<h1 class="text-3xl font-semibold">Ruangan</h1>
-<p class="mt-2 text-sm text-slate-600">Kelola ruang kuliah dan kapasitas. Pindahkan jadwal saat ini/mendatang sebelum menonaktifkan ruangan; riwayat tetap tersimpan.</p>
+<PageHeader eyebrow="Akademik / Fasilitas" title="Ruangan" description="Kelola ruang kuliah dan kapasitasnya tanpa menghilangkan riwayat jadwal." />
 {#if form?.message}<p class={box} role={form.saved ? 'status' : 'alert'}>{form.message}</p>{/if}
 <form method="GET" class={box + ' grid gap-4 sm:grid-cols-3'}>
   <label class="text-sm">Cari kode atau nama<input class={input} name="search" value={data.filters.search} maxlength="150" /></label>

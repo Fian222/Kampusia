@@ -3,27 +3,29 @@
   import { page } from '$app/state';
   import Pagination from './Pagination.svelte';
   import type { loadLecturerClass } from '$lib/server/attendance';
+  import Badge from './ui/Badge.svelte';
+  import Icon from './ui/Icon.svelte';
   type Data = Awaited<ReturnType<typeof loadLecturerClass>>;
   let { meetings, area, form }: { meetings: Data['meetings']; area: 'akademik' | 'dosen'; form?: { message?: string; saved?: boolean; values?: Record<string, string> } | null } = $props();
   let saving = $state(false);
   const action = $derived(area === 'akademik' ? '?/meeting' : '?');
-  const button = 'rounded-lg bg-teal-700 px-3 py-2 text-sm font-medium text-white disabled:opacity-50';
+  const button = 'min-h-9 rounded-lg bg-brand-700 px-3 text-xs font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-50';
   const submit = () => { saving = true; return async ({ update }: { update: (options: { reset: boolean }) => Promise<void> }) => { try { await update({ reset: false }); } finally { saving = false; } }; };
   function href(number: number) { const params = new URLSearchParams(page.url.searchParams); params.set('meeting_page', String(number)); return '?' + params; }
 </script>
 
-<section class="mt-6 rounded-xl border border-slate-200 bg-white p-5">
-  <h2 class="font-semibold">Pertemuan Kuliah</h2>
+<section class="surface-panel mt-6 overflow-hidden">
+  <div class="p-5 sm:p-6"><p class="eyebrow">Aktivitas kelas</p><h2 class="mt-2 text-xl font-bold">Pertemuan Kuliah</h2>
   <p class="mt-2 text-sm text-slate-500">Pertemuan mencatat kejadian aktual dan tidak harus sama dengan jadwal mingguan. Pertemuan selesai atau dibatalkan tetap disimpan.</p>
   {#if form?.message}<p class="mt-4 rounded-lg bg-slate-50 p-3 text-sm" role={form.saved ? 'status' : 'alert'}>{form.message}</p>{/if}
   {#if saving}<p class="mt-3 text-sm" role="status">Menyimpan…</p>{/if}
-  <div class="mt-4 overflow-x-auto"><table class="w-full text-left text-sm">
-    <thead class="border-b text-slate-500"><tr><th class="p-3">Ke</th><th class="p-3">Tanggal</th><th class="p-3">Waktu</th><th class="p-3">Materi</th><th class="p-3">Status</th><th class="p-3">Tindakan</th></tr></thead>
-    <tbody>{#each meetings.data as row}<tr class="border-b border-slate-100 align-top">
+  </div><div class="overflow-x-auto border-t border-slate-100"><table class="min-w-[760px] w-full text-left text-sm">
+    <thead><tr><th class="p-3">Ke</th><th class="p-3">Tanggal</th><th class="p-3">Waktu</th><th class="p-3">Materi</th><th class="p-3">Status</th><th class="p-3">Tindakan</th></tr></thead>
+    <tbody class="divide-y divide-slate-100">{#each meetings.data as row}<tr class="align-top">
       <td class="p-3">{row.nomorPertemuan}</td><td class="p-3">{row.tanggal}</td><td class="p-3">{row.jamMulai.slice(0, 5)}–{row.jamSelesai.slice(0, 5)}</td><td class="p-3">{row.materi ?? '—'}</td>
-      <td class="p-3"><span class:!bg-amber-100={row.status === 'TERJADWAL'} class:!bg-teal-100={row.status === 'SELESAI'} class="rounded-full bg-slate-100 px-2 py-1 text-xs">{row.status}</span></td>
-      <td class="min-w-64 p-3"><a class="text-teal-800" href={`/${area}/pertemuan/${row.id}`}>Buka absensi</a>
-        {#if row.status !== 'DIBATALKAN'}<details class="mt-2"><summary class="cursor-pointer text-teal-800">{row.status === 'SELESAI' ? 'Koreksi fakta' : 'Edit'}</summary>
+      <td class="p-3"><Badge tone={row.status === 'SELESAI' ? 'success' : row.status === 'TERJADWAL' ? 'info' : 'danger'}>{row.status}</Badge></td>
+      <td class="min-w-64 p-3"><a class="inline-flex items-center gap-1 font-semibold text-brand-700" href={`/${area}/pertemuan/${row.id}`}>Buka absensi <Icon name="arrow-right" size={14} /></a>
+        {#if row.status !== 'DIBATALKAN'}<details class="mt-2"><summary class="cursor-pointer font-medium text-brand-700">{row.status === 'SELESAI' ? 'Koreksi fakta' : 'Edit'}</summary>
           <form method="POST" {action} class="mt-3 grid gap-2" use:enhance={submit}>
             <input type="hidden" name="mode" value="meeting-save" /><input type="hidden" name="pertemuan_id" value={row.id} />
             {#if row.status === 'SELESAI'}<input type="hidden" name="koreksi" value="yes" />{/if}
@@ -40,11 +42,11 @@
       </td>
     </tr>{:else}<tr><td colspan="6" class="p-8 text-center text-slate-500">Belum ada pertemuan.</td></tr>{/each}</tbody>
   </table></div>
-  <Pagination {...meetings.meta} {href} />
+  <div class="px-5 pb-4 sm:px-6"><Pagination {...meetings.meta} {href} /></div>
 </section>
 
-<section class="mt-6 rounded-xl border border-slate-200 bg-white p-5">
-  <h2 class="font-semibold">Buat Pertemuan</h2>
+<section class="surface-panel mt-6 p-5 sm:p-6">
+  <h2 class="font-bold">Buat Pertemuan</h2>
   <form method="POST" {action} class="mt-4 grid gap-4 sm:grid-cols-2" use:enhance={submit}>
     <input type="hidden" name="mode" value="meeting-save" />
     <label class="text-sm">Nomor pertemuan<input class="mt-1 w-full rounded-lg border border-slate-300 p-2" name="nomor_pertemuan" type="number" min="1" max="32767" required /></label>

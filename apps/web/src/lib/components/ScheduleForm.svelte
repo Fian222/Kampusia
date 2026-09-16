@@ -17,6 +17,6 @@
     { name: 'jam_mulai', label: 'Jam Mulai', type: 'time', value: slot?.jamMulai, step: 'any' },
     { name: 'jam_selesai', label: 'Jam Selesai', type: 'time', value: slot?.jamSelesai, step: 'any' },
   ]} />
-  <div><button class="rounded-lg bg-teal-700 px-4 py-2 text-sm text-white disabled:opacity-50" disabled={saving}>Simpan jadwal</button></div>
+  <div><button class="min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-50" disabled={saving}>Simpan jadwal</button></div>
 </form>
 {/key}

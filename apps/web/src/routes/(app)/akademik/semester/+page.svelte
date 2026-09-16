@@ -3,18 +3,19 @@
   import { page } from '$app/state';
   import Pagination from '$lib/components/Pagination.svelte';
   import AcademicFields from '$lib/components/AcademicFields.svelte';
+  import PageHeader from '$lib/components/ui/PageHeader.svelte';
+  import Badge from '$lib/components/ui/Badge.svelte';
   import type { PageProps } from './$types';
   let { data, form }: PageProps = $props();
   let saving = $state(false);
-  const box = 'mt-6 rounded-xl border border-slate-200 bg-white p-5';
-  const input = 'mt-1 w-full rounded-lg border border-slate-300 px-3 py-2';
-  const button = 'rounded-lg bg-teal-700 px-4 py-2 text-sm text-white disabled:opacity-50';
+  const box = 'surface-panel mt-6 p-5 sm:p-6';
+  const input = 'control-base mt-1.5';
+  const button = 'min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-50';
   function href(changes: Record<string, string | number>) { const p = new URLSearchParams(page.url.searchParams); for (const [key, value] of Object.entries(changes)) { if (value === '') p.delete(key); else p.set(key, String(value)); } return '?' + p; }
   const submit = () => { saving = true; return async ({ update }: { update: (options: { reset: boolean }) => Promise<void> }) => { try { await update({ reset: false }); } finally { saving = false; } }; };
 </script>
 <svelte:head><title>Semester · Kampusia</title></svelte:head>
-<h1 class="text-3xl font-semibold">Semester</h1>
-<p class="mt-2 text-sm text-slate-600">Semester akademik aktif dipilih secara eksplisit, bukan berdasarkan tanggal. Aktivasi menggantikan semester aktif sebelumnya. Riwayat akademik tetap tersimpan.</p>
+<PageHeader eyebrow="Akademik / Perkuliahan" title="Semester" description="Pilih periode akademik aktif secara eksplisit dan pertahankan seluruh riwayat semester." />
 {#if form?.message}<p class={box} role={form.saved ? 'status' : 'alert'}>{form.message}</p>{/if}
 {#if saving}<p role="status" class="mt-3">Menyimpan…</p>{/if}
 <form method="GET" class={box + ' grid gap-4 sm:grid-cols-4'}>
@@ -30,7 +31,7 @@
     <thead class="border-b text-slate-500"><tr>{#each ['Kode', 'Nama', 'Tahun Akademik', 'Jenis', 'Tanggal Mulai', 'Tanggal Selesai', 'Status Aktif', 'Tindakan'] as label}<th class="p-3">{label}</th>{/each}</tr></thead>
     <tbody>{#each data.records.data as row}<tr class="border-b border-slate-100">
       <td class="p-3">{row.kode}</td><td class="p-3">{row.nama}</td><td class="p-3">{row.tahunMulai}/{row.tahunMulai + 1}</td><td class="p-3">{row.jenis}</td><td class="p-3 whitespace-nowrap">{row.tanggalMulai}</td><td class="p-3 whitespace-nowrap">{row.tanggalSelesai}</td>
-      <td class="p-3"><span class={row.isActive ? 'font-semibold text-teal-800' : 'text-slate-500'}>{row.isActive ? 'Semester akademik aktif' : 'Tidak dipilih'}</span></td>
+      <td class="p-3"><Badge tone={row.isActive ? 'success' : 'neutral'}>{row.isActive ? 'Semester aktif' : 'Tidak dipilih'}</Badge></td>
       <td class="p-3"><a class="text-teal-800" href={href({ edit: row.id }) + '#semester-form'}>Edit</a>
         {#if !row.isActive}<details class="mt-2"><summary class="cursor-pointer text-teal-800">Aktifkan</summary><p class="my-2">Ganti semester aktif menjadi {row.nama}?</p><form method="POST" use:enhance={submit}><input type="hidden" name="mode" value="activate" /><input type="hidden" name="id" value={row.id} /><input type="hidden" name="confirm" value="yes" /><button class={button} disabled={saving}>Ya, aktifkan semester</button></form></details>{/if}
       </td></tr>{:else}<tr><td colspan="8" class="p-8 text-center text-slate-500">Tidak ada semester yang cocok.</td></tr>{/each}</tbody>

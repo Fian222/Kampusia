@@ -1,16 +1,19 @@
 <script lang="ts">
   import Pagination from '$lib/components/Pagination.svelte';
   import { page } from '$app/state';
+  import PageHeader from '$lib/components/ui/PageHeader.svelte';
+  import Badge from '$lib/components/ui/Badge.svelte';
+  import Icon from '$lib/components/ui/Icon.svelte';
   let { data } = $props();
   function href(number: number) { const params = new URLSearchParams(page.url.searchParams); params.set('page', String(number)); return '?' + params; }
 </script>
 <svelte:head><title>Kelas yang Diajar · Kampusia</title></svelte:head>
-<h1 class="text-3xl font-semibold">Kelas yang Diajar</h1><p class="mt-2 text-slate-600">Kelola pertemuan dan absensi hanya untuk kelas tempat Anda ditugaskan.</p>
-<form class="mt-6 flex flex-wrap gap-3 rounded-xl border border-slate-200 bg-white p-4">
-  <input class="min-w-60 flex-1 rounded-lg border p-2" name="search" value={data.query.search} placeholder="Cari kode, mata kuliah, atau kelas" />
-  <select class="rounded-lg border p-2" name="status"><option value="">Semua status</option>{#each data.statuses as status}<option value={status} selected={data.query.status === status}>{status}</option>{/each}</select>
-  <button class="rounded-lg bg-teal-700 px-4 py-2 text-white">Terapkan</button>
+<PageHeader eyebrow="Perkuliahan" title="Kelas yang Diajar" description="Kelola pertemuan, absensi, dan penilaian untuk kelas tempat Anda ditugaskan." />
+<form class="surface-panel mt-6 flex flex-col gap-3 p-4 sm:flex-row">
+  <input class="control-base min-w-60 flex-1" name="search" value={data.query.search} placeholder="Cari kode, mata kuliah, atau kelas" aria-label="Cari kelas" />
+  <select class="control-base sm:w-48" name="status" aria-label="Filter status"><option value="">Semua status</option>{#each data.statuses as status}<option value={status} selected={data.query.status === status}>{status}</option>{/each}</select>
+  <button class="min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800">Terapkan</button>
 </form>
-<section class="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white"><table class="w-full text-left text-sm"><thead class="border-b text-slate-500"><tr><th class="p-4">Mata Kuliah</th><th class="p-4">Kelas</th><th class="p-4">Semester</th><th class="p-4">Status</th><th class="p-4">Tindakan</th></tr></thead>
-  <tbody>{#each data.records.data as row}<tr class="border-b border-slate-100"><td class="p-4">{row.mataKuliah.kode} — {row.mataKuliah.nama}</td><td class="p-4">{row.namaKelas}</td><td class="p-4">{row.semester.nama}</td><td class="p-4">{row.status}</td><td class="p-4"><a class="text-teal-800" href={`/dosen/kelas-kuliah/${row.id}`}>Buka kelas</a></td></tr>{:else}<tr><td colspan="5" class="p-8 text-center text-slate-500">Belum ada kelas yang ditugaskan.</td></tr>{/each}</tbody>
+<section class="table-shell mt-6 overflow-x-auto"><table class="min-w-[700px] w-full text-left text-sm"><thead><tr><th class="p-4">Mata Kuliah</th><th class="p-4">Kelas</th><th class="p-4">Semester</th><th class="p-4">Status</th><th class="p-4">Tindakan</th></tr></thead>
+  <tbody class="divide-y divide-slate-100">{#each data.records.data as row}<tr><td class="p-4"><span class="font-mono text-xs font-semibold text-slate-500">{row.mataKuliah.kode}</span><p class="mt-1 font-semibold text-slate-900">{row.mataKuliah.nama}</p></td><td class="p-4"><span class="inline-flex size-8 items-center justify-center rounded-lg bg-slate-100 font-bold">{row.namaKelas}</span></td><td class="p-4">{row.semester.nama}</td><td class="p-4"><Badge tone={row.status === 'DIBUKA' ? 'success' : row.status === 'DIBATALKAN' ? 'danger' : 'neutral'}>{row.status}</Badge></td><td class="p-4"><a class="inline-flex items-center gap-1.5 font-semibold text-brand-700" href={`/dosen/kelas-kuliah/${row.id}`}>Buka kelas <Icon name="arrow-right" size={15} /></a></td></tr>{:else}<tr><td colspan="5" class="p-8 text-center text-slate-500">Belum ada kelas yang ditugaskan.</td></tr>{/each}</tbody>
 </table></section><Pagination {...data.records.meta} {href} />

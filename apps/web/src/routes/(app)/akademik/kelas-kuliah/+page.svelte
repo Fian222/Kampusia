@@ -4,12 +4,14 @@
   import Pagination from '$lib/components/Pagination.svelte';
   import AcademicFields from '$lib/components/AcademicFields.svelte';
   import AcademicOptions from '$lib/components/AcademicOptions.svelte';
+  import PageHeader from '$lib/components/ui/PageHeader.svelte';
+  import Badge from '$lib/components/ui/Badge.svelte';
   import type { PageProps } from './$types';
   let { data, form }: PageProps = $props();
   let saving = $state(false);
-  const box = 'mt-6 rounded-xl border border-slate-200 bg-white p-5';
-  const input = 'mt-1 w-full rounded-lg border border-slate-300 px-3 py-2';
-  const button = 'rounded-lg bg-teal-700 px-4 py-2 text-sm text-white disabled:opacity-50';
+  const box = 'surface-panel mt-6 p-5 sm:p-6';
+  const input = 'control-base mt-1.5';
+  const button = 'min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-50';
   function href(changes: Record<string, string | number>) { const p = new URLSearchParams(page.url.searchParams); for (const [key, value] of Object.entries(changes)) { if (value === '') p.delete(key); else p.set(key, String(value)); } return '?' + p; }
   function options(rows: { id: string; kode: string; nama: string; isActive?: boolean }[], current: { id: string; kode: string; nama: string; isActive?: boolean } | undefined, restrict = true) {
     const all = current && !rows.some(row => row.id === current.id) ? [current, ...rows] : rows;
@@ -22,8 +24,7 @@
   ]);
 </script>
 <svelte:head><title>Kelas Kuliah · Kampusia</title></svelte:head>
-<h1 class="text-3xl font-semibold">Kelas Kuliah</h1>
-<p class="mt-2 text-sm text-slate-600">Kelola penawaran mata kuliah per semester dan dosen pengajar.</p>
+<PageHeader eyebrow="Akademik / Perkuliahan" title="Kelas Kuliah" description="Kelola penawaran mata kuliah, dosen pengajar, jadwal, pertemuan, dan penilaian." />
 <p class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Kelas baru dapat disimpan sebagai DRAFT. DIBUKA memerlukan kurikulum yang sesuai, dosen aktif, serta jadwal yang valid tanpa konflik. Tambahkan dosen dan jadwal melalui detail kelas sebelum membuka kelas.</p>
 {#if form?.message}<p class={box} role={form.saved ? 'status' : 'alert'}>{form.message}</p>{/if}
 {#if saving}<p role="status" class="mt-3">Menyimpan…</p>{/if}
@@ -37,7 +38,7 @@
 <section class={box}>
   <div class="flex justify-between"><h2 class="font-semibold">Daftar Kelas Kuliah</h2><a class="text-teal-800" href={href({ edit: '' }) + '#kelas-form'}>Tambah Kelas</a></div>
   <div class="mt-4 overflow-x-auto"><table class="w-full text-left text-sm"><thead class="border-b text-slate-500"><tr>{#each ['Mata Kuliah', 'Kelas', 'Semester', 'Program Studi', 'Kapasitas', 'Status', 'Tindakan'] as label}<th class="p-3">{label}</th>{/each}</tr></thead>
-    <tbody>{#each data.records.data as row}<tr class="border-b border-slate-100"><td class="p-3">{row.mataKuliah.kode} — {row.mataKuliah.nama}</td><td class="p-3">{row.namaKelas}</td><td class="p-3">{row.semester.nama}</td><td class="p-3">{row.programStudi.nama}</td><td class="p-3">{row.kapasitas}</td><td class="p-3 font-medium">{row.status}</td><td class="p-3"><div class="flex gap-3"><a class="text-teal-800" href={`/akademik/kelas-kuliah/${row.id}`}>Detail / Dosen</a><a class="text-teal-800" href={href({ edit: row.id }) + '#kelas-form'}>Edit</a></div></td></tr>{:else}<tr><td colspan="7" class="p-8 text-center text-slate-500">Tidak ada kelas yang cocok.</td></tr>{/each}</tbody>
+    <tbody>{#each data.records.data as row}<tr class="border-b border-slate-100"><td class="p-3"><span class="font-mono text-xs text-slate-500">{row.mataKuliah.kode}</span><p class="font-semibold text-slate-900">{row.mataKuliah.nama}</p></td><td class="p-3">{row.namaKelas}</td><td class="p-3">{row.semester.nama}</td><td class="p-3">{row.programStudi.nama}</td><td class="p-3">{row.kapasitas}</td><td class="p-3"><Badge tone={row.status === 'DIBUKA' ? 'success' : row.status === 'DIBATALKAN' ? 'danger' : 'neutral'}>{row.status}</Badge></td><td class="p-3"><div class="flex gap-3"><a class="font-semibold text-brand-700" href={`/akademik/kelas-kuliah/${row.id}`}>Detail</a><a class="font-semibold text-brand-700" href={href({ edit: row.id }) + '#kelas-form'}>Edit</a></div></td></tr>{:else}<tr><td colspan="7" class="p-8 text-center text-slate-500">Tidak ada kelas yang cocok.</td></tr>{/each}</tbody>
   </table></div><Pagination {...data.records.meta} href={number => href({ page: number })} />
 </section>
 <AcademicOptions prefix="semester_" label="Semester" meta={data.semesters.meta} />

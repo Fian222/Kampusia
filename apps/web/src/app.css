@@ -1,1 +1,59 @@
 @import 'tailwindcss';
+
+@theme {
+  --color-brand-50: #effcf9;
+  --color-brand-100: #d7f7ef;
+  --color-brand-200: #b2ecdf;
+  --color-brand-300: #7ddccb;
+  --color-brand-400: #46c4b1;
+  --color-brand-500: #24a996;
+  --color-brand-600: #178879;
+  --color-brand-700: #176d63;
+  --color-brand-800: #175850;
+  --color-brand-900: #174942;
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --shadow-panel: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 28px rgb(15 23 42 / 0.045);
+}
+
+:root {
+  font-family: var(--font-sans);
+  color: #172033;
+  background: #f7f8fa;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+html { min-width: 320px; background: #f7f8fa; scroll-behavior: smooth; }
+body { min-width: 320px; min-height: 100vh; margin: 0; background: #f7f8fa; }
+::selection { background: #b2ecdf; color: #174942; }
+button, a, input, select, textarea, summary { -webkit-tap-highlight-color: transparent; }
+button:not(:disabled), summary { cursor: pointer; }
+:focus-visible { outline: 2px solid #178879; outline-offset: 2px; }
+input, select, textarea { color: #172033; transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease; }
+input:focus, select:focus, textarea:focus { border-color: #178879 !important; box-shadow: 0 0 0 3px rgb(23 136 121 / 0.12); outline: none; }
+input:disabled, select:disabled, textarea:disabled { cursor: not-allowed; background: #f1f5f9; color: #64748b; }
+dialog { box-shadow: 0 24px 80px rgb(15 23 42 / 0.22); }
+dialog::backdrop { background: rgb(15 23 42 / 0.48); backdrop-filter: blur(2px); }
+
+@layer components {
+  .app-content h1 { @apply text-[1.75rem] font-bold tracking-[-0.025em] text-slate-950 sm:text-[2rem]; }
+  .app-content h2 { @apply tracking-[-0.01em] text-slate-950; }
+  .app-content :where(input:not([type='checkbox']):not([type='radio']), select, textarea) { @apply min-h-10 rounded-lg border-slate-300 bg-white text-sm shadow-sm; }
+  .app-content textarea { @apply min-h-24 resize-y; }
+  .app-content :where(label) { @apply leading-5 text-slate-700; }
+  .app-content :where(table) { @apply border-separate border-spacing-0; }
+  .app-content :where(thead th) { @apply bg-slate-50/90 text-xs font-semibold uppercase tracking-[0.055em] text-slate-500; }
+  .app-content :where(tbody tr) { @apply transition-colors duration-150; }
+  .app-content :where(tbody tr:hover) { @apply bg-slate-50/75; }
+  .app-content :where(tbody td) { @apply text-slate-700; }
+  .app-content :where(a) { @apply transition-colors duration-150; }
+  .surface-panel { @apply rounded-xl border border-slate-200/90 bg-white shadow-panel; }
+  .control-base { @apply min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none placeholder:text-slate-400; }
+  .table-shell { @apply overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-panel; }
+  .eyebrow { @apply text-xs font-semibold uppercase tracking-[0.12em] text-brand-700; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+}

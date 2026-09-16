@@ -4,6 +4,7 @@
   import type { ProfileData } from '$lib/server/academic-profiles';
   import Pagination from './Pagination.svelte';
   import StatusBadge from './StatusBadge.svelte';
+  import PageHeader from './ui/PageHeader.svelte';
 
   let { data, form }: { data: ProfileData; form: { message: string; saved?: true; values?: Record<string, string> } | null } = $props();
   let saving = $state(false);
@@ -16,9 +17,9 @@
   const title = $derived(data.kind === 'mahasiswa' ? 'Mahasiswa' : 'Dosen');
   const student = $derived(data.kind === 'mahasiswa' ? data.edit : null);
   const lecturer = $derived(data.kind === 'dosen' ? data.edit : null);
-  const inputClass = 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
-  const buttonClass = 'rounded-lg bg-teal-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50';
-  const panelClass = 'mt-6 rounded-xl border border-slate-200 bg-white p-5';
+  const inputClass = 'control-base mt-1.5';
+  const buttonClass = 'min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50';
+  const panelClass = 'surface-panel mt-6 p-5 sm:p-6';
   function href(changes: Record<string, string | number | null>) {
     const params = new URLSearchParams(page.url.searchParams);
     for (const [key, value] of Object.entries(changes)) {
@@ -31,10 +32,8 @@
 </script>
 
 <svelte:head><title>{title} · Kampusia</title></svelte:head>
-<p class="text-sm text-slate-500">Master Data / {title}</p>
-<h1 class="mt-3 text-3xl font-semibold tracking-tight">{title}</h1>
-<p class="mt-2 text-sm text-slate-600">Kelola profil akademik dan pertahankan riwayatnya. Akun login bersifat opsional.</p>
-{#if navigating || saving}<p role="status" class="mt-4 text-sm text-teal-800">{saving ? 'Menyimpan perubahan…' : 'Memuat data…'}</p>{/if}
+<PageHeader eyebrow={`Master Data / ${title}`} {title} description="Kelola profil akademik dan pertahankan riwayatnya. Akun login bersifat opsional." />
+{#if navigating || saving}<p role="status" class="mt-4 text-sm text-brand-700">{saving ? 'Menyimpan perubahan…' : 'Memuat data…'}</p>{/if}
 {#if form?.message}<p role={form.saved ? 'status' : 'alert'} class={panelClass}>{form.message}</p>{/if}
 
 <section class={panelClass} aria-label="Filter data">
@@ -66,12 +65,12 @@
     <tbody class="divide-y divide-slate-100">
       {#if data.kind === 'mahasiswa'}
         {#each data.records as row}<tr>
-          <td class="px-3 py-4 font-medium">{row.nim}</td><td class="px-3 py-4">{row.nama}</td><td class="px-3 py-4">{row.programStudi.nama}<span class="block text-xs text-slate-500">{row.fakultas.nama}</span></td><td class="px-3 py-4">{row.kurikulum.nama}</td><td class="px-3 py-4">{row.angkatan}</td><td class="px-3 py-4"><span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium">{row.status}</span></td><td class="px-3 py-4"><a class="mr-4 text-teal-700" href={`/akademik/mahasiswa/${row.id}/hasil-studi`}>Hasil studi</a><a class="text-teal-700" href={href({ edit: row.id }) + '#profile-form'}>Edit</a></td>
+          <td class="px-3 py-4 font-medium">{row.nim}</td><td class="px-3 py-4">{row.nama}</td><td class="px-3 py-4">{row.programStudi.nama}<span class="block text-xs text-slate-500">{row.fakultas.nama}</span></td><td class="px-3 py-4">{row.kurikulum.nama}</td><td class="px-3 py-4">{row.angkatan}</td><td class="px-3 py-4"><span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium">{row.status}</span></td><td class="px-3 py-4"><a class="mr-4 font-semibold text-brand-700" href={`/akademik/mahasiswa/${row.id}/hasil-studi`}>Hasil studi</a><a class="font-semibold text-brand-700" href={href({ edit: row.id }) + '#profile-form'}>Edit</a></td>
         </tr>{/each}
       {:else}
         {#each data.records as row}<tr>
           <td class="px-3 py-4 font-medium">{row.kodeDosen}</td><td class="px-3 py-4">{row.nidn ?? '—'}</td><td class="px-3 py-4">{row.nama}</td><td class="px-3 py-4">{row.programStudi?.nama ?? 'Tanpa homebase'}</td><td class="px-3 py-4"><StatusBadge active={row.isActive} /></td>
-          <td class="px-3 py-4"><a class="mr-4 text-teal-700" href={href({ edit: row.id }) + '#profile-form'}>Edit</a><button class="text-slate-600" onclick={() => confirmation = row}>{row.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button></td>
+          <td class="px-3 py-4"><a class="mr-4 font-semibold text-brand-700" href={href({ edit: row.id }) + '#profile-form'}>Edit</a><button class="text-slate-600" onclick={() => confirmation = row}>{row.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button></td>
         </tr>{/each}
       {/if}
     </tbody>
