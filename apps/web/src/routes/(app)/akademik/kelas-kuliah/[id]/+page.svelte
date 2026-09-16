@@ -39,14 +39,14 @@
   <h2 class="font-semibold">Dosen Pengajar</h2><p class="mt-2 text-sm text-slate-500">Koordinator opsional, maksimal satu. Lepaskan koordinator lama sebelum menunjuk dosen lain. Homebase tidak membatasi penugasan.</p>
   <div class="mt-4 overflow-x-auto"><table class="w-full text-left text-sm"><thead class="border-b text-slate-500"><tr><th class="p-3">Kode Dosen</th><th class="p-3">Nama</th><th class="p-3">Koordinator</th><th class="p-3">Tindakan</th></tr></thead>
     <tbody>{#each data.assignments.data as row}<tr class="border-b border-slate-100"><td class="p-3">{row.dosen.kodeDosen}</td><td class="p-3">{row.dosen.nama}{row.dosen.isActive ? '' : ' (Nonaktif)'}</td><td class="p-3">{row.isKoordinator ? 'Ya' : 'Tidak'}</td><td class="p-3">
-      <form method="POST" use:enhance={submit}><input type="hidden" name="mode" value="update" /><input type="hidden" name="assignment_id" value={row.id} /><input type="hidden" name="is_koordinator" value={String(!row.isKoordinator)} /><button class={button} disabled={saving}>{row.isKoordinator ? 'Lepaskan koordinator' : 'Jadikan koordinator'}</button></form>
-      <details class="mt-3"><summary class="cursor-pointer text-red-700">Hapus penugasan</summary><p class="my-2">Hapus penugasan {row.dosen.nama}? Kelas dibuka harus tetap memiliki dosen aktif.</p><form method="POST" use:enhance={submit}><input type="hidden" name="mode" value="remove" /><input type="hidden" name="assignment_id" value={row.id} /><input type="hidden" name="confirm" value="yes" /><button class={button} disabled={saving}>Ya, hapus penugasan</button></form></details>
+      <form method="POST" action="?/detail" use:enhance={submit}><input type="hidden" name="mode" value="update" /><input type="hidden" name="assignment_id" value={row.id} /><input type="hidden" name="is_koordinator" value={String(!row.isKoordinator)} /><button class={button} disabled={saving}>{row.isKoordinator ? 'Lepaskan koordinator' : 'Jadikan koordinator'}</button></form>
+      <details class="mt-3"><summary class="cursor-pointer text-red-700">Hapus penugasan</summary><p class="my-2">Hapus penugasan {row.dosen.nama}? Kelas dibuka harus tetap memiliki dosen aktif.</p><form method="POST" action="?/detail" use:enhance={submit}><input type="hidden" name="mode" value="remove" /><input type="hidden" name="assignment_id" value={row.id} /><input type="hidden" name="confirm" value="yes" /><button class={button} disabled={saving}>Ya, hapus penugasan</button></form></details>
     </td></tr>{:else}<tr><td colspan="4" class="p-8 text-center text-slate-500">Belum ada dosen pengajar.</td></tr>{/each}</tbody>
   </table></div><Pagination {...data.assignments.meta} {href} />
 </section>
 <AcademicOptions prefix="lecturer_" label="Dosen Aktif" meta={data.lecturers.meta} />
 <section class={box}><h2 class="font-semibold">Tambah Dosen Pengajar</h2>
-  {#key JSON.stringify(form)}<form method="POST" class="mt-4 grid gap-4 sm:grid-cols-2" use:enhance={submit}>
+  {#key JSON.stringify(form)}<form method="POST" action="?/detail" class="mt-4 grid gap-4 sm:grid-cols-2" use:enhance={submit}>
     <input type="hidden" name="mode" value="add" />
     <AcademicFields values={form?.values?.mode === 'add' ? form.values : {}} fields={[
       { name: 'dosen_id', label: 'Dosen', options: data.lecturers.data.map(row => ({ value: row.id, label: row.kodeDosen + ' — ' + row.nama })) },
@@ -58,7 +58,7 @@
 
 <section class={box}>
   <h2 class="font-semibold">Status Kelas</h2>
-  <form method="POST" class="mt-4 flex flex-wrap items-end gap-3" use:enhance={submit}>
+  <form method="POST" action="?/detail" class="mt-4 flex flex-wrap items-end gap-3" use:enhance={submit}>
     <input type="hidden" name="mode" value="status" />
     <AcademicFields fields={[{ name: 'status', label: 'Status baru', value: data.kelas.status, options: ['DRAFT', 'DIBUKA', 'DITUTUP', 'DIBATALKAN'].map(value => ({ value, label: value })) }]} />
     <label class="text-sm"><input type="checkbox" name="confirm" value="yes" required /> Konfirmasi perubahan status</label>
@@ -72,16 +72,16 @@
     <tbody>{#each data.schedules.data as row}<tr class="border-b border-slate-100">
       <td class="p-3">{days[row.hari - 1]}</td><td class="p-3">{row.jamMulai}</td><td class="p-3">{row.jamSelesai}</td><td class="p-3">{row.ruangan.kode} — {row.ruangan.nama}</td><td class="p-3">{row.ruangan.gedung ?? '—'}</td>
       <td class="min-w-64 p-3"><details><summary class="cursor-pointer text-teal-800">Edit jadwal</summary>
-        <ScheduleForm rooms={data.rooms.data} slot={row} values={form?.values} {saving} {submit} />
+        <ScheduleForm action="?/detail" rooms={data.rooms.data} slot={row} values={form?.values} {saving} {submit} />
       </details><details class="mt-3"><summary class="cursor-pointer text-red-700">Hapus jadwal</summary>
         <p class="my-2">Hapus jadwal ini? Jadwal dengan riwayat KRS disetujui tetap dipertahankan.</p>
-        <form method="POST" use:enhance={submit}><input type="hidden" name="mode" value="schedule-remove" /><input type="hidden" name="jadwal_id" value={row.id} /><input type="hidden" name="confirm" value="yes" /><button class={button} disabled={saving}>Ya, hapus jadwal</button></form>
+        <form method="POST" action="?/detail" use:enhance={submit}><input type="hidden" name="mode" value="schedule-remove" /><input type="hidden" name="jadwal_id" value={row.id} /><input type="hidden" name="confirm" value="yes" /><button class={button} disabled={saving}>Ya, hapus jadwal</button></form>
       </details></td>
     </tr>{:else}<tr><td colspan="6" class="p-8 text-center text-slate-500">Belum ada jadwal kuliah.</td></tr>{/each}</tbody>
   </table></div><Pagination {...data.schedules.meta} href={scheduleHref} />
 </section>
 <AcademicOptions prefix="room_" label="Ruangan Aktif" meta={data.rooms.meta} />
 <section class={box}><h2 class="font-semibold">Tambah Jadwal</h2>
-  <ScheduleForm rooms={data.rooms.data} values={form?.values} {saving} {submit} />
+  <ScheduleForm action="?/detail" rooms={data.rooms.data} values={form?.values} {saving} {submit} />
   <a href="/akademik/ruangan" class="mt-4 inline-block text-sm text-teal-800">Kelola ruangan</a>
 </section>

@@ -4,12 +4,12 @@
   import type { loadKelasDetail } from '$lib/server/academic-offerings';
   import AcademicFields from './AcademicFields.svelte';
   type Detail = Awaited<ReturnType<typeof loadKelasDetail>>;
-  let { rooms, slot, values, saving, submit }: { rooms: Detail['rooms']['data']; slot?: Detail['schedules']['data'][number]; values?: Record<string, string>; saving: boolean; submit: SubmitFunction } = $props();
+  let { action, rooms, slot, values, saving, submit }: { action: string; rooms: Detail['rooms']['data']; slot?: Detail['schedules']['data'][number]; values?: Record<string, string>; saving: boolean; submit: SubmitFunction } = $props();
   const options = $derived(slot && !rooms.some(room => room.id === slot.ruanganId) ? [slot.ruangan, ...rooms] : rooms);
   const failed = $derived(values?.mode === 'schedule-save' && (values.jadwal_id ?? '') === (slot?.id ?? '') ? values : {});
 </script>
 {#key JSON.stringify(failed) + slot?.updatedAt}
-<form method="POST" class="mt-4 grid gap-4 sm:grid-cols-2" use:enhance={submit}>
+<form method="POST" {action} class="mt-4 grid gap-4 sm:grid-cols-2" use:enhance={submit}>
   <input type="hidden" name="mode" value="schedule-save" /><input type="hidden" name="jadwal_id" value={slot?.id ?? ''} />
   <AcademicFields values={failed} fields={[
     { name: 'hari', label: 'Hari', value: slot?.hari, options: ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'].map((label, i) => ({ value: String(i + 1), label })) },

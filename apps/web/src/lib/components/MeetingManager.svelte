@@ -8,7 +8,7 @@
   type Data = Awaited<ReturnType<typeof loadLecturerClass>>;
   let { meetings, area, form }: { meetings: Data['meetings']; area: 'akademik' | 'dosen'; form?: { message?: string; saved?: boolean; values?: Record<string, string> } | null } = $props();
   let saving = $state(false);
-  const action = $derived(area === 'akademik' ? '?/meeting' : '?');
+  const action = '?/meeting';
   const button = 'min-h-9 rounded-lg bg-brand-700 px-3 text-xs font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-50';
   const submit = () => { saving = true; return async ({ update }: { update: (options: { reset: boolean }) => Promise<void> }) => { try { await update({ reset: false }); } finally { saving = false; } }; };
   function href(number: number) { const params = new URLSearchParams(page.url.searchParams); params.set('meeting_page', String(number)); return '?' + params; }

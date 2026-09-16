@@ -32,9 +32,10 @@ test.skipIf(Bun.env.RUN_OFFERING_E2E !== '1')('SvelteKit semester and class list
     const detail = await request(detailPath, { headers: { cookie } }); expect(detail.status).toBe(200);
     const html = await detail.text(); expect(html).toContain('Koordinator'); expect(html).toContain('Dosen Pengajar'); expect(html).toContain('Jadwal');
     const id = /name="assignment_id" value="([0-9a-f-]{36})"/.exec(html)?.[1]; expect(id).toBeDefined();
-    const removal = await request(detailPath, { method: 'POST', headers: { cookie, origin }, body: new URLSearchParams({ mode: 'remove', assignment_id: id! }) }); expect(removal.status).toBe(400); expect(await removal.text()).toContain('Konfirmasikan');
-    const invalid = await request(detailPath, { method: 'POST', headers: { cookie, origin }, body: new URLSearchParams({ mode: 'add', is_koordinator: 'invalid' }) }); expect(invalid.status).toBe(400);
-    const forged = await request(detailPath, { method: 'POST', headers: { cookie, origin: 'https://evil.test' }, body: new URLSearchParams({ mode: 'remove', assignment_id: id!, confirm: 'yes' }) }); expect(forged.status).toBe(403);
+    const detailAction = detailPath + '?/detail';
+    const removal = await request(detailAction, { method: 'POST', headers: { cookie, origin }, body: new URLSearchParams({ mode: 'remove', assignment_id: id! }) }); expect(removal.status).toBe(400); expect(await removal.text()).toContain('Konfirmasikan');
+    const invalid = await request(detailAction, { method: 'POST', headers: { cookie, origin }, body: new URLSearchParams({ mode: 'add', is_koordinator: 'invalid' }) }); expect(invalid.status).toBe(400);
+    const forged = await request(detailAction, { method: 'POST', headers: { cookie, origin: 'https://evil.test' }, body: new URLSearchParams({ mode: 'remove', assignment_id: id!, confirm: 'yes' }) }); expect(forged.status).toBe(403);
     for (const selector of ['semester', 'program', 'course']) {
       const result = await request(paths[1] + `?${selector}_search=NO-MATCH-${crypto.randomUUID()}`, { headers: { cookie } }); expect(result.status).toBe(200);
     }

@@ -30,11 +30,12 @@ test.skipIf(Bun.env.RUN_SCHEDULING_E2E !== '1')('SvelteKit room and schedule for
     for (const label of ['Jadwal Kuliah', 'Jam Mulai', 'Jam Selesai', 'Ruangan', 'Gedung', 'Tambah Jadwal', 'Edit jadwal', 'Simpan status']) expect(html).toContain(label);
     expect(html).not.toContain('menunggu validasi');
     const scheduleId = /name="jadwal_id" value="([0-9a-f-]{36})"/.exec(html)?.[1]; expect(scheduleId).toBeDefined();
-    const invalid = await post(path, { mode: 'schedule-save', ruangan_id: roomId!, hari: '1', jam_mulai: '12:00', jam_selesai: '08:00' }); expect(invalid.status).toBe(400);
+    const detailAction = path + '?/detail';
+    const invalid = await post(detailAction, { mode: 'schedule-save', ruangan_id: roomId!, hari: '1', jam_mulai: '12:00', jam_selesai: '08:00' }); expect(invalid.status).toBe(400);
     const invalidHtml = await invalid.text(); expect(invalidHtml).toContain('Jam mulai harus lebih awal'); expect(invalidHtml).toContain('value="12:00"');
-    const removal = await post(path, { mode: 'schedule-remove', jadwal_id: scheduleId! }); expect(removal.status).toBe(400); expect(await removal.text()).toContain('Konfirmasikan');
-    const status = await post(path, { mode: 'status', status: 'DIBUKA' }); expect(status.status).toBe(400); expect(await status.text()).toContain('Konfirmasikan');
+    const removal = await post(detailAction, { mode: 'schedule-remove', jadwal_id: scheduleId! }); expect(removal.status).toBe(400); expect(await removal.text()).toContain('Konfirmasikan');
+    const status = await post(detailAction, { mode: 'status', status: 'DIBUKA' }); expect(status.status).toBe(400); expect(await status.text()).toContain('Konfirmasikan');
     const selector = await request(path + '?room_search=NO-MATCH-' + crypto.randomUUID(), { headers: { cookie } }); expect(selector.status).toBe(200); expect(await selector.text()).toContain('Edit jadwal');
-    for (const target of ['/akademik/ruangan', path]) expect((await request(target, { method: 'POST', headers: { cookie, origin: 'https://evil.test' }, body: new URLSearchParams({ mode: 'save' }) })).status).toBe(403);
+    for (const target of ['/akademik/ruangan', detailAction]) expect((await request(target, { method: 'POST', headers: { cookie, origin: 'https://evil.test' }, body: new URLSearchParams({ mode: 'save' }) })).status).toBe(403);
   } finally { await request('/logout', { method: 'POST', headers: { cookie, origin } }); }
 }, 60000);
