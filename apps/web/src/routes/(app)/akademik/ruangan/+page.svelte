@@ -1,18 +1,22 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { goto } from '$app/navigation';
-  import { page } from '$app/state';
+  import { page, navigating } from '$app/state';
+  import { seamlessFilter } from '$lib/actions/seamless-filter';
+  import { isListNavigationPending } from '$lib/navigation/pending';
   import Pagination from '$lib/components/Pagination.svelte';
   import AcademicFields from '$lib/components/AcademicFields.svelte';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import PageHeader from '$lib/components/ui/PageHeader.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
+  import ListPending from '$lib/components/ui/ListPending.svelte';
   import type { PageProps } from './$types';
   let { data, form }: PageProps = $props();
   let saving = $state(false);
   let formOpen = $state(false);
   let openedEditId = $state<string>();
+  const listPending = $derived(isListNavigationPending(navigating, page.url.pathname));
   const box = 'surface-panel mt-6 p-5 sm:p-6';
   const input = 'control-base mt-1.5';
   const button = 'min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-50';
@@ -23,14 +27,15 @@
 <svelte:head><title>Ruangan · Kampusia</title></svelte:head>
 <PageHeader eyebrow="Akademik / Fasilitas" title="Ruangan" description="Kelola ruang kuliah dan kapasitasnya tanpa menghilangkan riwayat jadwal.">{#snippet actions()}<a class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm" href={href({ edit: '', modal: 'create' })} onclick={() => { if (!data.edit) formOpen = true; }}><Icon name="plus" size={16} /> Tambah Ruangan</a>{/snippet}</PageHeader>
 {#if form?.message}<p class={box} role={form.saved ? 'status' : 'alert'}>{form.message}</p>{/if}
-<form method="GET" class={box + ' grid gap-4 sm:grid-cols-3'}>
+<form method="GET" class={box + ' grid gap-4 sm:grid-cols-3'} use:seamlessFilter>
   <label class="text-sm">Cari kode atau nama<input class={input} name="search" value={data.filters.search} maxlength="150" /></label>
   <label class="text-sm">Status<select class={input} name="is_active" value={data.filters.is_active ?? ''}><option value="">Semua</option><option value="true">Aktif</option><option value="false">Nonaktif</option></select></label>
-  <div class="self-end"><button class={button}>Terapkan</button> <a href={page.url.pathname}>Reset</a></div>
+  <div class="self-end"><button class={button}>Terapkan</button> <a href={page.url.pathname} data-sveltekit-noscroll>Reset filter</a></div>
 </form>
-<section class={box}>
+<section class={`${box} relative`} aria-busy={listPending}>
+  <ListPending />
   <div class="flex justify-between"><h2 class="font-semibold">Daftar Ruangan</h2></div>
-  <div class="mt-4 overflow-x-auto"><table class="w-full text-left text-sm">
+  <div class="mt-4 overflow-x-auto transition-opacity" class:opacity-80={listPending}><table class="w-full text-left text-sm">
     <thead class="border-b text-slate-500"><tr>{#each ['Kode', 'Nama', 'Gedung', 'Kapasitas', 'Status', 'Tindakan'] as label}<th class="p-3">{label}</th>{/each}</tr></thead>
     <tbody>{#each data.records.data as row}<tr class="border-b border-slate-100">
       <td class="p-3">{row.kode}</td><td class="p-3">{row.nama}</td><td class="p-3">{row.gedung ?? '—'}</td><td class="p-3">{row.kapasitas}</td><td class="p-3"><StatusBadge active={row.isActive} /></td>

@@ -2,12 +2,16 @@
   import { enhance } from '$app/forms';
   import { goto } from '$app/navigation';
   import { page, navigating } from '$app/state';
+  import { seamlessFilter } from '$lib/actions/seamless-filter';
+  import { isListNavigationPending } from '$lib/navigation/pending';
   import type { ProfileData } from '$lib/server/academic-profiles';
   import Pagination from './Pagination.svelte';
   import StatusBadge from './StatusBadge.svelte';
   import PageHeader from './ui/PageHeader.svelte';
   import Icon from './ui/Icon.svelte';
   import Modal from './ui/Modal.svelte';
+  import ListPending from './ui/ListPending.svelte';
+  import AcademicOptions from './AcademicOptions.svelte';
 
   let { data, form }: { data: ProfileData; form: { message: string; saved?: true; values?: Record<string, string> } | null } = $props();
   let saving = $state(false);
@@ -20,6 +24,7 @@
     else if (!confirmation && dialog.open) dialog.close();
   });
   const title = $derived(data.kind === 'mahasiswa' ? 'Mahasiswa' : 'Dosen');
+  const listPending = $derived(isListNavigationPending(navigating, page.url.pathname));
   const student = $derived(data.kind === 'mahasiswa' ? data.edit : null);
   const lecturer = $derived(data.kind === 'dosen' ? data.edit : null);
   const inputClass = 'control-base mt-1.5';
@@ -41,11 +46,10 @@
 <PageHeader eyebrow={`Master Data / ${title}`} {title} description="Kelola profil akademik dan pertahankan riwayatnya. Akun login bersifat opsional.">
   {#snippet actions()}<a class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800" href={href({ edit: null, modal: 'create' })} onclick={() => { if (!data.edit) formOpen = true; }}><Icon name="plus" size={16} /> Tambah {title}</a>{/snippet}
 </PageHeader>
-{#if navigating || saving}<p role="status" class="mt-4 text-sm text-brand-700">{saving ? 'Menyimpan perubahan…' : 'Memuat data…'}</p>{/if}
 {#if form?.message}<p role={form.saved ? 'status' : 'alert'} class={panelClass}>{form.message}</p>{/if}
 
 <section class={panelClass} aria-label="Filter data">
-  <form method="GET" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+  <form method="GET" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" use:seamlessFilter>
     {#each ['program_search', 'program_page', 'curriculum_search', 'curriculum_page', 'choice_program'] as key}
       {#if page.url.searchParams.has(key)}<input type="hidden" name={key} value={page.url.searchParams.get(key)} />{/if}
     {/each}
@@ -61,12 +65,13 @@
     {:else}
       <label class="text-sm font-medium">Status<select class={inputClass} name="is_active" value={data.filters.is_active ?? ''}><option value="">Semua status</option><option value="true">Aktif</option><option value="false">Nonaktif</option></select></label>
     {/if}
-    <div class="flex items-end gap-4"><button class={buttonClass}>Terapkan filter</button><a class="py-2 text-sm text-slate-600" href={page.url.pathname}>Reset</a></div>
+    <div class="flex items-end gap-4"><button class={buttonClass}>Terapkan filter</button><a class="py-2 text-sm text-slate-600" href={page.url.pathname} data-sveltekit-noscroll>Reset filter</a></div>
   </form>
 </section>
 
-<section class={panelClass} aria-label="Daftar profil">
-  <div class="overflow-x-auto"><table class="w-full whitespace-nowrap text-left text-sm">
+<section class={`${panelClass} relative`} aria-label="Daftar profil" aria-busy={listPending}>
+  <ListPending />
+  <div class="overflow-x-auto transition-opacity" class:opacity-80={listPending}><table class="w-full whitespace-nowrap text-left text-sm">
     <thead class="border-b border-slate-200 text-slate-500"><tr>
       {#each data.kind === 'mahasiswa' ? ['NIM', 'Nama', 'Program Studi', 'Kurikulum', 'Angkatan', 'Status', 'Tindakan'] : ['Kode Dosen', 'NIDN', 'Nama', 'Homebase Program Studi', 'Status', 'Tindakan'] as column}<th class="px-3 py-3 font-medium">{column}</th>{/each}
     </tr></thead>
@@ -87,29 +92,20 @@
   <Pagination {...data.meta} href={number => href({ page: number })} />
 </section>
 
-<section class={panelClass} aria-label="Pilihan program studi">
-  <h2 class="font-semibold">Pilihan Program Studi</h2><p class="mt-1 text-sm text-slate-500">Cari pilihan untuk filter dan formulir. Pilihan nonaktif tetap tersedia untuk riwayat.</p>
-  <form method="GET" class="mt-3 flex items-end gap-3">
-    {#each [...page.url.searchParams].filter(([key]) => !['program_search', 'program_page'].includes(key)) as [key, entry]}<input type="hidden" name={key} value={entry} />{/each}
-    <label class="grow text-sm">Kode atau nama program studi<input class={inputClass} name="program_search" value={data.programQuery.search} maxlength="150" /></label><button class={buttonClass}>Cari program studi</button>
-  </form>
-  <Pagination {...data.programs.meta} href={number => href({ program_page: number })} />
-</section>
-{#if data.kind === 'mahasiswa'}
-  <section class={panelClass} aria-label="Pilihan kurikulum">
-    <h2 class="font-semibold">Pilihan Kurikulum</h2><p class="mt-1 text-sm text-slate-500">Cari kurikulum pada program studi yang sesuai sebelum mengisi formulir.</p>
-    <form method="GET" class="mt-3 grid items-end gap-3 sm:grid-cols-3">
-      {#each [...page.url.searchParams].filter(([key]) => !['curriculum_search', 'curriculum_page', 'choice_program'].includes(key)) as [key, entry]}<input type="hidden" name={key} value={entry} />{/each}
-      <label class="text-sm">Program Studi<select class={inputClass} name="choice_program" value={data.curriculumQuery.program_studi_id ?? ''}><option value="">Semua program studi</option>{#each programs as item}{#if item}<option value={item.id}>{item.kode} — {item.nama}</option>{/if}{/each}</select></label>
-      <label class="text-sm">Kode atau nama kurikulum<input class={inputClass} name="curriculum_search" value={data.curriculumQuery.search} maxlength="150" /></label><button class={buttonClass}>Cari kurikulum</button>
-    </form>
-    {#if !data.curricula.data.length}<p class="mt-3 text-sm text-slate-500">Kurikulum tidak ditemukan. Ubah pencarian.</p>{/if}
-    <Pagination {...data.curricula.meta} href={number => href({ curriculum_page: number })} />
-  </section>
-{/if}
-
 <Modal bind:open={formOpen} title={`${data.edit ? 'Edit' : 'Tambah'} ${title}`} description="Data profil akademik dapat disimpan tanpa akun login." closeDisabled={saving} width="lg" onClose={() => { if (data.edit || page.url.searchParams.has('modal') || form?.values?.mode === 'save') void goto(href({ edit: null, modal: null }), { replaceState: true, noScroll: true, keepFocus: true }); }}>
   {#if form?.message && form.values?.mode === 'save'}<p role="alert" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}
+  <div class="mt-4"><AcademicOptions prefix="program_" label="Program Studi" meta={data.programs.meta} /></div>
+  {#if data.kind === 'mahasiswa' && data.curricula}
+    <section class="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4" aria-label="Cari kurikulum">
+      <h2 class="text-sm font-bold">Cari Kurikulum</h2>
+      <form method="GET" class="mt-3 grid items-end gap-3 sm:grid-cols-3" use:seamlessFilter={{ pageKey: 'curriculum_page' }}>
+        {#each [...page.url.searchParams].filter(([key]) => !['curriculum_search', 'curriculum_page', 'choice_program'].includes(key)) as [key, entry]}<input type="hidden" name={key} value={entry} />{/each}
+        <label class="text-sm">Program Studi<select class={inputClass} name="choice_program" value={data.curriculumQuery.program_studi_id ?? ''}><option value="">Semua program studi</option>{#each programs as item}{#if item}<option value={item.id}>{item.kode} — {item.nama}</option>{/if}{/each}</select></label>
+        <label class="text-sm">Kode atau nama<input class={inputClass} name="curriculum_search" value={data.curriculumQuery.search} maxlength="150" /></label><button class={buttonClass}>Cari</button>
+      </form>
+      <Pagination {...data.curricula.meta} href={number => href({ curriculum_page: number })} />
+    </section>
+  {/if}
   {#key data.edit?.id + JSON.stringify(form)}
     <form method="POST" class="mt-4 grid gap-4 sm:grid-cols-2" use:enhance={() => {
       saving = true;

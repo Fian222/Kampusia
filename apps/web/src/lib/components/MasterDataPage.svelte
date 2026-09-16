@@ -2,12 +2,16 @@
   import { enhance } from '$app/forms';
   import { goto } from '$app/navigation';
   import { page, navigating } from '$app/state';
+  import { seamlessFilter } from '$lib/actions/seamless-filter';
+  import { isListNavigationPending } from '$lib/navigation/pending';
   import type { MasterData } from '$lib/server/master-data';
   import Pagination from './Pagination.svelte';
   import StatusBadge from './StatusBadge.svelte';
   import PageHeader from './ui/PageHeader.svelte';
   import Icon from './ui/Icon.svelte';
   import Modal from './ui/Modal.svelte';
+  import ListPending from './ui/ListPending.svelte';
+  import AcademicOptions from './AcademicOptions.svelte';
 
   let { data, form }: { data: MasterData; form: { message: string; saved?: true; values?: Record<string, string> } | null } = $props();
   let saving = $state(false);
@@ -20,6 +24,7 @@
     else if (!confirmation && confirmationDialog.open) confirmationDialog.close();
   });
   const isProgram = $derived(data.kind === 'program-studi');
+  const listPending = $derived(isListNavigationPending(navigating, page.url.pathname));
   const title = $derived(isProgram ? 'Program Studi' : 'Fakultas');
   const inputClass = 'control-base mt-1.5';
   const buttonClass = 'min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50';
@@ -46,11 +51,10 @@
 <PageHeader eyebrow={`Master Data / ${title}`} {title} description="Kelola data akademik. Data nonaktif tetap tersimpan untuk menjaga riwayat.">
   {#snippet actions()}<a class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800" href={href({ edit: null, modal: 'create' })} onclick={() => { if (!data.edit) formOpen = true; }}><Icon name="plus" size={16} /> Tambah {title}</a>{/snippet}
 </PageHeader>
-{#if navigating || saving}<p role="status" class="mt-4 text-sm text-brand-700">{saving ? 'Menyimpan perubahan…' : 'Memuat data…'}</p>{/if}
 {#if form?.message}<p role={form.saved ? 'status' : 'alert'} class="mt-4 rounded-lg border border-slate-200 bg-white p-4 text-sm">{form.message}</p>{/if}
 
 <section class="surface-panel mt-6 p-5 sm:p-6" aria-label="Filter data">
-  <form method="GET" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+  <form method="GET" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" use:seamlessFilter>
     <label class="text-sm font-medium">Cari kode atau nama<input class={inputClass} name="search" value={data.filters.search} maxlength="150" placeholder="Kode atau nama" /></label>
     <label class="text-sm font-medium">Status<select class={inputClass} name="is_active" value={data.filters.is_active ?? ''}><option value="">Semua status</option><option value="true">Aktif</option><option value="false">Nonaktif</option></select></label>
     {#if isProgram}
@@ -61,13 +65,14 @@
       </select></label>
       <input type="hidden" name="faculty_search" value={data.facultyQuery.search} /><input type="hidden" name="faculty_page" value={data.facultyQuery.page} />
     {/if}
-    <div class="flex items-end gap-3"><button class={buttonClass}>Terapkan</button><a class="py-2 text-sm text-slate-600" href={page.url.pathname}>Reset</a></div>
+    <div class="flex items-end gap-3"><button class={buttonClass}>Terapkan</button><a class="py-2 text-sm text-slate-600" href={page.url.pathname} data-sveltekit-noscroll>Reset filter</a></div>
   </form>
 </section>
 
-<section class="surface-panel mt-6 overflow-hidden" aria-label={`Daftar ${title}`} aria-busy={!!navigating}>
+<section class="surface-panel relative mt-6 overflow-hidden" aria-label={`Daftar ${title}`} aria-busy={listPending}>
+  <ListPending />
   <div class="border-b border-slate-100 px-5 py-4 sm:px-6"><h2 class="font-bold">Daftar {title}</h2></div>
-  <div class="overflow-x-auto px-1">
+  <div class="overflow-x-auto px-1 transition-opacity" class:opacity-80={listPending}>
     <table class="w-full text-left text-sm">
       <thead class="border-b border-slate-200 text-slate-500"><tr><th class="p-3">Kode</th><th class="p-3">Nama</th>{#if isProgram}<th class="p-3">Fakultas</th><th class="p-3">Jenjang</th>{/if}<th class="p-3">Status</th><th class="p-3">Tindakan</th></tr></thead>
       <tbody>
@@ -98,21 +103,12 @@
   {/if}
 </dialog>
 
-{#if isProgram && data.faculties}
-  <section class="surface-panel mt-6 p-5 sm:p-6" aria-label="Cari fakultas">
-    <h2 class="font-semibold">Pilihan Fakultas</h2><p class="mt-1 text-sm text-slate-500">Cari atau pindah halaman untuk memilih fakultas pada filter dan formulir di bawah.</p>
-    <form method="GET" class="mt-4 flex items-end gap-3">
-      {#each [...page.url.searchParams].filter(([key]) => !['faculty_search', 'faculty_page'].includes(key)) as [key, entry]}<input type="hidden" name={key} value={entry} />{/each}
-      <label class="grow text-sm">Kode atau nama fakultas<input class={inputClass} name="faculty_search" value={data.facultyQuery.search} maxlength="150" /></label><button class={buttonClass}>Cari fakultas</button>
-    </form>
-    {#if !data.faculties.data.length}<p class="mt-3 text-sm text-slate-500">Fakultas tidak ditemukan. Ubah pencarian atau tambahkan fakultas terlebih dahulu.</p>{/if}
-    <Pagination {...data.faculties.meta} href={number => href({ faculty_page: number })} />
-  </section>
-{/if}
-
 <Modal bind:open={formOpen} title={`${data.edit ? 'Edit' : 'Tambah'} ${title}`} description={data.edit ? `Perbarui data ${data.edit.nama}.` : `Tambahkan ${title.toLowerCase()} baru.`} closeDisabled={saving} width={isProgram ? 'lg' : 'md'} onClose={() => { if (data.edit || page.url.searchParams.has('modal') || form?.values?.mode === 'save') void goto(href({ edit: null, modal: null }), { replaceState: true, noScroll: true, keepFocus: true }); }}>
   {#if data.edit}<p class="mt-2 text-sm text-slate-500">Status: {data.edit.isActive ? 'Aktif' : 'Nonaktif'}. Gunakan tindakan pada tabel untuk mengubah status.</p>{/if}
   {#if form?.message && form.values?.mode === 'save'}<p role="alert" class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}
+  {#if isProgram && data.faculties}
+    <div class="mt-4"><AcademicOptions prefix="faculty_" label="Fakultas" meta={data.faculties.meta} /></div>
+  {/if}
   {#key data.edit?.id + JSON.stringify(form)}
     <form method="POST" class="mt-4 grid gap-4 sm:grid-cols-2" use:enhance={() => {
       saving = true;

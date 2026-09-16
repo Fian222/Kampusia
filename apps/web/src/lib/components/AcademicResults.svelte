@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { AcademicResultsData } from '$lib/server/academic-results';
+  import { seamlessFilter } from '$lib/actions/seamless-filter';
   import PageHeader from './ui/PageHeader.svelte';
   import StatCard from './ui/StatCard.svelte';
   import EmptyState from './ui/EmptyState.svelte';
@@ -31,7 +32,7 @@
   <div class="flex flex-wrap items-end justify-between gap-4">
     <div><h2 class="text-lg font-semibold">Kartu Hasil Studi</h2><p class="mt-1 text-sm text-slate-500">IPS mengukur satu semester; IPK merangkum seluruh hasil final.</p></div>
     {#if data.summary.semesters.length}
-      <form method="GET" class="flex flex-wrap items-end gap-3">
+      <form method="GET" class="flex flex-wrap items-end gap-3" use:seamlessFilter>
         <label class="text-sm font-medium">Semester<select class="mt-1 block rounded-lg border border-slate-300 bg-white px-3 py-2" name="semester_id" value={data.selectedSemesterId ?? ''}>{#each data.summary.semesters as item}<option value={item.semester.id}>{item.semester.kode} — {item.semester.nama}</option>{/each}</select></label>
         <button class="min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800">Tampilkan</button>
       </form>

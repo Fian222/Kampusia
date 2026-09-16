@@ -1,7 +1,9 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { goto } from '$app/navigation';
-  import { page } from '$app/state';
+  import { page, navigating } from '$app/state';
+  import { seamlessFilter } from '$lib/actions/seamless-filter';
+  import { isListNavigationPending } from '$lib/navigation/pending';
   import Pagination from '$lib/components/Pagination.svelte';
   import AcademicFields from '$lib/components/AcademicFields.svelte';
   import AcademicOptions from '$lib/components/AcademicOptions.svelte';
@@ -9,11 +11,13 @@
   import Badge from '$lib/components/ui/Badge.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
+  import ListPending from '$lib/components/ui/ListPending.svelte';
   import type { PageProps } from './$types';
   let { data, form }: PageProps = $props();
   let saving = $state(false);
   let formOpen = $state(false);
   let openedEditId = $state<string>();
+  const listPending = $derived(isListNavigationPending(navigating, page.url.pathname));
   const box = 'surface-panel mt-6 p-5 sm:p-6';
   const input = 'control-base mt-1.5';
   const button = 'min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-50';
@@ -33,26 +37,28 @@
 <PageHeader eyebrow="Akademik / Perkuliahan" title="Kelas Kuliah" description="Kelola penawaran mata kuliah, dosen pengajar, jadwal, pertemuan, dan penilaian.">{#snippet actions()}<a class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm" href={href({ edit: '', modal: 'create' })} onclick={() => { if (!data.edit) formOpen = true; }}><Icon name="plus" size={16} /> Tambah Kelas</a>{/snippet}</PageHeader>
 <p class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Kelas baru dapat disimpan sebagai DRAFT. DIBUKA memerlukan kurikulum yang sesuai, dosen aktif, serta jadwal yang valid tanpa konflik. Tambahkan dosen dan jadwal melalui detail kelas sebelum membuka kelas.</p>
 {#if form?.message}<p class={box} role={form.saved ? 'status' : 'alert'}>{form.message}</p>{/if}
-{#if saving}<p role="status" class="mt-3">Menyimpan…</p>{/if}
-<form method="GET" class={box + ' grid gap-4 sm:grid-cols-3'}>
+<form method="GET" class={box + ' grid gap-4 sm:grid-cols-3'} use:seamlessFilter>
   <label class="text-sm">Cari mata kuliah atau kelas<input class={input} name="search" value={data.filters.search} maxlength="150" /></label>
   {#each filters as filter}<label class="text-sm">{filter.label}<select class={input} name={filter.name} value={filter.value ?? ''}><option value="">Semua</option>{#if filter.value && !filter.rows.some(row => row.id === filter.value)}<option value={filter.value}>Pilihan tersimpan</option>{/if}{#each filter.rows as row}<option value={row.id}>{row.kode} — {row.nama}</option>{/each}</select></label>{/each}
   <label class="text-sm">Status<select class={input} name="status" value={data.filters.status ?? ''}><option value="">Semua</option>{#each data.statuses as status}<option>{status}</option>{/each}</select></label>
   {#each [...page.url.searchParams].filter(([key]) => /^(semester|program|course)_(search|page)$/.test(key)) as [key, value]}<input type="hidden" name={key} {value} />{/each}
-  <div class="flex items-end gap-3"><button class={button}>Terapkan</button><a href={page.url.pathname}>Reset</a></div>
+  <div class="flex items-end gap-3"><button class={button}>Terapkan</button><a href={page.url.pathname} data-sveltekit-noscroll>Reset filter</a></div>
 </form>
-<section class={box}>
+<section class={`${box} relative`} aria-busy={listPending}>
+  <ListPending />
   <div class="flex justify-between"><h2 class="font-semibold">Daftar Kelas Kuliah</h2></div>
-  <div class="mt-4 overflow-x-auto"><table class="w-full text-left text-sm"><thead class="border-b text-slate-500"><tr>{#each ['Mata Kuliah', 'Kelas', 'Semester', 'Program Studi', 'Kapasitas', 'Status', 'Tindakan'] as label}<th class="p-3">{label}</th>{/each}</tr></thead>
+  <div class="mt-4 overflow-x-auto transition-opacity" class:opacity-80={listPending}><table class="w-full text-left text-sm"><thead class="border-b text-slate-500"><tr>{#each ['Mata Kuliah', 'Kelas', 'Semester', 'Program Studi', 'Kapasitas', 'Status', 'Tindakan'] as label}<th class="p-3">{label}</th>{/each}</tr></thead>
     <tbody>{#each data.records.data as row}<tr class="border-b border-slate-100"><td class="p-3"><span class="font-mono text-xs text-slate-500">{row.mataKuliah.kode}</span><p class="font-semibold text-slate-900">{row.mataKuliah.nama}</p></td><td class="p-3">{row.namaKelas}</td><td class="p-3">{row.semester.nama}</td><td class="p-3">{row.programStudi.nama}</td><td class="p-3">{row.kapasitas}</td><td class="p-3"><Badge tone={row.status === 'DIBUKA' ? 'success' : row.status === 'DIBATALKAN' ? 'danger' : 'neutral'}>{row.status}</Badge></td><td class="p-3"><div class="flex gap-3"><a class="font-semibold text-brand-700" href={`/akademik/kelas-kuliah/${row.id}`}>Detail</a><a class="font-semibold text-brand-700" aria-label={`Edit kelas ${row.mataKuliah.nama} ${row.namaKelas}`} href={href({ edit: row.id, modal: '' })} onclick={() => { if (data.edit?.id === row.id) formOpen = true; }}>Edit</a></div></td></tr>{:else}<tr><td colspan="7" class="p-8 text-center text-slate-500">Tidak ada kelas yang cocok.</td></tr>{/each}</tbody>
   </table></div><Pagination {...data.records.meta} href={number => href({ page: number })} />
 </section>
-<AcademicOptions prefix="semester_" label="Semester" meta={data.semesters.meta} />
-<AcademicOptions prefix="program_" label="Program Studi" meta={data.programs.meta} />
-<AcademicOptions prefix="course_" label="Mata Kuliah" meta={data.courses.meta} />
 <Modal bind:open={formOpen} title={`${data.edit ? 'Edit' : 'Tambah'} Kelas Kuliah`} closeDisabled={saving} width="lg" onClose={() => { if (data.edit || page.url.searchParams.has('modal') || form?.values?.mode === 'save') void goto(href({ edit: '', modal: '' }), { replaceState: true, noScroll: true, keepFocus: true }); }}>
   <p class="mt-2 text-sm text-slate-500">Pilihan KRS atau jadwal mengunci identitas akademik. Kapasitas tidak boleh di bawah jumlah mahasiswa pada KRS disetujui atau melebihi ruangan terjadwal. Pembatalan dengan pilihan aktif memerlukan alur KRS.</p>
   {#if form?.message && form.values?.mode === 'save'}<p role="alert" class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}
+  <div class="mt-4 grid gap-3">
+    <AcademicOptions prefix="semester_" label="Semester" meta={data.semesters.meta} />
+    <AcademicOptions prefix="program_" label="Program Studi" meta={data.programs.meta} />
+    <AcademicOptions prefix="course_" label="Mata Kuliah" meta={data.courses.meta} />
+  </div>
   {#key data.edit?.id + JSON.stringify(form)}
   <form method="POST" class="mt-4 grid gap-4 sm:grid-cols-2" use:enhance={() => { saving = true; return async ({ update, result }) => { try { await update({ reset: false }); if (result.type === 'success') formOpen = false; } finally { saving = false; } }; }}>
     <input type="hidden" name="mode" value="save" /><input type="hidden" name="id" value={data.edit?.id ?? ''} />

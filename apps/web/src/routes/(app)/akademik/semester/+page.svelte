@@ -1,18 +1,22 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { goto } from '$app/navigation';
-  import { page } from '$app/state';
+  import { page, navigating } from '$app/state';
+  import { seamlessFilter } from '$lib/actions/seamless-filter';
+  import { isListNavigationPending } from '$lib/navigation/pending';
   import Pagination from '$lib/components/Pagination.svelte';
   import AcademicFields from '$lib/components/AcademicFields.svelte';
   import PageHeader from '$lib/components/ui/PageHeader.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
+  import ListPending from '$lib/components/ui/ListPending.svelte';
   import type { PageProps } from './$types';
   let { data, form }: PageProps = $props();
   let saving = $state(false);
   let formOpen = $state(false);
   let openedEditId = $state<string>();
+  const listPending = $derived(isListNavigationPending(navigating, page.url.pathname));
   const box = 'surface-panel mt-6 p-5 sm:p-6';
   const input = 'control-base mt-1.5';
   const button = 'min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-50';
@@ -23,17 +27,17 @@
 <svelte:head><title>Semester · Kampusia</title></svelte:head>
 <PageHeader eyebrow="Akademik / Perkuliahan" title="Semester" description="Pilih periode akademik aktif secara eksplisit dan pertahankan seluruh riwayat semester.">{#snippet actions()}<a class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm" href={href({ edit: '', modal: 'create' })} onclick={() => { if (!data.edit) formOpen = true; }}><Icon name="plus" size={16} /> Tambah Semester</a>{/snippet}</PageHeader>
 {#if form?.message}<p class={box} role={form.saved ? 'status' : 'alert'}>{form.message}</p>{/if}
-{#if saving}<p role="status" class="mt-3">Menyimpan…</p>{/if}
-<form method="GET" class={box + ' grid gap-4 sm:grid-cols-4'}>
+<form method="GET" class={box + ' grid gap-4 sm:grid-cols-4'} use:seamlessFilter>
   <label class="text-sm">Cari kode atau nama<input class={input} name="search" value={data.filters.search} maxlength="150" /></label>
   <label class="text-sm">Jenis<select class={input} name="jenis" value={data.filters.jenis ?? ''}><option value="">Semua</option><option>GANJIL</option><option>GENAP</option></select></label>
   <label class="text-sm">Tahun mulai<input class={input} type="number" min="1900" max="9998" name="tahun_mulai" value={data.filters.tahun_mulai ?? ''} /></label>
   <label class="text-sm">Semester akademik aktif<select class={input} name="is_active" value={data.filters.is_active ?? ''}><option value="">Semua</option><option value="true">Sedang aktif</option><option value="false">Tidak dipilih</option></select></label>
-  <div><button class={button}>Terapkan</button> <a href={page.url.pathname}>Reset</a></div>
+  <div><button class={button}>Terapkan</button> <a href={page.url.pathname} data-sveltekit-noscroll>Reset filter</a></div>
 </form>
-<section class={box}>
+<section class={`${box} relative`} aria-busy={listPending}>
+  <ListPending />
   <div class="flex justify-between"><h2 class="font-semibold">Daftar Semester</h2></div>
-  <div class="mt-4 overflow-x-auto"><table class="w-full text-left text-sm">
+  <div class="mt-4 overflow-x-auto transition-opacity" class:opacity-80={listPending}><table class="w-full text-left text-sm">
     <thead class="border-b text-slate-500"><tr>{#each ['Kode', 'Nama', 'Tahun Akademik', 'Jenis', 'Tanggal Mulai', 'Tanggal Selesai', 'Status Aktif', 'Tindakan'] as label}<th class="p-3">{label}</th>{/each}</tr></thead>
     <tbody>{#each data.records.data as row}<tr class="border-b border-slate-100">
       <td class="p-3">{row.kode}</td><td class="p-3">{row.nama}</td><td class="p-3">{row.tahunMulai}/{row.tahunMulai + 1}</td><td class="p-3">{row.jenis}</td><td class="p-3 whitespace-nowrap">{row.tanggalMulai}</td><td class="p-3 whitespace-nowrap">{row.tanggalSelesai}</td>
