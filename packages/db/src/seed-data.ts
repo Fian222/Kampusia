@@ -2,10 +2,19 @@ import type * as schema from '../schema';
 
 // Fixed UUIDs identify this development fixture without relying on business identifiers as PKs.
 const id = (group: number, item = 1) => `20260000-0000-4000-8000-${String(group).padStart(4, '0')}${String(item).padStart(8, '0')}`;
-export const demoEmail = 'akademik@kampusia.test';
+export const demoUsers = {
+  // Keep AKADEMIK first: its original UUID remains the seed-completeness anchor.
+  AKADEMIK: { id: id(1), email: 'akademik@kampusia.test', role: 'AKADEMIK' as const },
+  ADMIN: { id: id(1, 2), email: 'admin@kampusia.test', role: 'ADMIN' as const },
+  DOSEN: { id: id(1, 3), email: 'dosen@kampusia.test', role: 'DOSEN' as const },
+  MAHASISWA: { id: id(1, 4), email: 'mahasiswa@kampusia.test', role: 'MAHASISWA' as const },
+};
+export const demoEmail = demoUsers.AKADEMIK.email;
 
 export function developmentData(passwordHash: string) {
-  const users = [{ id: id(1), email: demoEmail, passwordHash, role: 'AKADEMIK', isActive: true }] satisfies (typeof schema.users.$inferInsert)[];
+  const users = Object.values(demoUsers).map(user => ({
+    ...user, passwordHash, isActive: true,
+  })) satisfies (typeof schema.users.$inferInsert)[];
   const fakultas = [{ id: id(2), kode: 'DEV-FT', nama: 'Fakultas Teknik', isActive: true }] satisfies (typeof schema.fakultas.$inferInsert)[];
   const programStudi = [{ id: id(3), fakultasId: id(2), kode: 'DEV-IF', nama: 'Informatika', jenjang: 'S1', isActive: true }] satisfies (typeof schema.programStudi.$inferInsert)[];
   const kurikulum = [{ id: id(4), programStudiId: id(3), kode: 'DEV-IF-2026', nama: 'Kurikulum Informatika 2026', tahunBerlaku: 2026, isActive: true }] satisfies (typeof schema.kurikulum.$inferInsert)[];
@@ -21,10 +30,13 @@ export function developmentData(passwordHash: string) {
   })) satisfies (typeof schema.kurikulumMatkul.$inferInsert)[];
   const semester = [{ id: id(7), kode: '20261', nama: 'Ganjil 2026/2027', tahunMulai: 2026, jenis: 'GANJIL', tanggalMulai: '2026-08-24', tanggalSelesai: '2027-01-15', isActive: true }] satisfies (typeof schema.semester.$inferInsert)[];
   const dosen = ['Rina Pratama (Demo)', 'Budi Santoso (Demo)'].map((nama, index) => ({
-    id: id(8, index + 1), userId: null, programStudiId: id(3), kodeDosen: `DEV-DOS-${index + 1}`, nidn: null, nama, isActive: true,
+    id: id(8, index + 1), userId: index === 0 ? demoUsers.DOSEN.id : null,
+    programStudiId: id(3), kodeDosen: `DEV-DOS-${index + 1}`, nidn: null, nama, isActive: true,
   })) satisfies (typeof schema.dosen.$inferInsert)[];
   const mahasiswa = ['Andi Saputra', 'Siti Rahma', 'Dewi Lestari', 'Rizky Pratama', 'Nadia Putri'].map((nama, index) => ({
-    id: id(9, index + 1), userId: null, programStudiId: id(3), kurikulumId: id(4), nim: `DEV2026${String(index + 1).padStart(4, '0')}`, nama: `${nama} (Demo)`, angkatan: 2026, status: 'AKTIF' as const,
+    id: id(9, index + 1), userId: index === 0 ? demoUsers.MAHASISWA.id : null,
+    programStudiId: id(3), kurikulumId: id(4), nim: `DEV2026${String(index + 1).padStart(4, '0')}`,
+    nama: `${nama} (Demo)`, angkatan: 2026, status: 'AKTIF' as const,
   })) satisfies (typeof schema.mahasiswa.$inferInsert)[];
   const ruangan = [
     { kode: 'DEV-R101', nama: 'Ruang Kuliah 101', kapasitas: 40 },

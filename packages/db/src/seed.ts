@@ -1,4 +1,4 @@
-import { and, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import * as schema from '../schema';
 import { createDatabase } from './index';
 import { assertFixtureRows, developmentData, requireDevelopmentTarget } from './seed-data';
@@ -35,6 +35,21 @@ async function verifyFixtures(tx: Transaction, data: Fixtures) {
   const mahasiswaRows = await tx.select().from(schema.mahasiswa).where(inArray(schema.mahasiswa.id, data.mahasiswa.map(row => row.id)));
   if (mahasiswaRows.length !== data.mahasiswa.length) throw new Error('Unexpected demo mahasiswa record count.');
   assertFixtureRows(data.mahasiswa, mahasiswaRows);
+  const demoUserIds = data.users.map(row => row.id);
+  const linkedDosen = await tx.select({ id: schema.dosen.id, userId: schema.dosen.userId })
+    .from(schema.dosen).where(inArray(schema.dosen.userId, demoUserIds));
+  const expectedDosen = data.dosen.find(row => row.userId !== null)!;
+  if (linkedDosen.length !== 1 || linkedDosen[0]!.id !== expectedDosen.id
+    || linkedDosen[0]!.userId !== expectedDosen.userId) {
+    throw new Error('Unexpected demo DOSEN profile link.');
+  }
+  const linkedMahasiswa = await tx.select({ id: schema.mahasiswa.id, userId: schema.mahasiswa.userId })
+    .from(schema.mahasiswa).where(inArray(schema.mahasiswa.userId, demoUserIds));
+  const expectedMahasiswa = data.mahasiswa.find(row => row.userId !== null)!;
+  if (linkedMahasiswa.length !== 1 || linkedMahasiswa[0]!.id !== expectedMahasiswa.id
+    || linkedMahasiswa[0]!.userId !== expectedMahasiswa.userId) {
+    throw new Error('Unexpected demo MAHASISWA profile link.');
+  }
   const ruanganRows = await tx.select().from(schema.ruangan).where(inArray(schema.ruangan.id, data.ruangan.map(row => row.id)));
   if (ruanganRows.length !== data.ruangan.length) throw new Error('Unexpected demo ruangan record count.');
   assertFixtureRows(data.ruangan, ruanganRows);
@@ -151,6 +166,15 @@ export async function seedDevelopment(url: string, password: string, environment
             await tx.insert(schema.jadwalKuliah).values(data.jadwalKuliah);
             await tx.update(schema.kelasKuliah).set({ status: 'DIBUKA', updatedAt: now })
               .where(inArray(schema.kelasKuliah.id, data.kelasKuliah.map(row => row.id)));
+          } else {
+            // Add role accounts introduced after the original academic fixture without
+            // rewriting the existing AKADEMIK password or any account timestamps.
+            const existingUsers = await tx.select().from(schema.users)
+              .where(inArray(schema.users.id, data.users.map(row => row.id)));
+            const existingIds = new Set(existingUsers.map(row => row.id));
+            assertFixtureRows(data.users.filter(row => existingIds.has(row.id)), existingUsers);
+            const missingUsers = data.users.filter(row => !existingIds.has(row.id));
+            if (missingUsers.length) await tx.insert(schema.users).values(missingUsers);
           }
           // Activate the term before submitting/approving KRS, preserving the partial unique index.
           await tx.update(schema.semester).set({ isActive: false, updatedAt: now })
@@ -170,6 +194,14 @@ export async function seedDevelopment(url: string, password: string, environment
               }).where(eq(schema.krs.id, plan.id));
             }
           }
+          // Upgrade the original unlinked profiles in place. Drizzle does not
+          // auto-update updated_at, so their existing fixture timestamps remain stable.
+          const linkedDosen = data.dosen.find(row => row.userId !== null)!;
+          await tx.update(schema.dosen).set({ userId: linkedDosen.userId })
+            .where(and(eq(schema.dosen.id, linkedDosen.id), isNull(schema.dosen.userId)));
+          const linkedMahasiswa = data.mahasiswa.find(row => row.userId !== null)!;
+          await tx.update(schema.mahasiswa).set({ userId: linkedMahasiswa.userId })
+            .where(and(eq(schema.mahasiswa.id, linkedMahasiswa.id), isNull(schema.mahasiswa.userId)));
           // Validation runs before COMMIT; any mismatch or collision rolls back the entire seed.
           return await verifyFixtures(tx, data);
         }, { isolationLevel: 'serializable' });

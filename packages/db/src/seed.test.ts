@@ -26,6 +26,36 @@ test('repeat fixture validation preserves passwords but rejects changed academic
   expect(() => assertFixtureRows(data.mahasiswa, [])).toThrow();
 });
 
+test('demo users cover every role with active accounts', () => {
+  expect(data.users.map(user => ({ email: user.email, role: user.role, isActive: user.isActive }))).toEqual([
+    { email: 'akademik@kampusia.test', role: 'AKADEMIK', isActive: true },
+    { email: 'admin@kampusia.test', role: 'ADMIN', isActive: true },
+    { email: 'dosen@kampusia.test', role: 'DOSEN', isActive: true },
+    { email: 'mahasiswa@kampusia.test', role: 'MAHASISWA', isActive: true },
+  ]);
+  expect(new Set(data.users.map(user => user.id)).size).toBe(4);
+  expect(new Set(data.users.map(user => user.email)).size).toBe(4);
+});
+
+test('demo DOSEN and MAHASISWA users have exactly one coherent fixture profile link', () => {
+  const lecturer = data.dosen.filter(row => row.userId !== null);
+  const student = data.mahasiswa.filter(row => row.userId !== null);
+  expect(lecturer).toHaveLength(1);
+  expect(lecturer[0]).toMatchObject({
+    kodeDosen: 'DEV-DOS-1', nama: 'Rina Pratama (Demo)', isActive: true,
+    userId: data.users.find(user => user.role === 'DOSEN')!.id,
+  });
+  expect(data.kelasDosen.some(row => row.dosenId === lecturer[0]!.id)).toBe(true);
+  expect(student).toHaveLength(1);
+  expect(student[0]).toMatchObject({
+    nim: 'DEV20260001', nama: 'Andi Saputra (Demo)', status: 'AKTIF',
+    userId: data.users.find(user => user.role === 'MAHASISWA')!.id,
+  });
+  expect(data.krs.some(row => row.mahasiswaId === student[0]!.id && row.status === 'DISETUJUI')).toBe(true);
+  expect(data.dosen.some(row => row.userId === student[0]!.userId)).toBe(false);
+  expect(data.mahasiswa.some(row => row.userId === lecturer[0]!.userId)).toBe(false);
+});
+
 test('demo offerings have eligible courses, lecturers, sufficient rooms, and nonconflicting schedules', () => {
   for (const offering of data.kelasKuliah) {
     expect(data.kurikulumMatkul.some(link => link.mataKuliahId === offering.mataKuliahId
@@ -84,15 +114,32 @@ test.skipIf(process.env.RUN_DB_SEED_TESTS !== '1')('live seed is repeatable and 
       return hash.digest('hex');
     };
     const before = await fingerprint();
+    const fixtureIds = sql.join(data.users.map(row => sql`${row.id}::uuid`), sql`, `);
+    const firstAccounts = await db.select().from(schema.users)
+      .where(sql`${schema.users.id} in (${fixtureIds})`);
     const secondCounts = await seedDevelopment(url, password, process.env.NODE_ENV);
     expect(await fingerprint()).toBe(before);
     expect(secondCounts).toEqual(firstCounts);
     for (const row of secondCounts) {
       expect(row.jumlahMahasiswa).toBe(data.krsDetail.filter(detail => detail.kelasKuliahId === row.id).length);
     }
-    const account = await db.query.users.findFirst({ where: (user, { eq }) => eq(user.id, data.users[0]!.id) });
-    expect(account!.passwordHash.startsWith('$argon2id$')).toBe(true);
-    expect(await Bun.password.verify(password, account!.passwordHash)).toBe(true);
+    const secondAccounts = await db.select().from(schema.users)
+      .where(sql`${schema.users.id} in (${fixtureIds})`);
+    expect(secondAccounts).toHaveLength(4);
+    for (const expected of data.users) {
+      const account = secondAccounts.find(row => row.id === expected.id)!;
+      const firstAccount = firstAccounts.find(row => row.id === expected.id)!;
+      expect(account).toMatchObject({ email: expected.email, role: expected.role, isActive: true });
+      expect(account.passwordHash.startsWith('$argon2id$')).toBe(true);
+      expect(await Bun.password.verify(password, account.passwordHash)).toBe(true);
+      expect(account.passwordHash).toBe(firstAccount.passwordHash);
+    }
+    const lecturer = data.dosen.find(row => row.userId !== null)!;
+    const lecturerProfile = await db.query.dosen.findFirst({ where: (row, { eq }) => eq(row.id, lecturer.id) });
+    expect(lecturerProfile!.userId).toBe(data.users.find(row => row.role === 'DOSEN')!.id);
+    const student = data.mahasiswa.find(row => row.userId !== null)!;
+    const studentProfile = await db.query.mahasiswa.findFirst({ where: (row, { eq }) => eq(row.id, student.id) });
+    expect(studentProfile!.userId).toBe(data.users.find(row => row.role === 'MAHASISWA')!.id);
     const invalid = await db.execute(sql`
       select m.id from mahasiswa m left join kurikulum k
         on k.id = m.kurikulum_id and k.program_studi_id = m.program_studi_id

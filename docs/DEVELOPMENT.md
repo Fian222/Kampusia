@@ -4,7 +4,7 @@
 
 Copy `apps/api/.env.example` to `apps/api/.env` and `apps/web/.env.example` to `apps/web/.env`. These local files are Git-ignored. Set the API's `DATABASE_URL` to the migrated local database, `WEB_URL=http://localhost:5173`, and `NODE_ENV=development`. The web server uses the private `API_URL=http://localhost:3000` to contact the API through Eden Treaty.
 
-Run `bun dev` from the repository root, then open http://localhost:5173/login. PostgreSQL must be running, migrations applied, and the development seed present to use the demo account below. See [authentication notes](AUTHENTICATION.md) for session behavior and deployment configuration.
+Run `bun dev` from the repository root, then open http://localhost:5173/login. PostgreSQL must be running, migrations applied, and the development seed present to use the demo accounts below. See [authentication notes](AUTHENTICATION.md) for session behavior and deployment configuration.
 
 ## Development seed
 
@@ -26,11 +26,16 @@ The seed requires `NODE_ENV=development`, a loopback PostgreSQL URL for database
 
 ## Demo credentials
 
-| Role | Email | Password with the example environment above |
+| Role | Email | Password source |
 | --- | --- | --- |
-| AKADEMIK | akademik@kampusia.test | KampusiaDemo2026! |
+| ADMIN | admin@kampusia.test | value of `SEED_PASSWORD` |
+| AKADEMIK | akademik@kampusia.test | value of `SEED_PASSWORD` |
+| DOSEN | dosen@kampusia.test | value of `SEED_PASSWORD` |
+| MAHASISWA | mahasiswa@kampusia.test | value of `SEED_PASSWORD` |
 
-Use these credentials only for development. The database stores a salted Argon2id hash produced by Bun, never the plaintext password. A different `SEED_PASSWORD` can be chosen for the first run. Reruns preserve the existing hash and do not reset credentials. Student and lecturer academic records are created without login accounts. Signing in with the demo account opens `/akademik`.
+Use these credentials only for development. All roles sign in through `/login`; successful login routes ADMIN to `/admin`, AKADEMIK to `/akademik`, DOSEN to `/dosen`, and MAHASISWA to `/mahasiswa`. The database stores a separate salted Argon2id hash produced by Bun for each account, never the plaintext password. A different `SEED_PASSWORD` can be chosen for the first run. Reruns preserve existing hashes and do not reset credentials, even if the environment value later changes.
+
+The DOSEN account is linked only to Rina Pratama (Demo), code `DEV-DOS-1`, who is already assigned to seeded classes. The MAHASISWA account is linked only to Andi Saputra (Demo), NIM `DEV20260001`, whose approved 9-SKS KRS includes Basis Data, Pemrograman Web, and Struktur Data. The current fixture does not create meetings, attendance rows, grading components, scores, or finalized study results, so attendance and KHS/IPS/IPK remain empty until those workflows are exercised.
 
 ## Authentication verification
 
@@ -44,7 +49,7 @@ bun --env-file=packages/db/.env test apps/web/src/lib/server/auth-flow.test.ts
 Remove-Item Env:RUN_AUTH_E2E
 ```
 
-The test reads `SEED_PASSWORD`, signs in through the SvelteKit form action, checks the rendered dashboard and role restriction, and signs out. It creates only temporary API sessions and does not change the database. It is skipped during ordinary test runs.
+The test reads `SEED_PASSWORD`, signs in all four accounts through the shared SvelteKit form action, checks each role's redirect, rendered dashboard, and role restriction, then signs out. It creates only temporary API sessions and does not change the database. It is skipped during ordinary test runs.
 
 ## Fakultas and Program Studi master data
 
@@ -126,7 +131,7 @@ The first three students have approved KRS: student 1 selects Basis Data, Pemrog
 
 ## Repeatability and validation
 
-The seed uses fixed fixture UUIDs and development-prefixed business identifiers. The AKADEMIK fixture account identifies an existing complete seed. On rerun, all fixture records are checked and retained rather than reinserted. Existing password hashes and timestamps are preserved, except timestamps on an explicitly changed active-semester flag. Existing academic fixture edits, partial fixtures, or business identifiers owned by different UUIDs cause an error and full rollback; the seed does not reset or take over those records.
+The seed uses fixed fixture UUIDs and development-prefixed business identifiers. The original AKADEMIK fixture account identifies the academic fixture. On an existing pre-demo-login fixture, missing ADMIN, DOSEN, and MAHASISWA accounts are added and the two selected profiles are linked without rewriting existing profile timestamps. On later reruns, all fixture records are checked and retained rather than reinserted. Existing password hashes and timestamps are preserved, except timestamps on an explicitly changed active-semester flag. Existing academic fixture edits, incompatible account/profile links, partial fixtures, or business identifiers owned by different UUIDs cause an error and full rollback; the seed does not reset or take over those records.
 
 All writes and checks run in one serializable transaction, with up to three attempts for serialization/deadlock failures. Because this is a small development maintenance operation, it briefly locks the 15 tables against concurrent writes. Classes start as DRAFT, receive lecturers and schedules, then become DIBUKA. KRS proceeds from DRAFT through DIAJUKAN to DISETUJUI. Final fixture, schedule-conflict, and enrollment-capacity checks occur before commit. Any failure rolls back all changes, including the active-semester switch.
 
@@ -142,7 +147,7 @@ Remove-Item Env:RUN_DB_SEED_TESTS
 Remove-Item Env:NODE_ENV
 ```
 
-The live test runs the seed twice, compares fingerprints of all 15 tables (including UUIDs, timestamps, and stored password hashes), verifies the password, checks curriculum integrity and validated foreign keys, and checks the expected enrollment counts. It is intended for this unmodified demo fixture. It does not delete or reset data.
+The live test runs the seed twice, compares fingerprints of all application tables (including UUIDs, timestamps, and stored password hashes), verifies `SEED_PASSWORD` for all four roles, checks the DOSEN and MAHASISWA profile links, checks curriculum integrity and validated foreign keys, and checks the expected enrollment counts. It is intended for this unmodified demo fixture. It does not delete or reset data.
 
 ## Mata Kuliah and Kurikulum master data
 
@@ -272,7 +277,7 @@ No database schemas, migrations, or seed records are changed. KRS workflows, att
 
 ## KRS
 
-Students use `/mahasiswa/krs`; ADMIN and AKADEMIK share `/akademik/krs` and `/akademik/krs/:id`. The sidebar links to the appropriate area. Student accounts must already be linked to their academic profiles; the development seed deliberately does not provision student logins.
+Students use `/mahasiswa/krs`; ADMIN and AKADEMIK share `/akademik/krs` and `/akademik/krs/:id`. The sidebar links to the appropriate area. Student accounts must be linked to their academic profiles; the development seed provisions the documented MAHASISWA demo account and links it to `DEV20260001`.
 
 Set `KRS_INITIAL_BATAS_SKS` in `apps/api/.env` to the authorized fallback credit limit, for example `18` for development. The service validates it as a positive PostgreSQL smallint whenever a new plan needs the fallback. Existing plans retain `krs.batas_sks`, and neither student request bodies nor subsequent configuration changes overwrite it. Missing/invalid fallback configuration returns a clear service-unavailable message only when a new plan cannot use a complete previous-semester IPS. There is no credit-limit edit endpoint.
 
