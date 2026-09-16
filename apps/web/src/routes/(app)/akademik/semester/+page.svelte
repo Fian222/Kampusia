@@ -4,6 +4,7 @@
   import { page, navigating } from '$app/state';
   import { seamlessFilter } from '$lib/actions/seamless-filter';
   import { isListNavigationPending } from '$lib/navigation/pending';
+  import { hasActiveQuery, resetQueryHref } from '$lib/navigation/query';
   import Pagination from '$lib/components/Pagination.svelte';
   import AcademicFields from '$lib/components/AcademicFields.svelte';
   import PageHeader from '$lib/components/ui/PageHeader.svelte';
@@ -17,6 +18,8 @@
   let formOpen = $state(false);
   let openedEditId = $state<string>();
   const listPending = $derived(isListNavigationPending(navigating, page.url.pathname));
+  const filterKeys = ['search', 'jenis', 'tahun_mulai', 'is_active'];
+  const filtersActive = $derived(hasActiveQuery(page.url, filterKeys));
   const box = 'surface-panel mt-6 p-5 sm:p-6';
   const input = 'control-base mt-1.5';
   const button = 'min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-50';
@@ -32,7 +35,8 @@
   <label class="text-sm">Jenis<select class={input} name="jenis" value={data.filters.jenis ?? ''}><option value="">Semua</option><option>GANJIL</option><option>GENAP</option></select></label>
   <label class="text-sm">Tahun mulai<input class={input} type="number" min="1900" max="9998" name="tahun_mulai" value={data.filters.tahun_mulai ?? ''} /></label>
   <label class="text-sm">Semester akademik aktif<select class={input} name="is_active" value={data.filters.is_active ?? ''}><option value="">Semua</option><option value="true">Sedang aktif</option><option value="false">Tidak dipilih</option></select></label>
-  <div><button class={button}>Terapkan</button> <a href={page.url.pathname} data-sveltekit-noscroll>Reset filter</a></div>
+  <noscript><button class={button}>Terapkan filter</button></noscript>
+  {#if filtersActive}<div class="flex items-end"><a class="py-2 text-sm text-slate-600" href={resetQueryHref(page.url, filterKeys)} data-sveltekit-noscroll>Reset filter</a></div>{/if}
 </form>
 <section class={`${box} relative`} aria-busy={listPending}>
   <ListPending />

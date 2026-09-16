@@ -4,6 +4,7 @@
   import { page, navigating } from '$app/state';
   import { seamlessFilter } from '$lib/actions/seamless-filter';
   import { isListNavigationPending } from '$lib/navigation/pending';
+  import { hasActiveQuery, resetQueryHref } from '$lib/navigation/query';
   import type { ProfileData } from '$lib/server/academic-profiles';
   import Pagination from './Pagination.svelte';
   import StatusBadge from './StatusBadge.svelte';
@@ -25,6 +26,9 @@
   });
   const title = $derived(data.kind === 'mahasiswa' ? 'Mahasiswa' : 'Dosen');
   const listPending = $derived(isListNavigationPending(navigating, page.url.pathname));
+  const filterKeys = $derived(data.kind === 'mahasiswa' ? ['search', 'program_studi_id', 'kurikulum_id', 'angkatan', 'status'] : ['search', 'program_studi_id', 'is_active']);
+  const filtersActive = $derived(hasActiveQuery(page.url, filterKeys));
+  const filterResetHref = $derived(resetQueryHref(page.url, filterKeys));
   const student = $derived(data.kind === 'mahasiswa' ? data.edit : null);
   const lecturer = $derived(data.kind === 'dosen' ? data.edit : null);
   const inputClass = 'control-base mt-1.5';
@@ -65,7 +69,8 @@
     {:else}
       <label class="text-sm font-medium">Status<select class={inputClass} name="is_active" value={data.filters.is_active ?? ''}><option value="">Semua status</option><option value="true">Aktif</option><option value="false">Nonaktif</option></select></label>
     {/if}
-    <div class="flex items-end gap-4"><button class={buttonClass}>Terapkan filter</button><a class="py-2 text-sm text-slate-600" href={page.url.pathname} data-sveltekit-noscroll>Reset filter</a></div>
+    <noscript><button class={buttonClass}>Terapkan filter</button></noscript>
+    {#if filtersActive}<div class="flex items-end"><a class="py-2 text-sm text-slate-600" href={filterResetHref} data-sveltekit-noscroll>Reset filter</a></div>{/if}
   </form>
 </section>
 
@@ -101,7 +106,8 @@
       <form method="GET" class="mt-3 grid items-end gap-3 sm:grid-cols-3" use:seamlessFilter={{ pageKey: 'curriculum_page' }}>
         {#each [...page.url.searchParams].filter(([key]) => !['curriculum_search', 'curriculum_page', 'choice_program'].includes(key)) as [key, entry]}<input type="hidden" name={key} value={entry} />{/each}
         <label class="text-sm">Program Studi<select class={inputClass} name="choice_program" value={data.curriculumQuery.program_studi_id ?? ''}><option value="">Semua program studi</option>{#each programs as item}{#if item}<option value={item.id}>{item.kode} — {item.nama}</option>{/if}{/each}</select></label>
-        <label class="text-sm">Kode atau nama<input class={inputClass} name="curriculum_search" value={data.curriculumQuery.search} maxlength="150" /></label><button class={buttonClass}>Cari</button>
+        <label class="text-sm">Kode atau nama<input class={inputClass} name="curriculum_search" value={data.curriculumQuery.search} maxlength="150" /></label><noscript><button class={buttonClass}>Cari</button></noscript>
+        {#if hasActiveQuery(page.url, ['curriculum_search', 'choice_program'])}<div class="flex items-end"><a class="py-2 text-sm text-slate-600" href={resetQueryHref(page.url, ['curriculum_search', 'choice_program'], 'curriculum_page')} data-sveltekit-noscroll>Reset filter</a></div>{/if}
       </form>
       <Pagination {...data.curricula.meta} href={number => href({ curriculum_page: number })} />
     </section>

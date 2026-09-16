@@ -4,6 +4,7 @@
   import { page, navigating } from '$app/state';
   import { seamlessFilter } from '$lib/actions/seamless-filter';
   import { isListNavigationPending } from '$lib/navigation/pending';
+  import { hasActiveQuery, resetQueryHref } from '$lib/navigation/query';
   import type { MasterData } from '$lib/server/master-data';
   import Pagination from './Pagination.svelte';
   import StatusBadge from './StatusBadge.svelte';
@@ -25,6 +26,9 @@
   });
   const isProgram = $derived(data.kind === 'program-studi');
   const listPending = $derived(isListNavigationPending(navigating, page.url.pathname));
+  const filterKeys = $derived(isProgram ? ['search', 'is_active', 'jenjang', 'fakultas_id'] : ['search', 'is_active']);
+  const filtersActive = $derived(hasActiveQuery(page.url, filterKeys));
+  const filterResetHref = $derived(resetQueryHref(page.url, filterKeys));
   const title = $derived(isProgram ? 'Program Studi' : 'Fakultas');
   const inputClass = 'control-base mt-1.5';
   const buttonClass = 'min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50';
@@ -65,7 +69,8 @@
       </select></label>
       <input type="hidden" name="faculty_search" value={data.facultyQuery.search} /><input type="hidden" name="faculty_page" value={data.facultyQuery.page} />
     {/if}
-    <div class="flex items-end gap-3"><button class={buttonClass}>Terapkan</button><a class="py-2 text-sm text-slate-600" href={page.url.pathname} data-sveltekit-noscroll>Reset filter</a></div>
+    <noscript><button class={buttonClass}>Terapkan filter</button></noscript>
+    {#if filtersActive}<div class="flex items-end"><a class="py-2 text-sm text-slate-600" href={filterResetHref} data-sveltekit-noscroll>Reset filter</a></div>{/if}
   </form>
 </section>
 

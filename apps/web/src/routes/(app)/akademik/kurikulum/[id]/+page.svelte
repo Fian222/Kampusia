@@ -4,6 +4,7 @@
   import { page, navigating } from '$app/state';
   import { seamlessFilter } from '$lib/actions/seamless-filter';
   import { isListNavigationPending } from '$lib/navigation/pending';
+  import { hasActiveQuery, resetQueryHref } from '$lib/navigation/query';
   import Pagination from '$lib/components/Pagination.svelte';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import PageHeader from '$lib/components/ui/PageHeader.svelte';
@@ -52,7 +53,8 @@
   <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="font-semibold">Mata Kuliah Kurikulum</h2><button type="button" class={buttonClass} disabled={!data.curriculum.isActive} onclick={() => { editingMembershipId = undefined; membershipOpen = true; }}><span class="inline-flex items-center gap-1.5"><Icon name="plus" size={15} /> Tambah Mata Kuliah</span></button></div>
   <form method="GET" class="mt-4 flex items-end gap-3" use:seamlessFilter>
     <label class="grow text-sm">Cari kode atau nama<input class={inputClass} name="search" value={data.query.search} maxlength="150" /></label>
-    <button class={buttonClass}>Cari</button>
+    <noscript><button class={buttonClass}>Cari</button></noscript>
+    {#if hasActiveQuery(page.url, ['search'])}<a class="py-2 text-sm text-slate-600" href={resetQueryHref(page.url, ['search'])} data-sveltekit-noscroll>Reset filter</a>{/if}
   </form>
   <div class="mt-4 overflow-x-auto transition-opacity" class:opacity-80={listPending}>
     <table class="w-full text-left text-sm">
@@ -79,7 +81,8 @@
       <h2 class="text-sm font-bold">Cari Mata Kuliah Aktif</h2>
       <form method="GET" class="mt-3 flex items-end gap-3" use:seamlessFilter={{ pageKey: 'course_page' }}>
         {#each [...page.url.searchParams].filter(([key]) => !['course_search', 'course_page'].includes(key)) as [key, entry]}<input type="hidden" name={key} value={entry} />{/each}
-        <label class="grow text-sm">Kode atau nama<input class={inputClass} name="course_search" value={data.courseQuery.search} maxlength="150" /></label><button class={buttonClass}>Cari</button>
+        <label class="grow text-sm">Kode atau nama<input class={inputClass} name="course_search" value={data.courseQuery.search} maxlength="150" /></label><noscript><button class={buttonClass}>Cari</button></noscript>
+        {#if hasActiveQuery(page.url, ['course_search'])}<a class="py-2 text-sm text-slate-600" href={resetQueryHref(page.url, ['course_search'], 'course_page')} data-sveltekit-noscroll>Reset filter</a>{/if}
       </form>
       <Pagination {...data.courses.meta} href={number => href({ course_page: number })} />
     </section>

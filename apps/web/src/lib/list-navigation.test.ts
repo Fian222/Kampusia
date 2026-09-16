@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { queryHref } from './navigation/query';
+import { hasActiveQuery, queryHref, resetQueryHref } from './navigation/query';
 import { isListNavigationPending } from './navigation/pending';
 import { createNavigationScheduler } from './navigation/scheduler';
 
@@ -23,6 +23,17 @@ test('reference pagination resets its own page without dropping modal context', 
   const url = new URL('https://kampusia.test/akademik/kelas-kuliah?modal=create&semester_page=5&course_page=3');
   expect(queryHref(url, { semester_search: '2026' }, { resetPage: true, pageKey: 'semester_page' })).toBe(
     '/akademik/kelas-kuliah?modal=create&course_page=3&semester_search=2026',
+  );
+});
+
+test('reset visibility follows meaningful filters and reset preserves unrelated query context', () => {
+  const idle = new URL('https://kampusia.test/akademik/mahasiswa?page=3');
+  expect(hasActiveQuery(idle, ['search', 'status', 'angkatan'])).toBe(false);
+
+  const filtered = new URL('https://kampusia.test/akademik/mahasiswa?search=andi&status=AKTIF&page=4&program_search=if');
+  expect(hasActiveQuery(filtered, ['search', 'status', 'angkatan'])).toBe(true);
+  expect(resetQueryHref(filtered, ['search', 'status', 'angkatan'])).toBe(
+    '/akademik/mahasiswa?program_search=if',
   );
 });
 
@@ -148,6 +159,22 @@ test('all GET forms use seamless navigation and POST action forms remain POST fo
   expect(grading).toContain('action="?/grading"');
 });
 
+test('auto-applied GET forms hide normal Apply buttons but retain native noscript submission', async () => {
+  const glob = new Bun.Glob('**/*.svelte');
+  let formCount = 0;
+  for await (const path of glob.scan({ cwd: sourceRoot, onlyFiles: true })) {
+    const source = await read(path);
+    for (const form of source.match(/<form\b[^>]*\bmethod="GET"[^>]*>[\s\S]*?<\/form>/g) ?? []) {
+      formCount += 1;
+      expect(form, path).toContain('use:seamlessFilter');
+      expect(form, path).toMatch(/<noscript>[\s\S]*?<button\b/);
+      const enhancedMarkup = form.replace(/<noscript>[\s\S]*?<\/noscript>/g, '');
+      expect(enhancedMarkup, path).not.toMatch(/<button\b[^>]*>\s*(?:Terapkan(?: filter)?|Cari(?: kelas| pilihan)?|Tampilkan)\s*<\/button>/i);
+    }
+  }
+  expect(formCount).toBeGreaterThan(0);
+});
+
 test('paginated modal reference selectors are no longer permanent list-page sections', async () => {
   for (const path of [
     'lib/components/MasterDataPage.svelte',
@@ -174,8 +201,11 @@ test('seamless filter action debounces search and uses non-scrolling replace nav
   expect(source).toContain("new Option(snapshot.selectedLabel ?? 'Pilihan tersimpan', snapshot.value)");
   expect(source).toContain("form.addEventListener('submit', submit)");
   expect(source).toContain("form.addEventListener('click', click)");
+  expect(source).toContain("form.addEventListener('keydown', keydown)");
+  expect(source).toContain("event.key !== 'Enter'");
   expect(source).toContain('void scheduler.immediate()');
   expect(source).toContain('scheduler.debounce()');
+  expect(source).toMatch(/const change[\s\S]*?scheduler\.immediate\(\)/);
   const helper = await read('lib/navigation/query.ts');
   expect(helper).toContain('params.delete(pageKey)');
 });

@@ -4,6 +4,7 @@
   import { page, navigating } from '$app/state';
   import { seamlessFilter } from '$lib/actions/seamless-filter';
   import { isListNavigationPending } from '$lib/navigation/pending';
+  import { hasActiveQuery, resetQueryHref } from '$lib/navigation/query';
   import Pagination from '$lib/components/Pagination.svelte';
   import AcademicFields from '$lib/components/AcademicFields.svelte';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
@@ -17,6 +18,8 @@
   let formOpen = $state(false);
   let openedEditId = $state<string>();
   const listPending = $derived(isListNavigationPending(navigating, page.url.pathname));
+  const filterKeys = ['search', 'is_active'];
+  const filtersActive = $derived(hasActiveQuery(page.url, filterKeys));
   const box = 'surface-panel mt-6 p-5 sm:p-6';
   const input = 'control-base mt-1.5';
   const button = 'min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-50';
@@ -30,7 +33,8 @@
 <form method="GET" class={box + ' grid gap-4 sm:grid-cols-3'} use:seamlessFilter>
   <label class="text-sm">Cari kode atau nama<input class={input} name="search" value={data.filters.search} maxlength="150" /></label>
   <label class="text-sm">Status<select class={input} name="is_active" value={data.filters.is_active ?? ''}><option value="">Semua</option><option value="true">Aktif</option><option value="false">Nonaktif</option></select></label>
-  <div class="self-end"><button class={button}>Terapkan</button> <a href={page.url.pathname} data-sveltekit-noscroll>Reset filter</a></div>
+  <noscript><button class={button}>Terapkan filter</button></noscript>
+  {#if filtersActive}<div class="flex items-end"><a class="py-2 text-sm text-slate-600" href={resetQueryHref(page.url, filterKeys)} data-sveltekit-noscroll>Reset filter</a></div>{/if}
 </form>
 <section class={`${box} relative`} aria-busy={listPending}>
   <ListPending />

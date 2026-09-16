@@ -4,6 +4,7 @@
   import { page, navigating } from '$app/state';
   import { seamlessFilter } from '$lib/actions/seamless-filter';
   import { isListNavigationPending } from '$lib/navigation/pending';
+  import { hasActiveQuery, resetQueryHref } from '$lib/navigation/query';
   import Pagination from '$lib/components/Pagination.svelte';
   import AcademicFields from '$lib/components/AcademicFields.svelte';
   import AcademicOptions from '$lib/components/AcademicOptions.svelte';
@@ -18,6 +19,8 @@
   let formOpen = $state(false);
   let openedEditId = $state<string>();
   const listPending = $derived(isListNavigationPending(navigating, page.url.pathname));
+  const filterKeys = ['search', 'semester_id', 'program_studi_id', 'mata_kuliah_id', 'status'];
+  const filtersActive = $derived(hasActiveQuery(page.url, filterKeys));
   const box = 'surface-panel mt-6 p-5 sm:p-6';
   const input = 'control-base mt-1.5';
   const button = 'min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-50';
@@ -42,7 +45,8 @@
   {#each filters as filter}<label class="text-sm">{filter.label}<select class={input} name={filter.name} value={filter.value ?? ''}><option value="">Semua</option>{#if filter.value && !filter.rows.some(row => row.id === filter.value)}<option value={filter.value}>Pilihan tersimpan</option>{/if}{#each filter.rows as row}<option value={row.id}>{row.kode} — {row.nama}</option>{/each}</select></label>{/each}
   <label class="text-sm">Status<select class={input} name="status" value={data.filters.status ?? ''}><option value="">Semua</option>{#each data.statuses as status}<option>{status}</option>{/each}</select></label>
   {#each [...page.url.searchParams].filter(([key]) => /^(semester|program|course)_(search|page)$/.test(key)) as [key, value]}<input type="hidden" name={key} {value} />{/each}
-  <div class="flex items-end gap-3"><button class={button}>Terapkan</button><a href={page.url.pathname} data-sveltekit-noscroll>Reset filter</a></div>
+  <noscript><button class={button}>Terapkan filter</button></noscript>
+  {#if filtersActive}<div class="flex items-end"><a class="py-2 text-sm text-slate-600" href={resetQueryHref(page.url, filterKeys)} data-sveltekit-noscroll>Reset filter</a></div>{/if}
 </form>
 <section class={`${box} relative`} aria-busy={listPending}>
   <ListPending />

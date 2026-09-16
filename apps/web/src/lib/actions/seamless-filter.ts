@@ -76,11 +76,17 @@ export function seamlessFilter(form: HTMLFormElement, options: Options = {}) {
   const click = (event: MouseEvent) => {
     if (event.target instanceof Element && event.target.closest('a[href]')) scheduler.destroy();
   };
+  const keydown = (event: KeyboardEvent) => {
+    if (event.key !== 'Enter' || !(event.target instanceof HTMLInputElement)) return;
+    event.preventDefault();
+    void scheduler.immediate();
+  };
 
   form.addEventListener('submit', submit);
   form.addEventListener('change', change);
   form.addEventListener('input', input);
   form.addEventListener('click', click);
+  form.addEventListener('keydown', keydown);
 
   return {
     destroy() {
@@ -89,6 +95,7 @@ export function seamlessFilter(form: HTMLFormElement, options: Options = {}) {
       form.removeEventListener('change', change);
       form.removeEventListener('input', input);
       form.removeEventListener('click', click);
+      form.removeEventListener('keydown', keydown);
     },
   };
 }

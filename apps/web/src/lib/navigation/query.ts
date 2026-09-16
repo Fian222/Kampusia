@@ -17,6 +17,17 @@ export function queryHref(
   return `${url.pathname}${query ? `?${query}` : ''}`;
 }
 
+export function hasActiveQuery(url: URL, keys: readonly string[]) {
+  return keys.some(key => Boolean(url.searchParams.get(key)));
+}
+
+export function resetQueryHref(url: URL, keys: readonly string[], pageKey = 'page') {
+  return queryHref(
+    url,
+    Object.fromEntries([...keys, pageKey].map(key => [key, null])),
+  );
+}
+
 export function formQueryHref(form: HTMLFormElement, url: URL, pageKey = 'page') {
   const changes: Record<string, QueryChange> = {};
   const formData = new FormData(form);

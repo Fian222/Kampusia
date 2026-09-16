@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { seamlessFilter } from '$lib/actions/seamless-filter';
+  import { hasActiveQuery, resetQueryHref } from '$lib/navigation/query';
   import Pagination from '$lib/components/Pagination.svelte';
   import KrsSummary from '$lib/components/KrsSummary.svelte';
   import KrsClasses from '$lib/components/KrsClasses.svelte';
@@ -34,7 +35,7 @@
 {#if data.available}
   <h2 class="mt-9 text-lg font-bold">Kelas tersedia</h2>
   <p class="my-2 text-sm text-slate-500">Kursi dihitung dari KRS disetujui. Kelas penuh tetap dapat dipilih, tetapi persetujuan memerlukan kursi tersedia.</p>
-  <form method="GET" class="surface-panel my-4 flex flex-col gap-3 p-4 sm:flex-row" use:seamlessFilter><input type="hidden" name="semester_id" value={data.selected?.semester.id} /><input aria-label="Cari kelas" name="search" value={data.query.search} placeholder="Kode / nama mata kuliah / kelas" class="control-base min-w-0 flex-1" /><button class="min-h-10 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">Cari kelas</button></form>
+  <form method="GET" class="surface-panel my-4 flex flex-col gap-3 p-4 sm:flex-row" use:seamlessFilter><input type="hidden" name="semester_id" value={data.selected?.semester.id} /><input aria-label="Cari kelas" name="search" value={data.query.search} placeholder="Kode / nama mata kuliah / kelas" class="control-base min-w-0 flex-1" /><noscript><button class="min-h-10 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">Cari kelas</button></noscript>{#if hasActiveQuery(page.url, ['search'])}<a class="self-center text-sm text-slate-600" href={resetQueryHref(page.url, ['search'])} data-sveltekit-noscroll>Reset filter</a>{/if}</form>
   <KrsClasses classes={data.available.data} />
   {#if plan?.status === 'DRAFT'}<div class="my-4 flex flex-wrap gap-2">{#each data.available.data as kelas}<form method="POST"><input type="hidden" name="id" value={plan.id} /><input type="hidden" name="mode" value="add" /><input type="hidden" name="kelas_id" value={kelas.id} /><button class="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-brand-700 px-3 text-xs font-semibold text-white shadow-sm hover:bg-brand-800"><Icon name="plus" size={15} /> {kelas.mataKuliah.kode} / {kelas.namaKelas}</button></form>{/each}</div>{/if}
   <Pagination {...data.available.meta} href={value => href('page', value)} />
