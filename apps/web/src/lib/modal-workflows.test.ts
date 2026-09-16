@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { clearEditQueryHref, editQueryHref, resolveEditModalState } from './navigation/edit-modal';
 
 const sourceRoot = `${import.meta.dir}/..`;
 const read = (path: string) => Bun.file(`${sourceRoot}/${path}`).text();
@@ -27,10 +28,81 @@ test('CRUD list pages open create and record-specific edit modals', async () => 
     const source = await read(path);
     expect(source, path).toContain('<Modal bind:open={formOpen}');
     expect(source, path).toMatch(/Tambah (?:\{title\}|Ruangan|Semester|Kelas)/);
-    expect(source, path).toContain('data.edit?.id === row.id');
+    expect(source, path).toContain("const queryEditId = $derived(page.url.searchParams.get('edit'))");
+    expect(source, path).toContain('function openEdit(id: string) { requestedEditId = id; formOpen = true; }');
+    expect(source, path).toContain('href={editQueryHref(page.url, row.id)} onclick={() => openEdit(row.id)}');
+    expect(source, path).toContain('editModal.loading');
+    expect(source, path).toContain('value={data.edit?.id ?? \'\'}');
+    expect(source, path).toContain('clearEditQueryHref(page.url)');
+    expect(source, path).not.toContain('data.edit?.id === row.id');
     expect(source, path).toContain("form?.values?.mode === 'save'");
     expect(source, path).toContain("result.type === 'success'");
   }
+});
+
+test('one edit click opens immediately and waits for the matching record before prefilling', () => {
+  const clicked = resolveEditModalState({
+    queryEditId: null,
+    requestedEditId: 'dev-if',
+    loadedEditId: null,
+    createRequested: false,
+    saveFailed: false,
+  });
+  expect(clicked).toEqual({ open: true, editing: true, editId: 'dev-if', loading: true });
+
+  const loaded = resolveEditModalState({
+    queryEditId: 'dev-if',
+    requestedEditId: null,
+    loadedEditId: 'dev-if',
+    createRequested: false,
+    saveFailed: false,
+  });
+  expect(loaded).toEqual({ open: true, editing: true, editId: 'dev-if', loading: false });
+});
+
+test('edit URLs change the target once and closing preserves unrelated list state', () => {
+  const listUrl = new URL('https://kampusia.test/akademik/program-studi?status=AKTIF&page=2&search=if&modal=create');
+  const editHref = editQueryHref(listUrl, 'dev-if');
+  const editUrl = new URL(editHref, listUrl);
+
+  expect(editHref).toBe('/akademik/program-studi?status=AKTIF&page=2&search=if&edit=dev-if');
+  expect(editUrl.searchParams.getAll('edit')).toEqual(['dev-if']);
+  expect(clearEditQueryHref(editUrl)).toBe('/akademik/program-studi?status=AKTIF&page=2&search=if');
+});
+
+test('URL-backed edit state switches records and follows browser history coherently', () => {
+  const state = (queryEditId: string | null, loadedEditId: string | null) => resolveEditModalState({
+    queryEditId,
+    requestedEditId: null,
+    loadedEditId,
+    createRequested: false,
+    saveFailed: false,
+  });
+
+  expect(state('faculty-a', 'faculty-a').loading).toBe(false);
+  expect(state('faculty-b', 'faculty-a')).toEqual({ open: true, editing: true, editId: 'faculty-b', loading: true });
+  expect(state('faculty-b', 'faculty-b').loading).toBe(false);
+  expect(state(null, null).open).toBe(false);
+  expect(state('faculty-a', 'faculty-a').editId).toBe('faculty-a');
+});
+
+test('failed edits retain their record while a successful edit resolves to closed state', () => {
+  expect(resolveEditModalState({
+    queryEditId: null,
+    requestedEditId: null,
+    loadedEditId: 'room-a',
+    createRequested: false,
+    saveFailed: true,
+    failedEditId: 'room-a',
+  })).toEqual({ open: true, editing: true, editId: 'room-a', loading: false });
+
+  expect(resolveEditModalState({
+    queryEditId: null,
+    requestedEditId: null,
+    loadedEditId: null,
+    createRequested: false,
+    saveFailed: false,
+  })).toEqual({ open: false, editing: false, editId: null, loading: false });
 });
 
 test('detail CRUD modals retain failed action and record context', async () => {
@@ -54,4 +126,10 @@ test('detail CRUD modals retain failed action and record context', async () => {
   const curriculum = await read('routes/(app)/akademik/kurikulum/[id]/+page.svelte');
   expect(curriculum).toContain("form?.values?.mode === 'update'");
   expect(curriculum).toContain('form.values.membership_id');
+
+  expect(curriculum).toContain('editingMembershipId = row.id; membershipOpen = true;');
+  expect(detail).toContain('editingScheduleId = row.id; scheduleOpen = true;');
+  expect(meetings).toContain('editingId = row.id; meetingOpen = true;');
+  expect(grading).toContain('editingComponentId = component.id; componentOpen = true;');
+  expect(grading).toContain('correctionComponentId = component.id; correctionOpen = true;');
 });

@@ -5,6 +5,7 @@
   import { seamlessFilter } from '$lib/actions/seamless-filter';
   import { isListNavigationPending } from '$lib/navigation/pending';
   import { hasActiveQuery, resetQueryHref } from '$lib/navigation/query';
+  import { clearEditQueryHref, editQueryHref, resolveEditModalState } from '$lib/navigation/edit-modal';
   import Pagination from '$lib/components/Pagination.svelte';
   import AcademicFields from '$lib/components/AcademicFields.svelte';
   import AcademicOptions from '$lib/components/AcademicOptions.svelte';
@@ -17,10 +18,13 @@
   let { data, form }: PageProps = $props();
   let saving = $state(false);
   let formOpen = $state(false);
-  let openedEditId = $state<string>();
+  let requestedEditId = $state<string | null>(null);
   const listPending = $derived(isListNavigationPending(navigating, page.url.pathname));
   const filterKeys = ['search', 'semester_id', 'program_studi_id', 'mata_kuliah_id', 'status'];
   const filtersActive = $derived(hasActiveQuery(page.url, filterKeys));
+  const queryEditId = $derived(page.url.searchParams.get('edit'));
+  const saveFailed = $derived(form?.values?.mode === 'save' && !form.saved);
+  const editModal = $derived(resolveEditModalState({ queryEditId, requestedEditId, loadedEditId: data.edit?.id ?? null, createRequested: page.url.searchParams.get('modal') === 'create', saveFailed, failedEditId: saveFailed ? form?.values?.id || null : null }));
   const box = 'surface-panel mt-6 p-5 sm:p-6';
   const input = 'control-base mt-1.5';
   const button = 'min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-50';
@@ -34,10 +38,11 @@
     { name: 'program_studi_id', label: 'Program Studi', value: data.filters.program_studi_id, rows: data.programs.data },
     { name: 'mata_kuliah_id', label: 'Mata Kuliah', value: data.filters.mata_kuliah_id, rows: data.courses.data },
   ]);
-  $effect(() => { if (page.url.searchParams.get('modal') === 'create') { openedEditId = undefined; formOpen = true; } if (form?.values?.mode === 'save') formOpen = true; if (data.edit?.id && data.edit.id !== openedEditId) { openedEditId = data.edit.id; formOpen = true; } });
+  function openEdit(id: string) { requestedEditId = id; formOpen = true; }
+  $effect(() => { const state = editModal; if (queryEditId && requestedEditId === queryEditId) requestedEditId = null; if (state.open) formOpen = true; else if (requestedEditId === null) formOpen = false; });
 </script>
 <svelte:head><title>Kelas Kuliah · Kampusia</title></svelte:head>
-<PageHeader eyebrow="Akademik / Perkuliahan" title="Kelas Kuliah" description="Kelola penawaran mata kuliah, dosen pengajar, jadwal, pertemuan, dan penilaian.">{#snippet actions()}<a class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm" href={href({ edit: '', modal: 'create' })} onclick={() => { if (!data.edit) formOpen = true; }}><Icon name="plus" size={16} /> Tambah Kelas</a>{/snippet}</PageHeader>
+<PageHeader eyebrow="Akademik / Perkuliahan" title="Kelas Kuliah" description="Kelola penawaran mata kuliah, dosen pengajar, jadwal, pertemuan, dan penilaian.">{#snippet actions()}<a class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm" href={href({ edit: '', modal: 'create' })} onclick={() => { requestedEditId = null; formOpen = true; }}><Icon name="plus" size={16} /> Tambah Kelas</a>{/snippet}</PageHeader>
 <p class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Kelas baru dapat disimpan sebagai DRAFT. DIBUKA memerlukan kurikulum yang sesuai, dosen aktif, serta jadwal yang valid tanpa konflik. Tambahkan dosen dan jadwal melalui detail kelas sebelum membuka kelas.</p>
 {#if form?.message}<p class={box} role={form.saved ? 'status' : 'alert'}>{form.message}</p>{/if}
 <form method="GET" class={box + ' grid gap-4 sm:grid-cols-3'} use:seamlessFilter>
@@ -52,10 +57,13 @@
   <ListPending />
   <div class="flex justify-between"><h2 class="font-semibold">Daftar Kelas Kuliah</h2></div>
   <div class="mt-4 overflow-x-auto transition-opacity" class:opacity-80={listPending}><table class="w-full text-left text-sm"><thead class="border-b text-slate-500"><tr>{#each ['Mata Kuliah', 'Kelas', 'Semester', 'Program Studi', 'Kapasitas', 'Status', 'Tindakan'] as label}<th class="p-3">{label}</th>{/each}</tr></thead>
-    <tbody>{#each data.records.data as row}<tr class="border-b border-slate-100"><td class="p-3"><span class="font-mono text-xs text-slate-500">{row.mataKuliah.kode}</span><p class="font-semibold text-slate-900">{row.mataKuliah.nama}</p></td><td class="p-3">{row.namaKelas}</td><td class="p-3">{row.semester.nama}</td><td class="p-3">{row.programStudi.nama}</td><td class="p-3">{row.kapasitas}</td><td class="p-3"><Badge tone={row.status === 'DIBUKA' ? 'success' : row.status === 'DIBATALKAN' ? 'danger' : 'neutral'}>{row.status}</Badge></td><td class="p-3"><div class="flex gap-3"><a class="font-semibold text-brand-700" href={`/akademik/kelas-kuliah/${row.id}`}>Detail</a><a class="font-semibold text-brand-700" aria-label={`Edit kelas ${row.mataKuliah.nama} ${row.namaKelas}`} href={href({ edit: row.id, modal: '' })} onclick={() => { if (data.edit?.id === row.id) formOpen = true; }}>Edit</a></div></td></tr>{:else}<tr><td colspan="7" class="p-8 text-center text-slate-500">Tidak ada kelas yang cocok.</td></tr>{/each}</tbody>
+    <tbody>{#each data.records.data as row}<tr class="border-b border-slate-100"><td class="p-3"><span class="font-mono text-xs text-slate-500">{row.mataKuliah.kode}</span><p class="font-semibold text-slate-900">{row.mataKuliah.nama}</p></td><td class="p-3">{row.namaKelas}</td><td class="p-3">{row.semester.nama}</td><td class="p-3">{row.programStudi.nama}</td><td class="p-3">{row.kapasitas}</td><td class="p-3"><Badge tone={row.status === 'DIBUKA' ? 'success' : row.status === 'DIBATALKAN' ? 'danger' : 'neutral'}>{row.status}</Badge></td><td class="p-3"><div class="flex gap-3"><a class="font-semibold text-brand-700" href={`/akademik/kelas-kuliah/${row.id}`}>Detail</a><a class="font-semibold text-brand-700" aria-label={`Edit kelas ${row.mataKuliah.nama} ${row.namaKelas}`} href={editQueryHref(page.url, row.id)} onclick={() => openEdit(row.id)}>Edit</a></div></td></tr>{:else}<tr><td colspan="7" class="p-8 text-center text-slate-500">Tidak ada kelas yang cocok.</td></tr>{/each}</tbody>
   </table></div><Pagination {...data.records.meta} href={number => href({ page: number })} />
 </section>
-<Modal bind:open={formOpen} title={`${data.edit ? 'Edit' : 'Tambah'} Kelas Kuliah`} closeDisabled={saving} width="lg" onClose={() => { if (data.edit || page.url.searchParams.has('modal') || form?.values?.mode === 'save') void goto(href({ edit: '', modal: '' }), { replaceState: true, noScroll: true, keepFocus: true }); }}>
+<Modal bind:open={formOpen} title={`${editModal.editing ? 'Edit' : 'Tambah'} Kelas Kuliah`} description={editModal.loading ? 'Menyiapkan data untuk disunting.' : undefined} closeDisabled={saving} width="lg" onClose={() => { const shouldClear = requestedEditId !== null || queryEditId || page.url.searchParams.has('modal') || form?.values?.mode === 'save'; requestedEditId = null; if (shouldClear) void goto(clearEditQueryHref(page.url), { replaceState: true, noScroll: true, keepFocus: true }); }}>
+  {#if editModal.loading}
+    <div class="rounded-xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600" role="status">Memuat data kelas kuliah…</div>
+  {:else}
   <p class="mt-2 text-sm text-slate-500">Pilihan KRS atau jadwal mengunci identitas akademik. Kapasitas tidak boleh di bawah jumlah mahasiswa pada KRS disetujui atau melebihi ruangan terjadwal. Pembatalan dengan pilihan aktif memerlukan alur KRS.</p>
   {#if form?.message && form.values?.mode === 'save'}<p role="alert" class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}
   <div class="mt-4 grid gap-3">
@@ -76,4 +84,5 @@
     ]} />
     <div class="flex justify-end gap-3 sm:col-span-2"><button type="button" class="px-4 py-2 text-sm font-semibold text-slate-600" disabled={saving} onclick={() => formOpen = false}>Batal</button><button class={button} disabled={saving}>{saving ? 'Menyimpan…' : 'Simpan'}</button></div>
   </form>{/key}
+  {/if}
 </Modal>

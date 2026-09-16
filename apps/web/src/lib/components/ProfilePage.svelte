@@ -5,6 +5,7 @@
   import { seamlessFilter } from '$lib/actions/seamless-filter';
   import { isListNavigationPending } from '$lib/navigation/pending';
   import { hasActiveQuery, resetQueryHref } from '$lib/navigation/query';
+  import { clearEditQueryHref, editQueryHref, resolveEditModalState } from '$lib/navigation/edit-modal';
   import type { ProfileData } from '$lib/server/academic-profiles';
   import Pagination from './Pagination.svelte';
   import StatusBadge from './StatusBadge.svelte';
@@ -17,7 +18,7 @@
   let { data, form }: { data: ProfileData; form: { message: string; saved?: true; values?: Record<string, string> } | null } = $props();
   let saving = $state(false);
   let formOpen = $state(false);
-  let openedEditId = $state<string>();
+  let requestedEditId = $state<string | null>(null);
   let confirmation = $state<{ id: string; nama: string; isActive: boolean } | null>(null);
   let dialog: HTMLDialogElement;
   $effect(() => {
@@ -31,6 +32,9 @@
   const filterResetHref = $derived(resetQueryHref(page.url, filterKeys));
   const student = $derived(data.kind === 'mahasiswa' ? data.edit : null);
   const lecturer = $derived(data.kind === 'dosen' ? data.edit : null);
+  const queryEditId = $derived(page.url.searchParams.get('edit'));
+  const saveFailed = $derived(form?.values?.mode === 'save' && !form.saved);
+  const editModal = $derived(resolveEditModalState({ queryEditId, requestedEditId, loadedEditId: data.edit?.id ?? null, createRequested: page.url.searchParams.get('modal') === 'create', saveFailed, failedEditId: saveFailed ? form?.values?.id || null : null }));
   const inputClass = 'control-base mt-1.5';
   const buttonClass = 'min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50';
   const panelClass = 'surface-panel mt-6 p-5 sm:p-6';
@@ -42,13 +46,14 @@
     return '?' + params.toString();
   }
   function value(key: string, fallback = '') { return form?.values?.[key] ?? fallback; }
+  function openEdit(id: string) { requestedEditId = id; formOpen = true; }
   const programs = $derived([...data.programs.data, ...[data.edit?.programStudi, data.selectedProgram].filter(item => item && !data.programs.data.some(row => row.id === item.id))]);
-  $effect(() => { if (page.url.searchParams.get('modal') === 'create') { openedEditId = undefined; formOpen = true; } if (form?.values?.mode === 'save') formOpen = true; if (data.edit?.id && data.edit.id !== openedEditId) { openedEditId = data.edit.id; formOpen = true; } });
+  $effect(() => { const state = editModal; if (queryEditId && requestedEditId === queryEditId) requestedEditId = null; if (state.open) formOpen = true; else if (requestedEditId === null) formOpen = false; });
 </script>
 
 <svelte:head><title>{title} · Kampusia</title></svelte:head>
 <PageHeader eyebrow={`Master Data / ${title}`} {title} description="Kelola profil akademik dan pertahankan riwayatnya. Akun login bersifat opsional.">
-  {#snippet actions()}<a class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800" href={href({ edit: null, modal: 'create' })} onclick={() => { if (!data.edit) formOpen = true; }}><Icon name="plus" size={16} /> Tambah {title}</a>{/snippet}
+  {#snippet actions()}<a class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800" href={href({ edit: null, modal: 'create' })} onclick={() => { requestedEditId = null; formOpen = true; }}><Icon name="plus" size={16} /> Tambah {title}</a>{/snippet}
 </PageHeader>
 {#if form?.message}<p role={form.saved ? 'status' : 'alert'} class={panelClass}>{form.message}</p>{/if}
 
@@ -83,12 +88,12 @@
     <tbody class="divide-y divide-slate-100">
       {#if data.kind === 'mahasiswa'}
         {#each data.records as row}<tr>
-          <td class="px-3 py-4 font-medium">{row.nim}</td><td class="px-3 py-4">{row.nama}</td><td class="px-3 py-4">{row.programStudi.nama}<span class="block text-xs text-slate-500">{row.fakultas.nama}</span></td><td class="px-3 py-4">{row.kurikulum.nama}</td><td class="px-3 py-4">{row.angkatan}</td><td class="px-3 py-4"><span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium">{row.status}</span></td><td class="px-3 py-4"><a class="mr-4 font-semibold text-brand-700" href={`/akademik/mahasiswa/${row.id}/hasil-studi`}>Hasil studi</a><a class="font-semibold text-brand-700" aria-label={`Edit ${row.nama}`} href={href({ edit: row.id, modal: null })} onclick={() => { if (data.edit?.id === row.id) formOpen = true; }}>Edit</a></td>
+          <td class="px-3 py-4 font-medium">{row.nim}</td><td class="px-3 py-4">{row.nama}</td><td class="px-3 py-4">{row.programStudi.nama}<span class="block text-xs text-slate-500">{row.fakultas.nama}</span></td><td class="px-3 py-4">{row.kurikulum.nama}</td><td class="px-3 py-4">{row.angkatan}</td><td class="px-3 py-4"><span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium">{row.status}</span></td><td class="px-3 py-4"><a class="mr-4 font-semibold text-brand-700" href={`/akademik/mahasiswa/${row.id}/hasil-studi`}>Hasil studi</a><a class="font-semibold text-brand-700" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} onclick={() => openEdit(row.id)}>Edit</a></td>
         </tr>{/each}
       {:else}
         {#each data.records as row}<tr>
           <td class="px-3 py-4 font-medium">{row.kodeDosen}</td><td class="px-3 py-4">{row.nidn ?? '—'}</td><td class="px-3 py-4">{row.nama}</td><td class="px-3 py-4">{row.programStudi?.nama ?? 'Tanpa homebase'}</td><td class="px-3 py-4"><StatusBadge active={row.isActive} /></td>
-          <td class="px-3 py-4"><a class="mr-4 font-semibold text-brand-700" aria-label={`Edit ${row.nama}`} href={href({ edit: row.id, modal: null })} onclick={() => { if (data.edit?.id === row.id) formOpen = true; }}>Edit</a><button class="text-slate-600" onclick={() => confirmation = row}>{row.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button></td>
+          <td class="px-3 py-4"><a class="mr-4 font-semibold text-brand-700" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} onclick={() => openEdit(row.id)}>Edit</a><button class="text-slate-600" onclick={() => confirmation = row}>{row.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button></td>
         </tr>{/each}
       {/if}
     </tbody>
@@ -97,7 +102,10 @@
   <Pagination {...data.meta} href={number => href({ page: number })} />
 </section>
 
-<Modal bind:open={formOpen} title={`${data.edit ? 'Edit' : 'Tambah'} ${title}`} description="Data profil akademik dapat disimpan tanpa akun login." closeDisabled={saving} width="lg" onClose={() => { if (data.edit || page.url.searchParams.has('modal') || form?.values?.mode === 'save') void goto(href({ edit: null, modal: null }), { replaceState: true, noScroll: true, keepFocus: true }); }}>
+<Modal bind:open={formOpen} title={`${editModal.editing ? 'Edit' : 'Tambah'} ${title}`} description={editModal.loading ? 'Menyiapkan data untuk disunting.' : 'Data profil akademik dapat disimpan tanpa akun login.'} closeDisabled={saving} width="lg" onClose={() => { const shouldClear = requestedEditId !== null || queryEditId || page.url.searchParams.has('modal') || form?.values?.mode === 'save'; requestedEditId = null; if (shouldClear) void goto(clearEditQueryHref(page.url), { replaceState: true, noScroll: true, keepFocus: true }); }}>
+  {#if editModal.loading}
+    <div class="rounded-xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600" role="status">Memuat data {title.toLowerCase()}…</div>
+  {:else}
   {#if form?.message && form.values?.mode === 'save'}<p role="alert" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}
   <div class="mt-4"><AcademicOptions prefix="program_" label="Program Studi" meta={data.programs.meta} /></div>
   {#if data.kind === 'mahasiswa' && data.curricula}
@@ -142,6 +150,7 @@
       <div class="flex justify-end gap-3 sm:col-span-2"><button type="button" class="px-4 py-2 text-sm font-semibold text-slate-600" disabled={saving} onclick={() => formOpen = false}>Batal</button><button class={buttonClass} disabled={saving}>{saving ? 'Menyimpan…' : 'Simpan'}</button></div>
     </form>
   {/key}
+  {/if}
 </Modal>
 
 <dialog bind:this={dialog} onclose={() => confirmation = null} class="m-auto w-full max-w-md rounded-xl p-6 backdrop:bg-slate-900/40">
