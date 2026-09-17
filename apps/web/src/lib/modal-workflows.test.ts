@@ -15,6 +15,41 @@ test('shared modal provides native dialog accessibility and dismissal behavior',
   expect(modal).toContain('overflow-y-auto');
 });
 
+test('shared modal animates both panel and backdrop with restrained motion', async () => {
+  const modal = await read('lib/components/ui/Modal.svelte');
+  expect(modal).toContain("data-state={phase}");
+  expect(modal).toContain("transform: translateY(6px) scale(0.985)");
+  expect(modal).toContain("opacity 200ms ease");
+  expect(modal).toContain("transform 200ms cubic-bezier(0.22, 1, 0.36, 1)");
+  expect(modal).toContain("dialog[data-state='open']::backdrop");
+  expect(modal).toContain('Two frames ensure the hidden starting styles are painted');
+});
+
+test('shared modal finishes its exit lifecycle before callback and ignores repeated close requests', async () => {
+  const modal = await read('lib/components/ui/Modal.svelte');
+  expect(modal).toContain("if (closeDisabled || phase === 'closing') return;");
+  expect(modal).toContain("if (!dialog.open || phase === 'closing') return;");
+  expect(modal).toContain("phase = 'closing';");
+  expect(modal).toContain("window.setTimeout(finishClose, motionDuration)");
+  expect(modal).toContain("event.propertyName === 'opacity') finishClose()");
+  expect(modal).toContain("inert={closing}");
+
+  const finishClose = modal.slice(modal.indexOf('function finishClose()'), modal.indexOf('function beginClose()'));
+  expect(finishClose).toContain('dialog.close()');
+  expect(finishClose).not.toContain('onClose?.()');
+
+  const nativeCloseHandler = modal.slice(modal.indexOf('onclose={() => {'), modal.indexOf('onclick={(event)'));
+  expect(nativeCloseHandler).toContain('onClose?.()');
+});
+
+test('reduced motion closes immediately without bypassing native close cleanup', async () => {
+  const modal = await read('lib/components/ui/Modal.svelte');
+  expect(modal).toContain("window.matchMedia('(prefers-reduced-motion: reduce)').matches");
+  expect(modal).toMatch(/if \(reducedMotion\(\)\) \{\s+finishClose\(\);\s+return;/);
+  expect(modal).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*transition: none;/);
+  expect(modal).toContain("opener?.focus({ preventScroll: true })");
+});
+
 test('CRUD list pages open create and record-specific edit modals', async () => {
   const pages = [
     'lib/components/MasterDataPage.svelte',
