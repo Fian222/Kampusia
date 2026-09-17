@@ -9,6 +9,11 @@ type EditModalInput = {
   failedEditId?: string | null;
 };
 
+export const modalNavigationOptions = {
+  noScroll: true,
+  keepFocus: true,
+} as const;
+
 export function resolveEditModalState(input: EditModalInput) {
   const editId = input.queryEditId ?? input.requestedEditId ?? input.failedEditId ?? null;
   const editing = editId !== null;

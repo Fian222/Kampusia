@@ -63,7 +63,7 @@
   onclose={() => {
     open = false;
     unlock();
-    opener?.focus();
+    opener?.focus({ preventScroll: true });
     onClose?.();
   }}
   onclick={(event) => { if (closeOnBackdrop && event.target === dialog) requestClose(); }}

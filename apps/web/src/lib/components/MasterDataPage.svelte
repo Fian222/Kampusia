@@ -5,7 +5,7 @@
   import { seamlessFilter } from '$lib/actions/seamless-filter';
   import { isListNavigationPending } from '$lib/navigation/pending';
   import { hasActiveQuery, resetQueryHref } from '$lib/navigation/query';
-  import { clearEditQueryHref, editQueryHref, resolveEditModalState } from '$lib/navigation/edit-modal';
+  import { clearEditQueryHref, editQueryHref, modalNavigationOptions, resolveEditModalState } from '$lib/navigation/edit-modal';
   import type { MasterData } from '$lib/server/master-data';
   import Pagination from './Pagination.svelte';
   import StatusBadge from './StatusBadge.svelte';
@@ -63,7 +63,7 @@
 
 <svelte:head><title>{title} · Kampusia</title></svelte:head>
 <PageHeader eyebrow={`Master Data / ${title}`} {title} description="Kelola data akademik. Data nonaktif tetap tersimpan untuk menjaga riwayat.">
-  {#snippet actions()}<a class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800" href={href({ edit: null, modal: 'create' })} onclick={() => { requestedEditId = null; formOpen = true; }}><Icon name="plus" size={16} /> Tambah {title}</a>{/snippet}
+  {#snippet actions()}<a class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800" href={href({ edit: null, modal: 'create' })} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => { requestedEditId = null; formOpen = true; }}><Icon name="plus" size={16} /> Tambah {title}</a>{/snippet}
 </PageHeader>
 {#if form?.message}<p role={form.saved ? 'status' : 'alert'} class="mt-4 rounded-lg border border-slate-200 bg-white p-4 text-sm">{form.message}</p>{/if}
 
@@ -95,7 +95,7 @@
           <tr class="border-b border-slate-100"><td class="p-3 font-medium">{row.kode}</td><td class="p-3">{row.nama}</td>
             {#if isProgram && row.fakultas}<td class="p-3">{row.fakultas.nama}{#if !row.fakultas.isActive}<span class="block text-xs text-slate-500">Fakultas nonaktif</span>{/if}</td><td class="p-3">{row.jenjang}</td>{/if}
             <td class="p-3"><StatusBadge active={row.isActive} /></td>
-            <td class="p-3"><div class="flex gap-4"><a class="font-semibold text-brand-700" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} onclick={() => openEdit(row.id)}>Edit</a><button class="text-slate-600 disabled:opacity-50" disabled={saving} onclick={() => confirmation = row}>{row.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button></div></td>
+            <td class="p-3"><div class="flex gap-4"><a class="font-semibold text-brand-700" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a><button class="text-slate-600 disabled:opacity-50" disabled={saving} onclick={() => confirmation = row}>{row.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button></div></td>
           </tr>
         {:else}<tr><td colspan={isProgram ? 6 : 4} class="p-8 text-center text-slate-500">Tidak ada data yang cocok. Ubah filter atau tambahkan {title.toLowerCase()}.</td></tr>{/each}
       </tbody>
@@ -118,7 +118,7 @@
   {/if}
 </dialog>
 
-<Modal bind:open={formOpen} title={`${editModal.editing ? 'Edit' : 'Tambah'} ${title}`} description={editModal.loading ? 'Menyiapkan data untuk disunting.' : data.edit ? `Perbarui data ${data.edit.nama}.` : `Tambahkan ${title.toLowerCase()} baru.`} closeDisabled={saving} width={isProgram ? 'lg' : 'md'} onClose={() => { const shouldClear = requestedEditId !== null || queryEditId || page.url.searchParams.has('modal') || form?.values?.mode === 'save'; requestedEditId = null; if (shouldClear) void goto(clearEditQueryHref(page.url), { replaceState: true, noScroll: true, keepFocus: true }); }}>
+<Modal bind:open={formOpen} title={`${editModal.editing ? 'Edit' : 'Tambah'} ${title}`} description={editModal.loading ? 'Menyiapkan data untuk disunting.' : data.edit ? `Perbarui data ${data.edit.nama}.` : `Tambahkan ${title.toLowerCase()} baru.`} closeDisabled={saving} width={isProgram ? 'lg' : 'md'} onClose={() => { const shouldClear = requestedEditId !== null || queryEditId || page.url.searchParams.has('modal') || form?.values?.mode === 'save'; requestedEditId = null; if (shouldClear) void goto(clearEditQueryHref(page.url), { replaceState: true, ...modalNavigationOptions }); }}>
   {#if editModal.loading}
     <div class="rounded-xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600" role="status">Memuat data {title.toLowerCase()}…</div>
   {:else}

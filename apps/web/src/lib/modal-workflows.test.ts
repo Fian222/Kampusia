@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { clearEditQueryHref, editQueryHref, resolveEditModalState } from './navigation/edit-modal';
+import { clearEditQueryHref, editQueryHref, modalNavigationOptions, resolveEditModalState } from './navigation/edit-modal';
 
 const sourceRoot = `${import.meta.dir}/..`;
 const read = (path: string) => Bun.file(`${sourceRoot}/${path}`).text();
@@ -10,7 +10,7 @@ test('shared modal provides native dialog accessibility and dismissal behavior',
   expect(modal).toContain('aria-label={title}');
   expect(modal).toContain('oncancel=');
   expect(modal).toContain('event.target === dialog');
-  expect(modal).toContain("opener?.focus()");
+  expect(modal).toContain("opener?.focus({ preventScroll: true })");
   expect(modal).toContain("document.documentElement.style.overflow = 'hidden'");
   expect(modal).toContain('overflow-y-auto');
 });
@@ -30,14 +30,23 @@ test('CRUD list pages open create and record-specific edit modals', async () => 
     expect(source, path).toMatch(/Tambah (?:\{title\}|Ruangan|Semester|Kelas)/);
     expect(source, path).toContain("const queryEditId = $derived(page.url.searchParams.get('edit'))");
     expect(source, path).toContain('function openEdit(id: string) { requestedEditId = id; formOpen = true; }');
-    expect(source, path).toContain('href={editQueryHref(page.url, row.id)} onclick={() => openEdit(row.id)}');
+    expect(source, path).toContain('href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}');
+    expect(source, path).toMatch(/href=\{href\(\{ edit: (?:null|''), modal: 'create' \}\)\} data-sveltekit-noscroll data-sveltekit-keepfocus/);
     expect(source, path).toContain('editModal.loading');
     expect(source, path).toContain('value={data.edit?.id ?? \'\'}');
     expect(source, path).toContain('clearEditQueryHref(page.url)');
+    expect(source, path).toContain('goto(clearEditQueryHref(page.url), { replaceState: true, ...modalNavigationOptions })');
     expect(source, path).not.toContain('data.edit?.id === row.id');
     expect(source, path).toContain("form?.values?.mode === 'save'");
     expect(source, path).toContain("result.type === 'success'");
   }
+});
+
+test('URL-backed modal navigation consistently preserves scroll and focus', async () => {
+  expect(modalNavigationOptions).toEqual({ noScroll: true, keepFocus: true });
+
+  const detail = await read('routes/(app)/akademik/kelas-kuliah/[id]/+page.svelte');
+  expect(detail).toMatch(/href=\{`\/akademik\/kelas-kuliah\?edit=\$\{data\.kelas\.id\}`\} data-sveltekit-noscroll data-sveltekit-keepfocus/);
 });
 
 test('one edit click opens immediately and waits for the matching record before prefilling', () => {
