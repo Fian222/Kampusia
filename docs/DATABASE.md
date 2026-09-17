@@ -28,6 +28,7 @@ erDiagram
     fakultas ||--o{ program_studi : contains
     program_studi ||--o{ mahasiswa : enrolls
     program_studi o|--o{ dosen : homebase
+    dosen o|--o{ mahasiswa : advises
     program_studi ||--o{ kurikulum : defines
     kurikulum ||--o{ mahasiswa : assigned
     kurikulum ||--o{ kurikulum_matkul : contains
@@ -42,6 +43,9 @@ erDiagram
     mahasiswa ||--o{ krs : owns
     semester ||--o{ krs : contains
     users o|--o{ krs : approves
+    users o|--o{ krs : rejects
+    users o|--o{ krs : reopens
+    users o|--o{ krs : administratively_cancels
     krs ||--o{ krs_detail : contains
     kelas_kuliah ||--o{ krs_detail : selected
     kelas_kuliah ||--o{ pertemuan : holds
@@ -60,7 +64,7 @@ erDiagram
     users o|--o{ hasil_studi : corrects
 ```
 
-Each student's faculty is derived through program_studi. Course membership and recommended semester belong in kurikulum_matkul. Students select semester-specific offerings through krs and krs_detail. Lecturer assignments use kelas_dosen, including team teaching. Actual class meetings belong to kelas_kuliah, and attendance joins each meeting directly to a student. Semester, course, program, and class are derived through the meeting's class rather than copied into attendance.
+Each student's faculty is derived through program_studi. A student's current academic adviser is the optional dosen referenced by mahasiswa.dosen_pa_id; this current assignment is distinct from the actor snapshots retained on KRS decisions. Course membership and recommended semester belong in kurikulum_matkul. Students select semester-specific offerings through krs and krs_detail. Lecturer assignments use kelas_dosen, including team teaching. Actual class meetings belong to kelas_kuliah, and attendance joins each meeting directly to a student. Semester, course, program, and class are derived through the meeting's class rather than copied into attendance.
 
 Grading configuration belongs to a class offering through komponen_nilai, and each component has student scores through nilai_mahasiswa. Before finalization, an effective approved enrollment is the eligibility source. Finalization writes one hasil_studi snapshot for each eligible student and class. After that point, hasil_studi—not the mutable current KRS status—is the authoritative historical course result from which KHS, IPS, and IPK are derived.
 
@@ -95,7 +99,7 @@ Authentication accounts, separate from student and lecturer academic profiles.
 - An account may be linked to at most one student or one lecturer, never both. The per-table unique constraints do not enforce the cross-table exclusion; account linking must lock the users row and validate it.
 - Disabling a login does not cancel academic records. Never expose password_hash in API responses.
 
-**Relationships:** Optional one-to-one links from mahasiswa and dosen; one-to-many KRS approvals; one-to-many initial and latest attendance-recording references.
+**Relationships:** Optional one-to-one links from mahasiswa and dosen; one-to-many latest KRS approval, rejection, reopening, and administrative-cancellation actor references; one-to-many initial and latest attendance-recording references.
 
 ### fakultas
 
@@ -165,6 +169,7 @@ Student academic identity and assigned curriculum.
 | `user_id` | `uuid` | Yes | — | FK users.id |
 | `program_studi_id` | `uuid` | No | — | FK program_studi.id |
 | `kurikulum_id` | `uuid` | No | — | Part of composite FK (kurikulum_id, program_studi_id) to kurikulum (id, program_studi_id) |
+| `dosen_pa_id` | `uuid` | Yes | — | FK dosen.id; current academic adviser |
 | `nim` | `varchar(30)` | No | — | Student business identifier |
 | `nama` | `varchar(150)` | No | — | Student full name |
 | `angkatan` | `smallint` | No | — | Entry year |
@@ -174,20 +179,22 @@ Student academic identity and assigned curriculum.
 
 **Primary key:** `id`.
 
-**Foreign keys:** `user_id` → users.id; `program_studi_id` → program_studi.id; `FOREIGN KEY (kurikulum_id, program_studi_id) REFERENCES kurikulum (id, program_studi_id) ON DELETE RESTRICT ON UPDATE RESTRICT`. The composite reference replaces the single-column kurikulum_id foreign key; both participating columns are NOT NULL.
+**Foreign keys:** `user_id` → users.id; `program_studi_id` → program_studi.id; `dosen_pa_id` → dosen.id; `FOREIGN KEY (kurikulum_id, program_studi_id) REFERENCES kurikulum (id, program_studi_id) ON DELETE RESTRICT ON UPDATE RESTRICT`. Every foreign key uses `ON DELETE RESTRICT ON UPDATE RESTRICT`. The composite reference replaces the single-column kurikulum_id foreign key; both participating columns are NOT NULL.
 
 **Unique constraints:** `UNIQUE (nim)` and `UNIQUE (user_id)`. NIM is not a primary key.
 
-**Additional indexes:** `(program_studi_id, angkatan)` and `(kurikulum_id)`.
+**Additional indexes:** `(program_studi_id, angkatan)`, `(kurikulum_id)`, and `(dosen_pa_id)`. The adviser index supports scoped advisee and submitted-KRS lists; null rows remain valid while an adviser has not been assigned.
 
 **Business rules:**
 
 - CHECK angkatan BETWEEN 1900 AND 9999.
 - An academic record may exist before a login account is provisioned.
 - Assigned curriculum must belong to the student's program. PostgreSQL enforces this on inserts and updates through the composite foreign key to kurikulum; service validation may provide a clearer error but is not the integrity guarantee. The referenced curriculum's program cannot change while student references would become invalid. Only AKTIF students may submit or obtain approval for new KRS.
+- `dosen_pa_id` is nullable because imported, newly created, graduated, or otherwise inactive records may temporarily have no current adviser. Assigning or changing it requires an authorized ADMIN/AKADEMIK action and an active dosen. A student must have a current active Dosen PA with an active linked DOSEN account before submitting a KRS, so a submitted plan cannot be left without a normal reviewer.
+- Dosen homebase does not by itself limit adviser assignment; a cross-program restriction would be an additional institutional policy. Changing `dosen_pa_id` immediately transfers access to pending/current advisee work: the new current adviser gains access and the old adviser loses it. It never rewrites `disetujui_oleh`, `ditolak_oleh`, `dibuka_kembali_oleh`, or other historical KRS actor snapshots.
 - Program or curriculum reassignment requires explicit academic review; do not reinterpret approved KRS history. The initial design does not model transfer history.
 
-**Relationships:** Belongs to one program and one curriculum, optionally one user; has many KRS, one per semester, and many attendance rows across meetings.
+**Relationships:** Belongs to one program and one curriculum, optionally one user and one current Dosen PA; has many KRS, one per semester, and many attendance rows across meetings. One dosen may advise many students.
 
 ### dosen
 
@@ -219,7 +226,7 @@ Lecturer identity, independent of class assignments.
 - Homebase is optional and does not restrict teaching in other programs.
 - Inactive lecturers retain historical assignments and cannot receive new assignments.
 
-**Relationships:** Optional user and homebase program; many-to-many with kelas_kuliah through kelas_dosen.
+**Relationships:** Optional user and homebase program; many-to-many with kelas_kuliah through kelas_dosen; one-to-many current academic-adviser assignments through mahasiswa.dosen_pa_id.
 
 ### semester
 
@@ -234,6 +241,8 @@ Explicit academic terms and the globally selected active term.
 | `jenis` | `varchar(8)` | No | — | GANJIL or GENAP |
 | `tanggal_mulai` | `date` | No | — | Term start date |
 | `tanggal_selesai` | `date` | No | — | Term end date |
+| `krs_mulai_at` | `timestamptz` | Yes | — | Inclusive opening instant for the ordinary KRS workflow |
+| `krs_selesai_at` | `timestamptz` | Yes | — | Exclusive closing instant for the ordinary KRS workflow |
 | `is_active` | `boolean` | No | false | Explicit active-term selection |
 | `created_at` | `timestamptz` | No | now() | Creation instant |
 | `updated_at` | `timestamptz` | No | now() | Last mutation instant |
@@ -250,8 +259,11 @@ Explicit academic terms and the globally selected active term.
 
 - CHECK tahun_mulai BETWEEN 1900 AND 9998 and tanggal_mulai <= tanggal_selesai.
 - CHECK kode matches tahun_mulai followed by 1 for GANJIL or 2 for GENAP. The initial model has two regular terms per academic year.
-- Dates do not determine is_active. Switch the active term in one transaction. Zero active terms are allowed during setup; KRS submission requires one.
+- CHECK `krs_mulai_at` and `krs_selesai_at` are either both null or both non-null, and when present `krs_mulai_at < krs_selesai_at`. Null/null means the KRS period has not been configured and is closed; one-sided/open-ended periods are not valid.
+- The KRS window is the half-open interval `[krs_mulai_at, krs_selesai_at)`, compared against the database/server current instant. `timestamptz` represents instants; the UI renders them in the configured campus timezone. This boundary avoids two periods both accepting a mutation at the same closing/opening instant.
+- Academic dates and KRS timestamps do not determine is_active. Switch the active term in one transaction. Zero active terms are allowed during setup. `is_active` means “currently selected academic term”; the KRS interval independently means “ordinary KRS workflow is open.” Student mutations and normal Dosen PA decisions require both conditions.
 - Do not alter term identity or dates once doing so would invalidate approved enrollments, schedules, or actual meetings. A meeting date must remain within its owning term.
+- Changing a KRS interval is an explicit ADMIN/AKADEMIK configuration action. It affects whether future actions are permitted but never recalculates `batas_sks`, changes existing KRS statuses/details, or rewrites submission, review, attendance, grading, KHS, IPS, or IPK history.
 
 **Relationships:** One semester has many offerings and KRS.
 
@@ -576,28 +588,38 @@ A student's study plan for one semester, including approval state.
 | `status` | `varchar(16)` | No | DRAFT | DRAFT, DIAJUKAN, DISETUJUI, DITOLAK, or DIBATALKAN |
 | `batas_sks` | `smallint` | No | — | Authorized credit limit for this student and term |
 | `diajukan_at` | `timestamptz` | Yes | — | Most recent submission instant |
-| `disetujui_at` | `timestamptz` | Yes | — | Approval instant |
-| `disetujui_oleh` | `uuid` | Yes | — | FK users.id |
+| `disetujui_at` | `timestamptz` | Yes | — | Most recent approval instant, retained after later reopening/cancellation |
+| `disetujui_oleh` | `uuid` | Yes | — | FK users.id; account that performed the most recent approval |
+| `ditolak_at` | `timestamptz` | Yes | — | Most recent rejection instant |
+| `ditolak_oleh` | `uuid` | Yes | — | FK users.id; account that performed the most recent rejection |
+| `alasan_penolakan` | `text` | Yes | — | Required nonblank reason for the most recent rejection |
+| `dibuka_kembali_at` | `timestamptz` | Yes | — | Most recent instant an approved KRS was reopened |
+| `dibuka_kembali_oleh` | `uuid` | Yes | — | FK users.id; account that most recently reopened an approved KRS |
+| `dibatalkan_at` | `timestamptz` | Yes | — | Exceptional administrative-cancellation instant |
+| `dibatalkan_oleh` | `uuid` | Yes | — | FK users.id; account that performed administrative cancellation |
+| `alasan_pembatalan` | `text` | Yes | — | Required nonblank reason for administrative cancellation |
 | `created_at` | `timestamptz` | No | now() | Creation instant |
 | `updated_at` | `timestamptz` | No | now() | Last mutation instant |
 
 **Primary key:** `id`.
 
-**Foreign keys:** `mahasiswa_id` → mahasiswa.id; `semester_id` → semester.id; `disetujui_oleh` → users.id.
+**Foreign keys:** `mahasiswa_id` → mahasiswa.id; `semester_id` → semester.id; `disetujui_oleh`, `ditolak_oleh`, `dibuka_kembali_oleh`, and `dibatalkan_oleh` → users.id. Actor references use `ON DELETE RESTRICT ON UPDATE RESTRICT`, so later account deactivation does not erase a decision.
 
 **Unique constraints:** `UNIQUE (mahasiswa_id, semester_id)`, including rejected/cancelled plans.
 
-**Additional indexes:** `(semester_id, status)` and `(disetujui_oleh)`; the unique index covers mahasiswa_id.
+**Additional indexes:** `(semester_id, status)` and `(disetujui_oleh)`; the unique index covers mahasiswa_id. No initial indexes are added for rejection, reopening, or cancellation actors because no actor-oriented list query is planned. Dosen PA work queues use `mahasiswa(dosen_pa_id)` plus the existing KRS indexes rather than historical actor columns.
 
 **Business rules:**
 
-- CHECK batas_sks > 0. The server assigns this limit from academic policy; students cannot choose it. No arbitrary universal maximum is assumed. The initial KRS module takes the authorized new-plan limit from server configuration `KRS_INITIAL_BATAS_SKS`; it must be a positive PostgreSQL smallint. Missing/invalid configuration blocks creation of new plans, while existing plans retain their assigned limit. This initial policy is explicitly configured, not an IP-based calculation.
-- CHECK disetujui_at and disetujui_oleh are either both null or both non-null. DISETUJUI requires both and diajukan_at; DIAJUKAN and DITOLAK require diajukan_at. DRAFT has all three null. DIAJUKAN and DITOLAK have null approval fields.
-- Only authorized ADMIN or AKADEMIK accounts approve in the initial workflow; role enforcement belongs in the service.
-- Submission and approval validate active student, active semester, eligible classes, total SKS, duplicate courses, and schedule conflicts. Approval also validates available seats under locks.
-- An approved plan is immutable to students. Cancellation and controlled reopening are administrative actions; see lifecycle below.
+- CHECK `batas_sks > 0`. The server assigns this snapshot once from the dynamic policy documented below; students cannot choose it. No arbitrary universal maximum is assumed. Missing/invalid fallback configuration blocks creation only when a complete eligible previous-semester IPS is unavailable. Existing plans always retain their assigned limit.
+- CHECK each actor/time group is internally complete: `disetujui_at` with `disetujui_oleh`; `ditolak_at`, `ditolak_oleh`, and `alasan_penolakan`; `dibuka_kembali_at` with `dibuka_kembali_oleh`; and `dibatalkan_at`, `dibatalkan_oleh`, and `alasan_pembatalan` are respectively all null or all non-null. Both reason columns must be nonblank when supplied.
+- CHECK every supplied event timestamp is greater than or equal to `created_at`. Transition-specific ordering is also checked where the current submission is unambiguous, as described next.
+- DRAFT requires `diajukan_at IS NULL`. DIAJUKAN requires `diajukan_at IS NOT NULL`. DISETUJUI requires the current `diajukan_at` and complete approval pair, with `disetujui_at >= diajukan_at`. DITOLAK requires the current `diajukan_at` and complete rejection group, with `ditolak_at >= diajukan_at`. DIBATALKAN requires the complete administrative-cancellation group. Historical approval/rejection/reopening groups may remain populated in later nonterminal states; `status`, not nullability of old event metadata, determines the current lifecycle state and effective enrollment.
+- `disetujui_oleh` is sufficient for either a normal Dosen PA approval or an exceptional ADMIN/AKADEMIK approval; do not add a duplicate adviser-approver column. `ditolak_oleh` is separate because it records a different decision, not another approver.
+- Submission and review validate the active student, active Semester, open KRS period, curriculum/class eligibility, total SKS, duplicate courses, schedule conflicts, lecturer/schedule requirements, and every other KRS/class prerequisite implemented by the service. Approval additionally validates available seats under locks. The current documented schema has no separate course-prerequisite relation; this redesign does not invent one.
+- An approved plan is immutable to the student. It can become editable only through the explicit approved-plan reopening transition below. Administrative cancellation is a distinct exceptional terminal action, never the ordinary way to clear selections.
 
-**Relationships:** Belongs to one student and semester; optional approving user; has many details.
+**Relationships:** Belongs to one student and semester; optionally references the latest approving, rejecting, reopening, and administrative-cancellation users; has many details.
 
 ### krs_detail
 
@@ -761,28 +783,54 @@ The official, finalized historical result for one student in one class offering.
 
 **Retention/history behavior:** Never hard-delete hasil_studi. Later KRS changes, class closure, student-status changes, lecturer reassignment, or grading-policy changes do not alter it. A class with finalized results cannot be changed to DIBATALKAN through the ordinary class workflow. Any institutional annulment/voiding requirement needs an explicit retained status and audit design rather than deletion.
 
-## KRS lifecycle and derived values
+## KRS period, lifecycle, and derived values
 
-The initial transitions are:
+The active Semester and its KRS period are independent gates. The target must be the explicitly active Semester and have a configured interval for an ordinary mutation to succeed. Academic `tanggal_mulai`/`tanggal_selesai` never implicitly open KRS.
 
-| From | To | Authorized action |
+| Period state | Server-side behavior |
+| --- | --- |
+| Not configured or before `krs_mulai_at` | Students may read history/status but cannot create, edit, clear, reopen a rejection, or submit. Dosen PA cannot make a normal review/reopen decision. |
+| `krs_mulai_at <= now() < krs_selesai_at` | The normal student and Dosen PA lifecycle below is available, subject to status, ownership, adviser assignment, and all academic validations. |
+| At/after `krs_selesai_at` | Student and Dosen PA views are read-only. Submitted plans remain DIAJUKAN; they are not auto-approved, auto-rejected, or auto-cancelled. ADMIN/AKADEMIK must explicitly extend/correct the configured period if normal review or student correction should continue. |
+
+Exceptional administrative cancellation is allowed outside the period because it is a corrective academic action, not ordinary registration. This first redesign deliberately has no implicit grace period, separate adviser-review deadline, or generic “ignore period” flag: those would need an explicit policy and retained justification before implementation.
+
+The transitions are:
+
+| From | To | Authorized action and conditions |
 | --- | --- | --- |
-| DRAFT | DIAJUKAN | Student submits own validated plan |
-| DIAJUKAN | DISETUJUI | ADMIN/AKADEMIK approves after full revalidation |
-| DIAJUKAN | DITOLAK | ADMIN/AKADEMIK rejects |
-| DITOLAK | DRAFT | Student reopens own plan for correction |
-| DRAFT, DIAJUKAN, DITOLAK, DISETUJUI | DIBATALKAN | ADMIN/AKADEMIK cancels the plan |
-| DISETUJUI | DRAFT | ADMIN/AKADEMIK explicitly reopens during the active term |
+| DRAFT | DIAJUKAN | The student submits their own nonempty, fully validated plan during the KRS period. |
+| DIAJUKAN | DISETUJUI | The student's current Dosen PA approves after full revalidation during the KRS period; ADMIN/AKADEMIK may perform an explicit exceptional override. |
+| DIAJUKAN | DITOLAK | The current Dosen PA rejects with a nonblank reason during the KRS period; ADMIN/AKADEMIK may perform an explicit exceptional override. |
+| DITOLAK | DRAFT | The student opens their own rejected plan for correction during the KRS period. |
+| DISETUJUI | DRAFT | The current Dosen PA or ADMIN/AKADEMIK explicitly reopens the approved plan during the KRS period. |
+| DRAFT, DIAJUKAN, DITOLAK, DISETUJUI | DIBATALKAN | ADMIN/AKADEMIK performs exceptional administrative cancellation with a nonblank reason. This may occur outside the KRS period. |
 
-Students edit selections only in DRAFT. Reopening clears submission and approval fields and releases any seats because the parent is no longer approved. Resubmission records a new diajukan_at. This initial model stores the latest workflow state, not a complete approval-event audit trail. Cancelled plans are terminal; they remain subject to the unique student/semester constraint.
+A DOSEN request is authorized only when the active account is linked to a dosen profile, that profile is active, and `mahasiswa.dosen_pa_id` currently equals that dosen id. Every adviser list/detail/action query applies this predicate on the server after resolving the authenticated profile; changing a URL or KRS id must not reveal another adviser's student. ADMIN/AKADEMIK retain oversight of all plans and may approve, reject, or reopen as an explicit override under the same normal period/status rules. They alone may administratively cancel. Frontend filtering is never the authorization boundary.
 
-Cancelling a plan cancels its active details in the same transaction. Preserve existing approval fields on cancellation if it was approved. Cancelling an individual detail from an approved plan releases that seat while retaining the plan's approval; adding/reactivating details requires reopening and fresh approval. Class cancellation cancels related active details, including those on approved plans, and any remaining TERJADWAL meetings. Do not silently cancel other classes in the same plan; preserve completed meetings and attendance.
+Students add/remove selections only in DRAFT. A rejection is not itself editable: the student first performs DITOLAK → DRAFT, which sets `diajukan_at` to null but retains the latest rejection actor/time/reason for explanation. A later submission writes a new `diajukan_at`. Approval writes the existing `disetujui_at`/`disetujui_oleh` pair; those columns work for both Dosen PA and authorized administrative approval.
 
-Reopening or cancelling an approved KRS remains permitted by the existing authorized workflow after attendance or pre-final grading scores exist. The operation changes effective enrollment prospectively but must not delete, reassign, or invalidate existing absensi or nilai_mahasiswa rows. Attendance, grading, and KRS mutations must share the concurrency protocol below so a fact insertion is ordered deterministically before or after the enrollment change rather than racing it.
+Every transition uses one server-generated instant for its event timestamp and `updated_at`, and actor columns always receive the authenticated `users.id`; clients never supply either value. Repeating a transition type later overwrites only that type's latest event metadata. Thus Dosen PA reassignment cannot rewrite an earlier actor, but this compact row still does not claim to preserve every historical revision.
 
-Once hasil_studi exists for a selected class, reopening or cancelling the KRS still must not remove that official result or make KHS/IPS/IPK depend on the KRS's newer state. Adding or reactivating a selection into an already grading-finalized class is prohibited in the ordinary KRS workflow. Removing a result-bearing attempt from academic history, or adding a late student and result after class finalization, is an institutional correction/annulment case outside the ordinary KRS state change and requires a separately documented retained audit process.
+### Clearing selections versus administrative cancellation
 
-At submission and approval, require at least one AKTIF detail, and calculate selected SKS as the sum of mata_kuliah.sks through AKTIF details and their classes. Enforce this total against krs.batas_sks. Do not count cancelled details or store total_sks. A later administrative cancellation may leave an approved plan with zero effective enrollments.
+“Kosongkan KRS” is an in-place DRAFT operation, not a lifecycle transition and not administrative cancellation. It is permitted for the owning student only while the active Semester's KRS period is open. In one transaction it locks the KRS and affected classes, changes every currently AKTIF `krs_detail` row to DIBATALKAN, leaves the parent KRS in DRAFT, updates `updated_at`, and preserves `batas_sks` and all rows. Selected SKS therefore derives to zero. Selecting the same class later reactivates its unique retained detail after the normal validations. No KRS or detail is hard-deleted.
+
+The operation is not exposed directly from DITOLAK. The student uses “Perbaiki KRS” to transition DITOLAK → DRAFT and may then clear some or all choices. This keeps one editable-state rule and avoids a hidden DITOLAK mutation. DIAJUKAN and DISETUJUI are never cleared directly.
+
+“Batalkan Administratif” means exceptional terminal cancellation. It sets the KRS to DIBATALKAN, records `dibatalkan_at`, `dibatalkan_oleh`, and `alasan_pembatalan`, and changes every AKTIF detail to DIBATALKAN in the same transaction. The plan remains subject to `UNIQUE (mahasiswa_id, semester_id)` and cannot be recreated, reopened, submitted, or used as a synonym for clearing choices. Previous submission, approval, rejection, and reopening metadata is retained. This action does not erase attendance, scores, or finalized results and is not an academic-result annulment mechanism.
+
+### Reopening an approved KRS
+
+“Buka Kembali” is the only ordinary route from DISETUJUI to editable DRAFT. It requires an open KRS period and either the current active Dosen PA with an active linked DOSEN account or an authorized ADMIN/AKADEMIK override. The transaction locks the KRS and all AKTIF selected classes, sets status to DRAFT, sets `diajukan_at` to null, and records/overwrites the latest `dibuka_kembali_at` and `dibuka_kembali_oleh`. The status change clears the current approval state; the retained approval pair is historical metadata and must not be interpreted as an active approval. Detail rows remain AKTIF, but changing the parent away from DISETUJUI immediately makes them ineffective and releases their derived seats. The operation preserves the previous `disetujui_at`/`disetujui_oleh` pair and never recalculates `batas_sks`. A later approval overwrites that pair with the newest approval. This is latest-event metadata, not a complete revision ledger.
+
+Reopening or administratively cancelling an approved KRS remains permitted after attendance or pre-final grading scores exist, subject to the period rule for reopening. The operation changes effective enrollment prospectively but must not delete, reassign, or invalidate existing absensi or nilai_mahasiswa rows. Attendance, grading, and KRS mutations share the concurrency protocol below so a fact insertion is ordered deterministically before or after the enrollment change rather than racing it.
+
+Once hasil_studi exists for a selected class, reopening or administrative cancellation still must not remove that official result or make KHS/IPS/IPK depend on the KRS's newer state. Adding or reactivating a selection into an already grading-finalized class is prohibited in the ordinary KRS workflow. Removing a result-bearing attempt from academic history, or adding a late student and result after class finalization, is an institutional correction/annulment case outside the ordinary KRS state change and requires a separately documented retained audit process.
+
+At submission and approval, require at least one AKTIF detail and repeat every existing eligibility validation: student/program/faculty eligibility, active Semester and open KRS period, curriculum compatibility, opened/available class, duplicate-course prevention, schedule conflict, `SUM(mata_kuliah.sks) <= krs.batas_sks`, active lecturer, complete valid schedules/rooms, grading-finalization exclusion, and any application-level class prerequisite in force. Approval additionally checks capacity under locks. Do not count cancelled details or store total_sks. A plan may be valid at submission yet fail approval if a class fills meanwhile because pending plans consume no seats.
+
+The KRS row retains the latest submission and latest event of each review type, not every workflow revision. Rejection, correction, resubmission, reopening, and clearing never recalculate the credit-limit snapshot. A new KRS alone resolves the prior finalized IPS, applies the configured policy or fallback, and writes `batas_sks` once.
 
 **An active enrollment is exactly a krs_detail with status AKTIF whose parent krs has status DISETUJUI.** Draft, submitted, rejected, and cancelled plans contribute no seats. Closed classes retain enrollments; cancelled classes must have none because cancellation updates their details transactionally.
 
@@ -803,6 +851,17 @@ GROUP BY kk.id;
 
 This returns zero for empty classes. The unique KRS/student/semester and KRS/detail/class constraints, together with semester compatibility, ensure one effective enrollment per student per class. Do not add a permanent jumlah_mahasiswa column or materialized counter in this initial design.
 
+### Expected application and API behavior
+
+This section is a contract for later implementation, not an instruction to create routes in this documentation change.
+
+- `/mahasiswa/krs` shows the active Semester, configured KRS interval, selected/max/remaining SKS, current review status, latest rejection reason, and read-only history. During the open period, an eligible student may create one KRS, add/remove choices in DRAFT, use **Kosongkan KRS**, submit, use **Perbaiki KRS** after rejection, and resubmit. Outside the period the same data is read-only.
+- A student clear endpoint should be an explicit idempotent-style action such as `POST /mahasiswa/me/krs/:id/clear`; it must never call administrative cancellation. Existing add/remove/submit/reopen-correction endpoints remain ownership-scoped.
+- `/dosen/krs` is a Dosen PA work area, not a general lecturer KRS browser. It lists only advisees whose current `dosen_pa_id` matches the authenticated active dosen profile, with a default queue for DIAJUKAN plans. Detail includes selected classes, total/batas/remaining SKS, schedules, capacity context, current student/program status, and the previous finalized IPS used as relevant context when available.
+- Conceptual Dosen PA APIs are `GET /dosen/me/krs`, `GET /dosen/me/krs/:id`, and explicit `POST .../approve`, `POST .../reject`, and `POST .../reopen` actions. Reject accepts a required reason. Repository filtering and service authorization both enforce current adviser scope; the route must not accept an arbitrary dosen id as authority.
+- ADMIN/AKADEMIK retain global list/detail oversight. Their approve/reject/reopen actions are visibly labeled overrides and obey the normal period and transition rules. **Batalkan Administratif** is separately labeled, requires a reason, and is never presented beside student controls as “Batalkan KRS.”
+- Reviewer screens show schedules and the information needed to make a decision but do not recalculate `batas_sks`. The stored snapshot is authoritative even if IPS, grades, or the configured SKS-limit policy later changes.
+
 ## Pertemuan and attendance lifecycle
 
 Meeting transitions are intentionally small:
@@ -816,7 +875,7 @@ DIBATALKAN and SELESAI are terminal workflow states. A completed meeting is not 
 
 Attendance eligibility is evaluated from effective approved enrollment at the write/finalization transaction. When a meeting is finalized, every currently effective student needs one explicit attendance row; existing rows for students whose enrollment ceased before finalization remain historical and are not deleted. Later approval does not backfill past meetings automatically. Later KRS reopening, cancellation, detail cancellation, student status change, class closure, or class cancellation likewise does not remove attendance already recorded.
 
-Because the current KRS model stores its latest state rather than an enrollment event log, a later reopen can erase the approval fields even though attendance proves that the student was accepted by the attendance workflow at an earlier point. The direct pertemuan/mahasiswa attendance row is the retained historical fact. If the product must reconstruct a legally exact roster-at-time or every approval/correction event, that requirement needs an append-only enrollment/audit extension before implementation.
+Because the KRS model stores only the latest event of each type rather than an enrollment event log, a later approval/rejection/reopen can overwrite that type's prior metadata even though attendance proves that the student was accepted by the attendance workflow at an earlier point. The most recent approval pair is retained across reopening/cancellation, and the direct pertemuan/mahasiswa attendance row is the retained historical attendance fact. If the product must reconstruct a legally exact roster-at-time or every approval/correction event, that requirement needs an append-only enrollment/audit extension before implementation.
 
 ## Grading lifecycle and calculation
 
@@ -886,7 +945,7 @@ A later change to repeated-course/inclusion policy can legitimately change a new
 
 ## Dynamic KRS credit limit
 
-`krs.batas_sks` remains a non-null historical snapshot, not a live formula. The intended future creation flow is:
+`krs.batas_sks` remains a non-null historical snapshot, not a live formula. The implemented creation flow is:
 
 ```text
 previous-semester finalized hasil_studi
@@ -897,7 +956,7 @@ previous-semester finalized hasil_studi
 
 The policy must define which preceding academic semester is eligible, its IPS ranges, their maximum SKS values, and what counts as a complete semester result. Those ranges are intentionally not hardcoded in the database design. The service must reject ambiguous overlaps/gaps in policy configuration and must never accept batas_sks from a student request.
 
-`KRS_INITIAL_BATAS_SKS` remains the fallback for a student with no eligible prior finalized academic result, an unfinished prior semester, or during the transition before the SKS-limit policy is configured. It must retain the existing positive-smallint validation. Once a KRS is created, later grade corrections, policy changes, or environment changes do not overwrite its batas_sks. Any future authorized manual recalculation must be explicit and auditable; no such edit workflow is included in this milestone.
+`KRS_INITIAL_BATAS_SKS` remains the fallback for a student with no eligible prior finalized academic result or an unfinished prior semester. It must retain the existing positive-smallint validation. Once a KRS is created, clearing selections, rejection, correction reopening, resubmission, approved-plan reopening, administrative cancellation, later grade corrections, policy changes, and environment changes do not overwrite its batas_sks. Any future authorized manual recalculation must be explicit and auditable; no such edit workflow is included in this milestone.
 
 ## Schedule validity
 
@@ -916,22 +975,44 @@ Dates and lecturer assignments are derived through the class; do not duplicate s
 
 ## Transactions and concurrency
 
-Future implementation must use transactions for changes that form a logical operation. These rules describe required behavior, not implemented code:
+The redesigned KRS implementation must preserve the existing retryable SERIALIZABLE transaction approach for changes that form one logical operation:
 
-- Creating a KRS with details, editing its selections, changing its credit limit, submitting, reopening, approving, and cancelling must lock the parent KRS row when it exists. Unique constraints handle competing initial creation. Revalidate all state after acquiring locks.
+- Creating a KRS, adding/removing/clearing selections, submitting, correcting a rejection, approving, rejecting, reopening, and administratively cancelling must lock the parent KRS row when it exists. Unique constraints handle competing initial creation. Lock/read the target Semester and revalidate `is_active` plus the KRS interval against the transaction's current instant after locks; a preflight UI check is insufficient.
 - Approval must lock all selected kelas_kuliah rows in a consistent UUID order, recalculate approved active counts, and reject if adding this plan would exceed any capacity. Status changes, detail cancellations, class cancellations, and capacity changes that alter available seats must follow the same class-lock protocol. Pending plans do not reserve seats, so a valid submission can still fail approval.
+- Clearing locks every affected class in the same order and updates all AKTIF details atomically. Approved-plan reopening retains AKTIF details but locks their classes before changing the parent status so capacity, attendance, and grading operations observe one ordered state. Administrative cancellation records its actor/reason and cancels all AKTIF details in that same transaction.
 - Schedule and lecturer-assignment writes need a shared concurrency protocol. Use SERIALIZABLE transactions with bounded retries on serialization failures for these mutations and KRS submission/approval, including all conflict reads. Apply it also to semester date changes and resource changes that affect validity. Preflight reads outside the transaction cannot guarantee conflict prevention.
 - Use consistent lock ordering across all operations and retry transaction conflicts as a unit; never partially commit a multi-class approval.
 - Creating, updating, completing, cancelling, or deleting an allowed setup-only pertemuan must run in a transaction that locks its parent kelas_kuliah and the meeting when it exists. Allocating a meeting number must rely on the class/number unique constraint as the final concurrency guard.
 - Incremental attendance entry, bulk attendance submission, late authorized insertion, and attendance correction must lock the pertemuan and affected absensi rows and revalidate the meeting state. Initial insertion/finalization must also lock and revalidate the relevant effective KRS enrollment rows and participate in the existing class-lock protocol.
 - Finalizing a meeting must insert/update the complete effective roster and change pertemuan.status to SELESAI in one SERIALIZABLE transaction with bounded retries. Any validation or row failure rolls back both attendance and status. The same transaction must tolerate retained rows for formerly effective students while ensuring the current roster has complete explicit statuses.
-- KRS reopen/cancel and attendance creation must preserve the existing KRS-before-class lock ordering. Lock affected KRS rows by UUID first, then class rows by UUID, then the meeting and attendance rows, and revalidate after locks. If the enrollment change commits first, an ordinary new attendance row is rejected; if attendance commits first, the later authorized enrollment change leaves it intact.
+- KRS approved-plan reopen/administrative cancellation and attendance creation must preserve the existing KRS-before-class lock ordering. Lock affected KRS rows by UUID first, then class rows by UUID, then the meeting and attendance rows, and revalidate after locks. If the enrollment change commits first, an ordinary new attendance row is rejected; if attendance commits first, the later authorized enrollment change leaves it intact.
 - Cancelling a class must cancel its active KRS details and remaining TERJADWAL meetings in the same transaction while retaining SELESAI meetings and all absensi rows.
 - Component creation/update/deactivation, score entry/correction, and class-result finalization must lock the owning class and affected component/score rows and revalidate authorization and class grading state. Score insertion must also lock and revalidate the student's effective KRS enrollment using the shared KRS-before-class ordering.
 - Finalization must lock all affected KRS rows in UUID order before the class row, then lock active components and score rows in stable UUID order. In one SERIALIZABLE transaction with bounded retries, it must revalidate the effective roster and prerequisites, calculate every result, and insert the complete hasil_studi set. Any missing score, policy gap, uniqueness race, or write failure rolls back every result.
-- KRS reopen/cancel and class cancellation must check grading state under the same locks. A KRS change never deletes scores or results; adding/reactivating enrollment in a finalized class is rejected. Class cancellation before finalization retains any component/score history and creates no hasil_studi; class cancellation after finalization is rejected by the ordinary workflow.
+- KRS approved-plan reopen/administrative cancellation and class cancellation must check grading state under the same locks. A KRS change never deletes scores or results; adding/reactivating enrollment in a finalized class is rejected. Class cancellation before finalization retains any component/score history and creates no hasil_studi; class cancellation after finalization is rejected by the ordinary workflow.
 - A post-final grade correction must lock the class, frozen component configuration, affected nilai_mahasiswa rows, and hasil_studi row. Update source score(s), recompute/remap the official result, and record correction actor/reason atomically. Never expose an intermediate state where source scores and the result snapshot disagree.
-- Authorization is server-side: students access only their own KRS, and administrative actions require an authorized active account. Foreign keys are not an authorization mechanism.
+- Authorization is server-side: students access only their own KRS; DOSEN reads/actions require an active linked dosen that still equals the student's current `dosen_pa_id`; ADMIN/AKADEMIK overrides require an active authorized account. Recheck adviser assignment inside each decision transaction so reassignment racing with review cannot authorize the former adviser. Foreign keys and frontend filtering are not authorization mechanisms.
+
+## KRS redesign migration impact
+
+This design is additive and does not introduce a new table. A later implementation requires coordinated Drizzle schema, migration, repository/service/API, seed, test, and UI changes; this documentation task performs none of them.
+
+- Add nullable paired `semester.krs_mulai_at` and `semester.krs_selesai_at`, then add the pair/order CHECK. Do not infer or backfill them from academic term dates. Existing semesters remain KRS-closed until ADMIN/AKADEMIK deliberately configures both instants.
+- Add nullable `mahasiswa.dosen_pa_id`, its RESTRICT foreign key, and `(dosen_pa_id)` index. Existing students remain valid, but they cannot submit a new KRS until assigned an active adviser with an active linked DOSEN account. Seed/demo data should assign its lecturer explicitly when implementation begins.
+- Add the nullable KRS transition-metadata columns and actor foreign keys, then replace the existing status/timestamp CHECK with the rules above. Existing `batas_sks`, details, submission/approval metadata, and statuses are preserved; no snapshot is recomputed and no detail is deleted.
+- Before enabling the new DITOLAK and DIBATALKAN completeness checks, inventory existing rows. Backfill a reason and actor/time only from reliable application data or known development fixtures. Do not claim that `disetujui_oleh` was also the rejecter/canceller and do not fabricate an actor. If reliable legacy actors are unavailable in a real environment, the migration must adopt an explicitly approved legacy-null representation or defer those strict checks; that choice must be documented before code implementation.
+- Existing DRAFT rows that may have been reopened under the old implementation cannot be distinguished reliably from original drafts, so their new reopening fields remain null. Existing DISETUJUI rows retain their approval actor/time. The future service starts recording latest reopening metadata from deployment onward.
+- Existing terminal DIBATALKAN rows remain terminal. The migration does not reinterpret them as student “Kosongkan KRS”; only future DRAFT clear operations use the new nonterminal semantics.
+- Query and response types will change through Drizzle/Elysia/Eden inference. The current ADMIN/AKADEMIK KRS path remains useful for oversight, while a separately scoped Dosen PA route/page and student clear/rejection-reason behavior must be added later. No current public route is silently repurposed from administrative cancellation to clear.
+
+## KRS policy decisions still open
+
+- Whether the institution needs a distinct adviser-review deadline or late-change window after student selection closes. Until decided, the one explicit KRS interval gates every normal student/Dosen PA transition, and administrators extend that interval deliberately when needed.
+- Whether ADMIN/AKADEMIK need a reasoned late approve/reject/reopen override without changing the Semester interval. The current design does not expose a generic period bypass because no retained override-justification model has been approved.
+- Whether adviser assignment must be program-restricted or historically versioned. The current nullable `mahasiswa.dosen_pa_id` is intentionally the present assignment only; KRS actor fields preserve latest decisions, while complete adviser-assignment history would require a separately documented table.
+- Whether regulations require every KRS transition/revision rather than the latest event of each type. If so, add an append-only KRS workflow ledger before implementation; do not stretch the current row into a complete audit log.
+- The official institutional IPS-to-SKS ranges/completeness policy remains to be confirmed even though the application has an explicitly labeled development mapping and fallback. Changing that policy never rewrites existing `krs.batas_sks` snapshots.
+- The schema still has no separate course-prerequisite graph. Existing class/opening/KRS eligibility checks must remain in force; a new prerequisite relationship is outside this redesign and must be documented before introduction.
 
 ## Retention and design boundaries
 
