@@ -10,8 +10,8 @@ const common = () => ({ id: uuid(), createdAt: new Date(), updatedAt: new Date()
 function fixture() {
   const user: AuthUser = { id: uuid(), email: 'student@test.local', role: 'MAHASISWA' };
   const admin: AuthUser = { id: uuid(), email: 'admin@test.local', role: 'AKADEMIK' };
-  const owner: typeof mahasiswa.$inferSelect = { ...common(), userId: user.id, programStudiId: uuid(), kurikulumId: uuid(), nim: '001', nama: 'Student', angkatan: 2026, status: 'AKTIF' };
-  const term: typeof semester.$inferSelect = { ...common(), kode: '20261', nama: 'Ganjil', tahunMulai: 2026, jenis: 'GANJIL', tanggalMulai: '2026-08-24', tanggalSelesai: '2027-01-15', isActive: true };
+  const owner: typeof mahasiswa.$inferSelect = { ...common(), userId: user.id, programStudiId: uuid(), kurikulumId: uuid(), dosenPaId: null, nim: '001', nama: 'Student', angkatan: 2026, status: 'AKTIF' };
+  const term: typeof semester.$inferSelect = { ...common(), kode: '20261', nama: 'Ganjil', tahunMulai: 2026, jenis: 'GANJIL', tanggalMulai: '2026-08-24', tanggalSelesai: '2027-01-15', krsMulaiAt: null, krsSelesaiAt: null, isActive: true };
   const terms: (typeof semester.$inferSelect)[] = [term];
   const academicResults = new Map<string, { sks: number; nilaiIndeks: string }[]>();
   const unfinishedResults = new Map<string, number>();
@@ -38,7 +38,7 @@ function fixture() {
     classes: async ids => classes.filter(row => ids.includes(row.id)).map(row => { const count = details.filter(detail => detail.kelasKuliahId === row.id && detail.status === 'AKTIF' && plans.some(plan => plan.id === detail.krsId && plan.status === 'DISETUJUI')).length; return { ...row, jumlahMahasiswa: count, sisaKapasitas: row.kapasitas - count }; }),
     detail: async id => { const plan = plans.find(row => row.id === id); if (!plan) return undefined; const rows = details.filter(row => row.krsId === id).map(row => ({ ...row, kelas: classes.find(kelas => kelas.id === row.kelasKuliahId)! })); const totalSks = rows.reduce((sum, row) => sum + (row.status === 'AKTIF' ? row.kelas.mataKuliah.sks : 0), 0); return { ...plan, mahasiswa: owner, semester: term, programStudi: { id: owner.programStudiId, kode: 'IF', nama: 'IF' }, details: rows, totalSks, remainingSks: Math.max(0, plan.batasSks - totalSks) }; },
     list: async () => ({ data: [], meta: { page: 1, limit: 20, total: 0 } }), available: async () => ({ data: classes, meta: { page: 1, limit: 20, total: classes.length } }),
-    create: async (mahasiswaId, semesterId, batasSks) => { const row: typeof krs.$inferSelect = { ...common(), mahasiswaId, semesterId, batasSks, status: 'DRAFT', diajukanAt: null, disetujuiAt: null, disetujuiOleh: null }; plans.push(row); return row; },
+    create: async (mahasiswaId, semesterId, batasSks) => { const row: typeof krs.$inferSelect = { ...common(), mahasiswaId, semesterId, batasSks, status: 'DRAFT', diajukanAt: null, disetujuiAt: null, disetujuiOleh: null, ditolakAt: null, ditolakOleh: null, alasanPenolakan: null, dibukaKembaliAt: null, dibukaKembaliOleh: null, dibatalkanAt: null, dibatalkanOleh: null, alasanPembatalan: null }; plans.push(row); return row; },
     update: async (id, changes) => { const row = plans.find(row => row.id === id)!; Object.assign(row, changes, { updatedAt: new Date() }); return row; },
     add: async (krsId, kelasKuliahId) => { const row: typeof krsDetail.$inferSelect = { ...common(), krsId, kelasKuliahId, status: 'AKTIF' }; details.push(row); return row; },
     selection: async (id, status) => { const row = details.find(row => row.id === id)!; row.status = status; return row; },
@@ -50,7 +50,7 @@ function fixture() {
   const selected = async () => { const plan = await draft(); await service.add(user, plan.id, classes[0]!.id); return plan; };
   const submitted = async () => { const plan = await selected(); await service.submit(user, plan.id); return plan; };
   function addPreviousTerm(year: number, jenis: 'GANJIL' | 'GENAP', dates: [string, string], results: { sks: number; nilaiIndeks: string }[] = []) {
-    const previous: typeof semester.$inferSelect = { ...common(), kode: `${year}${jenis === 'GANJIL' ? '1' : '2'}`, nama: `${jenis} ${year}`, tahunMulai: year, jenis, tanggalMulai: dates[0], tanggalSelesai: dates[1], isActive: false };
+    const previous: typeof semester.$inferSelect = { ...common(), kode: `${year}${jenis === 'GANJIL' ? '1' : '2'}`, nama: `${jenis} ${year}`, tahunMulai: year, jenis, tanggalMulai: dates[0], tanggalSelesai: dates[1], krsMulaiAt: null, krsSelesaiAt: null, isActive: false };
     terms.push(previous); academicResults.set(`${owner.id}:${previous.id}`, results); return previous;
   }
   return { user, admin, owner, term, terms, plans, details, classes, members, finalized, academicResults, unfinishedResults, tx, repository, service, locks, draft, selected, submitted, addPreviousTerm, deactivate: () => { inactive = true; } };

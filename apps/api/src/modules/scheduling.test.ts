@@ -17,7 +17,7 @@ const stamps = () => ({ id: crypto.randomUUID(), createdAt: new Date(), updatedA
 const missing = crypto.randomUUID();
 const origin = 'http://localhost:5173';
 function setup(role: Role = 'AKADEMIK') {
-  const terms: Term[] = [{ ...stamps(), kode: '20261', nama: 'Term', tahunMulai: 2026, jenis: 'GANJIL', tanggalMulai: '2026-08-24', tanggalSelesai: '2027-01-15', isActive: true }];
+  const terms: Term[] = [{ ...stamps(), kode: '20261', nama: 'Term', tahunMulai: 2026, jenis: 'GANJIL', tanggalMulai: '2026-08-24', tanggalSelesai: '2027-01-15', krsMulaiAt: null, krsSelesaiAt: null, isActive: true }];
   const classes: Class[] = ['A', 'B'].map(namaKelas => ({ ...stamps(), namaKelas, kapasitas: 30, status: 'DRAFT', semesterId: terms[0]!.id, mataKuliahId: missing, programStudiId: missing }));
   const rooms: Room[] = ['R1', 'R2'].map(kode => ({ ...stamps(), kode, nama: kode, gedung: null, kapasitas: 40, isActive: true }));
   const slots: Slot[] = []; const assignments: { kelasKuliahId: string; dosenId: string }[] = [];

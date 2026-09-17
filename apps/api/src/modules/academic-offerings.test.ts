@@ -43,7 +43,14 @@ function setup(role: Role = 'AKADEMIK') {
         create: async input => {
           duplicate(terms.some(row => row.kode === input.kode), 'semester_kode_unique');
           duplicate(terms.some(row => row.tahunMulai === input.tahunMulai && row.jenis === input.jenis), 'semester_tahun_mulai_jenis_unique');
-          const row = { ...stamps(), ...input, isActive: input.isActive ?? false }; terms.push(row); return row;
+          const row = {
+            ...stamps(),
+            ...input,
+            krsMulaiAt: input.krsMulaiAt ?? null,
+            krsSelesaiAt: input.krsSelesaiAt ?? null,
+            isActive: input.isActive ?? false,
+          };
+          terms.push(row); return row;
         },
         update: async (id, input) => {
           const row = terms.find(row => row.id === id)!; const next = { ...row, ...input };

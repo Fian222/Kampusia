@@ -57,7 +57,7 @@ function setup(role: Role = 'AKADEMIK') {
       lockKurikulum: async id => id === curriculum.id ? curriculum : undefined,
       hasApprovedHistory: async id => approved.has(id),
       create: async input => {
-        const row: Student = { ...input, id: crypto.randomUUID(), userId: input.userId ?? null, status: input.status ?? 'AKTIF', ...dates() };
+        const row: Student = { ...input, id: crypto.randomUUID(), userId: input.userId ?? null, dosenPaId: null, status: input.status ?? 'AKTIF', ...dates() };
         duplicate(students, row, studentConstraints); students.push(row); return row;
       },
       update: async (id, input) => {

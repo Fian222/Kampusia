@@ -15,7 +15,7 @@ function fixture() {
   const foreignLecturer: AuthUser = { id: uuid(), email: 'other@test.local', role: 'DOSEN' };
   const studentUser: AuthUser = { id: uuid(), email: 'student@test.local', role: 'MAHASISWA' };
   const users = [admin, otherAdmin, lecturerUser, foreignLecturer, studentUser];
-  const term: typeof semester.$inferSelect = { ...common(), kode: '20261', nama: 'Ganjil 2026', tahunMulai: 2026, jenis: 'GANJIL', tanggalMulai: '2026-08-24', tanggalSelesai: '2027-01-15', isActive: true };
+  const term: typeof semester.$inferSelect = { ...common(), kode: '20261', nama: 'Ganjil 2026', tahunMulai: 2026, jenis: 'GANJIL', tanggalMulai: '2026-08-24', tanggalSelesai: '2027-01-15', krsMulaiAt: null, krsSelesaiAt: null, isActive: true };
   const kelas: typeof kelasKuliah.$inferSelect = { ...common(), semesterId: term.id, mataKuliahId: uuid(), programStudiId: uuid(), namaKelas: 'A', kapasitas: 30, status: 'DIBUKA' };
   const course = { id: kelas.mataKuliahId, kode: 'IF101', nama: 'Basis Data', sks: 3 };
   const program = { id: kelas.programStudiId, kode: 'IF', nama: 'Informatika' };

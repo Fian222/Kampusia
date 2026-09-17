@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, date, pgTable, smallint, unique, uniqueIndex, varchar } from 'drizzle-orm/pg-core';
+import { boolean, check, date, pgTable, smallint, timestamp, unique, uniqueIndex, varchar } from 'drizzle-orm/pg-core';
 import { canonicalCode, commonColumns, nonBlank } from './shared';
 
 export const semester = pgTable(
@@ -12,6 +12,8 @@ export const semester = pgTable(
     jenis: varchar('jenis', { length: 8, enum: ['GANJIL', 'GENAP'] }).notNull(),
     tanggalMulai: date('tanggal_mulai').notNull(),
     tanggalSelesai: date('tanggal_selesai').notNull(),
+    krsMulaiAt: timestamp('krs_mulai_at', { withTimezone: true }),
+    krsSelesaiAt: timestamp('krs_selesai_at', { withTimezone: true }),
     isActive: boolean('is_active').notNull().default(false),
   },
   (t) => [
@@ -23,6 +25,10 @@ export const semester = pgTable(
     check('semester_jenis_check', sql`${t.jenis} IN ('GANJIL', 'GENAP')`),
     check('semester_tahun_mulai_range_check', sql`${t.tahunMulai} BETWEEN 1900 AND 9998`),
     check('semester_tanggal_range_check', sql`${t.tanggalMulai} <= ${t.tanggalSelesai}`),
+    check('semester_krs_window_check', sql`(
+      (${t.krsMulaiAt} IS NULL AND ${t.krsSelesaiAt} IS NULL)
+      OR (${t.krsMulaiAt} IS NOT NULL AND ${t.krsSelesaiAt} IS NOT NULL AND ${t.krsMulaiAt} < ${t.krsSelesaiAt})
+    )`),
     check('semester_kode_matches_term_check', sql`${t.kode} = ${t.tahunMulai}::text || CASE ${t.jenis} WHEN 'GANJIL' THEN '1' ELSE '2' END`),
     uniqueIndex('semester_active_unique').on(t.isActive).where(sql`${t.isActive} = true`),
   ],

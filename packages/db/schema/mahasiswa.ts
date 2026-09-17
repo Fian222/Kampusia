@@ -4,6 +4,7 @@ import { canonicalCode, commonColumns, nonBlank, restrictReference } from './sha
 import { users } from './users';
 import { programStudi } from './program-studi';
 import { kurikulum } from './kurikulum';
+import { dosen } from './dosen';
 
 export const mahasiswa = pgTable(
   'mahasiswa',
@@ -12,6 +13,7 @@ export const mahasiswa = pgTable(
     userId: uuid('user_id').references(() => users.id, restrictReference),
     programStudiId: uuid('program_studi_id').notNull().references(() => programStudi.id, restrictReference),
     kurikulumId: uuid('kurikulum_id').notNull(),
+    dosenPaId: uuid('dosen_pa_id').references(() => dosen.id, restrictReference),
     nim: varchar('nim', { length: 30 }).notNull(),
     nama: varchar('nama', { length: 150 }).notNull(),
     angkatan: smallint('angkatan').notNull(),
@@ -22,6 +24,7 @@ export const mahasiswa = pgTable(
     unique('mahasiswa_user_id_unique').on(t.userId),
     index('mahasiswa_program_studi_id_angkatan_idx').on(t.programStudiId, t.angkatan),
     index('mahasiswa_kurikulum_id_idx').on(t.kurikulumId),
+    index('mahasiswa_dosen_pa_id_idx').on(t.dosenPaId),
     nonBlank('mahasiswa_nim_nonblank_check', t.nim),
     canonicalCode('mahasiswa_nim_canonical_check', t.nim),
     nonBlank('mahasiswa_nama_nonblank_check', t.nama),

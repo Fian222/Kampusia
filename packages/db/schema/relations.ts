@@ -23,7 +23,10 @@ import { hasilStudi } from './hasil-studi';
 export const usersRelations = relations(users, ({ one, many }) => ({
   mahasiswa: one(mahasiswa),
   dosen: one(dosen),
-  krsDisetujui: many(krs),
+  krsDisetujui: many(krs, { relationName: 'krs_disetujui_oleh' }),
+  krsDitolak: many(krs, { relationName: 'krs_ditolak_oleh' }),
+  krsDibukaKembali: many(krs, { relationName: 'krs_dibuka_kembali_oleh' }),
+  krsDibatalkan: many(krs, { relationName: 'krs_dibatalkan_oleh' }),
   absensiDicatat: many(absensi, { relationName: 'absensi_dicatat_oleh' }),
   absensiDiubah: many(absensi, { relationName: 'absensi_diubah_oleh' }),
   nilaiMahasiswaDicatat: many(nilaiMahasiswa, { relationName: 'nilai_mahasiswa_dicatat_oleh' }),
@@ -60,6 +63,11 @@ export const mahasiswaRelations = relations(mahasiswa, ({ one, many }) => ({
     fields: [mahasiswa.kurikulumId, mahasiswa.programStudiId],
     references: [kurikulum.id, kurikulum.programStudiId],
   }),
+  dosenPa: one(dosen, {
+    fields: [mahasiswa.dosenPaId],
+    references: [dosen.id],
+    relationName: 'mahasiswa_dosen_pa',
+  }),
   krs: many(krs),
   absensi: many(absensi),
   nilaiMahasiswa: many(nilaiMahasiswa),
@@ -76,6 +84,7 @@ export const dosenRelations = relations(dosen, ({ one, many }) => ({
     references: [programStudi.id],
   }),
   kelasDosen: many(kelasDosen),
+  mahasiswaBimbingan: many(mahasiswa, { relationName: 'mahasiswa_dosen_pa' }),
 }));
 
 export const semesterRelations = relations(semester, ({ many }) => ({
@@ -196,6 +205,22 @@ export const krsRelations = relations(krs, ({ one, many }) => ({
   disetujuiOleh: one(users, {
     fields: [krs.disetujuiOleh],
     references: [users.id],
+    relationName: 'krs_disetujui_oleh',
+  }),
+  ditolakOleh: one(users, {
+    fields: [krs.ditolakOleh],
+    references: [users.id],
+    relationName: 'krs_ditolak_oleh',
+  }),
+  dibukaKembaliOleh: one(users, {
+    fields: [krs.dibukaKembaliOleh],
+    references: [users.id],
+    relationName: 'krs_dibuka_kembali_oleh',
+  }),
+  dibatalkanOleh: one(users, {
+    fields: [krs.dibatalkanOleh],
+    references: [users.id],
+    relationName: 'krs_dibatalkan_oleh',
   }),
   krsDetail: many(krsDetail),
 }));

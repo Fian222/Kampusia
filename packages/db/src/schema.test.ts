@@ -64,7 +64,7 @@ describe('DATABASE.md schema contract', () => {
 
   test('all foreign keys restrict deletion and updates', () => {
     const keys = tables.flatMap((table) => getTableConfig(table).foreignKeys);
-    expect(keys).toHaveLength(35);
+    expect(keys).toHaveLength(39);
     for (const key of keys) {
       expect(key.onDelete).toBe('restrict');
       expect(key.onUpdate).toBe('restrict');
@@ -80,6 +80,38 @@ describe('DATABASE.md schema contract', () => {
     expect(reference.columns.map((column) => column.name)).toEqual(['kurikulum_id', 'program_studi_id']);
     expect(reference.columns.every((column) => column.notNull)).toBe(true);
     expect(reference.foreignColumns.map((column) => column.name)).toEqual(['id', 'program_studi_id']);
+  });
+
+  test('KRS window, adviser, and transition metadata constraints match the documented contract', () => {
+    expect(getTableConfig(schema.semester).checks.map((entry) => entry.name))
+      .toContain('semester_krs_window_check');
+
+    const student = getTableConfig(schema.mahasiswa);
+    const adviserKey = student.foreignKeys.find((entry) =>
+      entry.reference().columns[0]?.name === 'dosen_pa_id');
+    expect(adviserKey?.reference().foreignTable).toBe(schema.dosen);
+    expect(adviserKey?.onDelete).toBe('restrict');
+    expect(adviserKey?.onUpdate).toBe('restrict');
+    expect(student.indexes.map((entry) => entry.config.name)).toContain('mahasiswa_dosen_pa_id_idx');
+
+    const plan = getTableConfig(schema.krs);
+    expect(plan.checks.map((entry) => entry.name).sort()).toEqual([
+      'krs_approval_pair_check',
+      'krs_batas_sks_positive_check',
+      'krs_cancellation_fields_check',
+      'krs_event_timestamps_check',
+      'krs_rejection_fields_check',
+      'krs_reopening_pair_check',
+      'krs_status_check',
+      'krs_status_timestamps_check',
+    ]);
+    expect(plan.foreignKeys.filter((entry) => entry.reference().foreignTable === schema.users)
+      .map((entry) => entry.reference().columns[0]?.name).sort()).toEqual([
+      'dibatalkan_oleh',
+      'dibuka_kembali_oleh',
+      'disetujui_oleh',
+      'ditolak_oleh',
+    ]);
   });
 
   test('active semester and class coordinator uniqueness have the required predicates', () => {
@@ -162,9 +194,13 @@ describe('DATABASE.md schema contract', () => {
           users: true,
           programStudi: { with: { fakultas: true } },
           kurikulum: { with: { kurikulumMatkul: { with: { mataKuliah: true } } } },
+          dosenPa: true,
           krs: { with: {
             semester: true,
             disetujuiOleh: true,
+            ditolakOleh: true,
+            dibukaKembaliOleh: true,
+            dibatalkanOleh: true,
             krsDetail: { with: { kelasKuliah: { with: {
               kelasDosen: { with: { dosen: true } },
               jadwalKuliah: { with: { ruangan: true } },
@@ -186,6 +222,9 @@ describe('DATABASE.md schema contract', () => {
           mahasiswa: true,
           dosen: true,
           krsDisetujui: true,
+          krsDitolak: true,
+          krsDibukaKembali: true,
+          krsDibatalkan: true,
           absensiDicatat: true,
           absensiDiubah: true,
           nilaiMahasiswaDicatat: true,
@@ -195,6 +234,7 @@ describe('DATABASE.md schema contract', () => {
         },
       }).toSQL()).not.toThrow();
       expect(() => db.query.kurikulum.findMany({ with: { mahasiswa: true } }).toSQL()).not.toThrow();
+      expect(() => db.query.dosen.findMany({ with: { mahasiswaBimbingan: true } }).toSQL()).not.toThrow();
     } finally {
       await client.end();
     }
