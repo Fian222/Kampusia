@@ -2,6 +2,10 @@ import { MasterDataError, normalizeText, requirePatch } from '../../utils/master
 import { academicWrite } from '../../utils/academic-write';
 import type { SemesterInput } from './semester.model';
 import type { SemesterRepository } from './semester.repository';
+import { jakartaDateTimeToInstant } from './semester-time';
+function krsInstant(value: string | null | undefined) {
+  return value == null || value.trim() === '' ? null : jakartaDateTimeToInstant(value.trim());
+}
 function normalize(input: Partial<SemesterInput>) {
   return {
     ...(input.kode !== undefined ? { kode: normalizeText(input.kode, 'Kode', 5, true) } : {}),
@@ -10,6 +14,8 @@ function normalize(input: Partial<SemesterInput>) {
     ...(input.jenis !== undefined ? { jenis: input.jenis } : {}),
     ...(input.tanggal_mulai !== undefined ? { tanggalMulai: input.tanggal_mulai } : {}),
     ...(input.tanggal_selesai !== undefined ? { tanggalSelesai: input.tanggal_selesai } : {}),
+    ...(input.krs_mulai_at !== undefined ? { krsMulaiAt: krsInstant(input.krs_mulai_at) } : {}),
+    ...(input.krs_selesai_at !== undefined ? { krsSelesaiAt: krsInstant(input.krs_selesai_at) } : {}),
     ...(input.is_active !== undefined ? { isActive: input.is_active } : {}),
   };
 }
@@ -20,13 +26,15 @@ function validate(row: NonNullable<Awaited<ReturnType<SemesterRepository['findBy
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)) || new Date(date).toISOString().slice(0, 10) !== date) throw new MasterDataError(400, 'Tanggal semester tidak valid.');
   }
   if (row.tanggalMulai! > row.tanggalSelesai!) throw new MasterDataError(400, 'Tanggal mulai tidak boleh setelah tanggal selesai.');
+  if ((row.krsMulaiAt == null) !== (row.krsSelesaiAt == null)) throw new MasterDataError(400, 'Awal dan akhir periode KRS harus diisi bersama atau dikosongkan bersama.');
+  if (row.krsMulaiAt && row.krsSelesaiAt && row.krsMulaiAt >= row.krsSelesaiAt) throw new MasterDataError(400, 'Awal periode KRS harus sebelum akhirnya.');
 }
 export function createSemesterService(repository: SemesterRepository) {
   return {
     list: repository.list,
     async get(id: string) { const row = await repository.findById(id); if (!row) throw new MasterDataError(404, 'Semester tidak ditemukan.'); return row; },
     create(input: SemesterInput) {
-      const row = { kode: normalizeText(input.kode, 'Kode', 5, true), nama: normalizeText(input.nama, 'Nama', 100), tahunMulai: input.tahun_mulai, jenis: input.jenis, tanggalMulai: input.tanggal_mulai, tanggalSelesai: input.tanggal_selesai, isActive: input.is_active ?? false };
+      const row = { kode: normalizeText(input.kode, 'Kode', 5, true), nama: normalizeText(input.nama, 'Nama', 100), tahunMulai: input.tahun_mulai, jenis: input.jenis, tanggalMulai: input.tanggal_mulai, tanggalSelesai: input.tanggal_selesai, krsMulaiAt: krsInstant(input.krs_mulai_at), krsSelesaiAt: krsInstant(input.krs_selesai_at), isActive: input.is_active ?? false };
       validate(row);
       return academicWrite(() => repository.transaction(async tx => {
         await tx.lockActivation();

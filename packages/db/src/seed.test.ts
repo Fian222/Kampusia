@@ -49,8 +49,10 @@ test('demo DOSEN and MAHASISWA users have exactly one coherent fixture profile l
   expect(student).toHaveLength(1);
   expect(student[0]).toMatchObject({
     nim: 'DEV20260001', nama: 'Andi Saputra (Demo)', status: 'AKTIF',
-    userId: data.users.find(user => user.role === 'MAHASISWA')!.id,
+    userId: data.users.find(user => user.role === 'MAHASISWA')!.id, dosenPaId: lecturer[0]!.id,
   });
+  expect(data.semester[0]!.krsMulaiAt!.getTime()).toBeLessThan(Date.now());
+  expect(data.semester[0]!.krsSelesaiAt!.getTime()).toBeGreaterThan(Date.now());
   expect(data.krs.some(row => row.mahasiswaId === student[0]!.id && row.status === 'DISETUJUI')).toBe(true);
   expect(data.dosen.some(row => row.userId === student[0]!.userId)).toBe(false);
   expect(data.mahasiswa.some(row => row.userId === lecturer[0]!.userId)).toBe(false);
@@ -140,6 +142,7 @@ test.skipIf(process.env.RUN_DB_SEED_TESTS !== '1')('live seed is repeatable and 
     const student = data.mahasiswa.find(row => row.userId !== null)!;
     const studentProfile = await db.query.mahasiswa.findFirst({ where: (row, { eq }) => eq(row.id, student.id) });
     expect(studentProfile!.userId).toBe(data.users.find(row => row.role === 'MAHASISWA')!.id);
+    expect(studentProfile!.dosenPaId).toBe(lecturer.id);
     const invalid = await db.execute(sql`
       select m.id from mahasiswa m left join kurikulum k
         on k.id = m.kurikulum_id and k.program_studi_id = m.program_studi_id

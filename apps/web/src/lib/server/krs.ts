@@ -5,6 +5,17 @@ function studentAccess(event: RequestEvent) {
   if (!event.locals.user) redirect(303, '/login');
   if (event.locals.user.role !== 'MAHASISWA') error(403, 'Akses khusus mahasiswa.');
 }
+function lecturerAccess(event: RequestEvent) {
+  if (!event.locals.user) redirect(303, '/login');
+  if (event.locals.user.role !== 'DOSEN') error(403, 'Akses khusus dosen.');
+}
+export function krsPeriodState(term: { isActive: boolean; krsMulaiAt: Date | string | null; krsSelesaiAt: Date | string | null }, now = new Date()) {
+  if (!term.krsMulaiAt || !term.krsSelesaiAt) return { code: 'UNSCHEDULED' as const, label: 'Belum dijadwalkan', open: false };
+  const start = new Date(term.krsMulaiAt); const end = new Date(term.krsSelesaiAt);
+  if (now < start) return { code: 'UPCOMING' as const, label: 'Belum dibuka', open: false };
+  if (now >= end) return { code: 'CLOSED' as const, label: 'Sudah ditutup', open: false };
+  return { code: 'OPEN' as const, label: 'Sedang dibuka', open: term.isActive };
+}
 function resultError(status: number, value: unknown): never {
   if (status === 401) redirect(303, '/login');
   error(status >= 400 && status < 500 ? status : 503, apiMessage(value));
@@ -18,10 +29,11 @@ export async function loadStudentKrs(event: RequestEvent) {
   if (term && (term.error || !term.data?.success)) resultError(term.status, term.error?.value);
   const selected = term?.data?.success ? term.data.data : null;
   const query = { page: integer(params.get('page'), 1, 1000000), limit: 20, search: params.get('search') ?? '' };
+  const period = selected ? krsPeriodState(selected.semester) : null;
   const canBrowse = semesterId && selected?.semester.isActive && (!selected.krs || selected.krs.status === 'DRAFT');
   const available = canBrowse
     ? await client({ id: semesterId }).kelas.get({ query }).catch(() => null) : null;
-  return { history: history.data, selected, available: available?.data?.success ? available.data : null, availabilityMessage: canBrowse && (!available || available.error) ? apiMessage(available?.error?.value) : null, query };
+  return { history: history.data, selected, period, available: available?.data?.success ? available.data : null, availabilityMessage: canBrowse && (!available || available.error) ? apiMessage(available?.error?.value) : null, query };
 }
 export async function loadKrsList(event: RequestEvent) {
   requireMasterAccess(event); const client = serverApi(event); const p = event.url.searchParams;
@@ -47,11 +59,26 @@ export async function loadKrsDetail(event: RequestEvent) {
   return { krs: result.data.data };
 }
 export type KrsDetailData = Awaited<ReturnType<typeof loadKrsDetail>>['krs'];
+export async function loadAdviserKrsList(event: RequestEvent) {
+  lecturerAccess(event); const p = event.url.searchParams; const status = p.get('status') || undefined;
+  const statuses = ['DRAFT', 'DIAJUKAN', 'DISETUJUI', 'DITOLAK', 'DIBATALKAN'] as const;
+  const selectedStatus = statuses.find(item => item === status);
+  if (status && !selectedStatus) error(400, 'Status KRS tidak valid.');
+  const query = { page: integer(p.get('page'), 1, 1000000), limit: 20, search: p.get('search') ?? '', status: selectedStatus };
+  const result = await serverApi(event).dosen.me.krs.get({ query }).catch(() => error(503, apiMessage(null)));
+  if (result.error || !result.data?.success) resultError(result.status, result.error?.value);
+  return { records: result.data, query, statuses };
+}
+export async function loadAdviserKrsDetail(event: RequestEvent) {
+  lecturerAccess(event); const result = await serverApi(event).dosen.me.krs({ id: event.params.id! }).get().catch(() => error(503, apiMessage(null)));
+  if (result.error || !result.data?.success) resultError(result.status, result.error?.value);
+  return { krs: result.data.data };
+}
 export async function saveKrs(event: RequestEvent, admin = false) {
   if (admin) requireMasterAccess(event); else studentAccess(event);
   const form = await event.request.formData();
   const mode = String(form.get('mode') ?? ''); const id = admin ? event.params.id! : String(form.get('id') ?? '');
-  if (['submit', 'approve', 'reject', 'cancel', 'reopen'].includes(mode) && form.get('confirmed') !== 'yes') return fail(400, { message: 'Konfirmasikan perubahan status terlebih dahulu.' });
+  if (['submit', 'approve', 'reject', 'cancel', 'reopen', 'clear'].includes(mode) && form.get('confirmed') !== 'yes') return fail(400, { message: 'Konfirmasikan perubahan status terlebih dahulu.' });
   const client = serverApi(event); let result;
   if (!admin && mode === 'create') {
     let creation;
@@ -68,14 +95,15 @@ export async function saveKrs(event: RequestEvent, admin = false) {
     if (admin) {
       const api = client.krs({ id });
       if (mode === 'approve') result = await api.approve.post({});
-      else if (mode === 'reject') result = await api.reject.post({});
-      else if (mode === 'cancel') result = await api.cancel.post({});
+      else if (mode === 'reject') result = await api.reject.post({ alasan: String(form.get('alasan') ?? '') });
+      else if (mode === 'cancel') result = await api.cancel.post({ alasan: String(form.get('alasan') ?? '') });
       else if (mode === 'reopen') result = await api.reopen.post({});
       else return fail(400, { message: 'Tindakan tidak valid.' });
     } else {
       const api = client.mahasiswa.me.krs({ id });
       if (mode === 'add') result = await api.kelas.post({ kelas_kuliah_id: String(form.get('kelas_id') ?? '') });
       else if (mode === 'remove') result = await api.kelas({ detailId: String(form.get('detail_id') ?? '') }).delete();
+      else if (mode === 'clear') result = await api.clear.post({});
       else if (mode === 'submit') result = await api.submit.post({});
       else if (mode === 'reopen') result = await api.reopen.post({});
       else return fail(400, { message: 'Tindakan tidak valid.' });
@@ -84,4 +112,17 @@ export async function saveKrs(event: RequestEvent, admin = false) {
   if (result.status === 401) redirect(303, '/login');
   if (result.error || !result.data?.success) return fail(result.status >= 400 && result.status < 500 ? result.status : 503, { message: apiMessage(result.error?.value) });
   return { saved: true, message: 'KRS berhasil diperbarui.' };
+}
+export async function saveAdviserKrs(event: RequestEvent) {
+  lecturerAccess(event); const form = await event.request.formData(); const mode = String(form.get('mode') ?? '');
+  if (!['approve', 'reject', 'reopen'].includes(mode) || form.get('confirmed') !== 'yes') return fail(400, { message: 'Konfirmasikan tindakan peninjauan KRS.' });
+  const endpoint = serverApi(event).dosen.me.krs({ id: event.params.id! }); let result;
+  try {
+    if (mode === 'approve') result = await endpoint.approve.post({});
+    else if (mode === 'reject') result = await endpoint.reject.post({ alasan: String(form.get('alasan') ?? '') });
+    else result = await endpoint.reopen.post({});
+  } catch { return fail(503, { message: apiMessage(null) }); }
+  if (result.status === 401) redirect(303, '/login');
+  if (result.error || !result.data?.success) return fail(result.status >= 400 && result.status < 500 ? result.status : 503, { message: apiMessage(result.error?.value) });
+  return { saved: true as const, message: 'Peninjauan KRS berhasil disimpan.' };
 }

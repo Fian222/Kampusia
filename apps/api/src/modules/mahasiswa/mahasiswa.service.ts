@@ -14,6 +14,7 @@ export function createMahasiswaService(repository: MahasiswaRepository) {
       ...(input.user_id !== undefined ? { userId: input.user_id } : {}),
       ...(input.program_studi_id !== undefined ? { programStudiId: input.program_studi_id } : {}),
       ...(input.kurikulum_id !== undefined ? { kurikulumId: input.kurikulum_id } : {}),
+      ...(input.dosen_pa_id !== undefined ? { dosenPaId: input.dosen_pa_id } : {}),
       ...(input.angkatan !== undefined ? { angkatan: input.angkatan } : {}),
       ...(input.status !== undefined ? { status: input.status } : {}),
     };
@@ -24,6 +25,12 @@ export function createMahasiswaService(repository: MahasiswaRepository) {
     if (!curriculum) throw new MasterDataError(400, 'Kurikulum tidak ditemukan.');
     if (curriculum.programStudiId !== programId) throw new MasterDataError(400, 'Kurikulum harus berasal dari program studi mahasiswa.');
     if (!curriculum.isActive) throw new MasterDataError(400, 'Penugasan baru harus menggunakan kurikulum aktif.');
+  }
+  async function validateAdviser(tx: Tx, adviserId: string | null | undefined) {
+    if (!adviserId) return;
+    const adviser = await tx.lockDosen(adviserId);
+    if (!adviser) throw new MasterDataError(400, 'Dosen PA tidak ditemukan.');
+    if (!adviser.isActive) throw new MasterDataError(400, 'Dosen PA harus berstatus aktif.');
   }
   return {
     list: repository.list,
@@ -38,8 +45,9 @@ export function createMahasiswaService(repository: MahasiswaRepository) {
       return withProfileConstraints(() => repository.transaction(async tx => {
         await validateProgram(tx, input.program_studi_id);
         await validateCurriculum(tx, input.kurikulum_id, input.program_studi_id);
+        await validateAdviser(tx, input.dosen_pa_id);
         await validateUserLink(tx, input.user_id, 'mahasiswa');
-        return tx.create({ nim: normalizeText(input.nim, 'NIM', 30, true), nama: normalizeText(input.nama, 'Nama', 150), programStudiId: input.program_studi_id, kurikulumId: input.kurikulum_id, angkatan: input.angkatan, status: input.status ?? 'AKTIF', userId: input.user_id ?? null });
+        return tx.create({ nim: normalizeText(input.nim, 'NIM', 30, true), nama: normalizeText(input.nama, 'Nama', 150), programStudiId: input.program_studi_id, kurikulumId: input.kurikulum_id, dosenPaId: input.dosen_pa_id ?? null, angkatan: input.angkatan, status: input.status ?? 'AKTIF', userId: input.user_id ?? null });
       }));
     },
     update(id: string, input: Partial<MahasiswaInput>) {
@@ -55,6 +63,7 @@ export function createMahasiswaService(repository: MahasiswaRepository) {
           await validateProgram(tx, programId);
           await validateCurriculum(tx, curriculumId, programId);
         }
+        if (changes.dosenPaId !== undefined && changes.dosenPaId !== existing.dosenPaId) await validateAdviser(tx, changes.dosenPaId);
         await validateUserLink(tx, changes.userId === undefined ? existing.userId : changes.userId, 'mahasiswa', id);
         return tx.update(id, { ...changes, updatedAt: new Date() });
       }));

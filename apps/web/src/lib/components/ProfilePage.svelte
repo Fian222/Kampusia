@@ -83,12 +83,12 @@
   <ListPending />
   <div class="overflow-x-auto transition-opacity" class:opacity-80={listPending}><table class="w-full whitespace-nowrap text-left text-sm">
     <thead class="border-b border-slate-200 text-slate-500"><tr>
-      {#each data.kind === 'mahasiswa' ? ['NIM', 'Nama', 'Program Studi', 'Kurikulum', 'Angkatan', 'Status', 'Tindakan'] : ['Kode Dosen', 'NIDN', 'Nama', 'Homebase Program Studi', 'Status', 'Tindakan'] as column}<th class="px-3 py-3 font-medium">{column}</th>{/each}
+      {#each data.kind === 'mahasiswa' ? ['NIM', 'Nama', 'Program Studi', 'Kurikulum', 'Dosen PA', 'Angkatan', 'Status', 'Tindakan'] : ['Kode Dosen', 'NIDN', 'Nama', 'Homebase Program Studi', 'Status', 'Tindakan'] as column}<th class="px-3 py-3 font-medium">{column}</th>{/each}
     </tr></thead>
     <tbody class="divide-y divide-slate-100">
       {#if data.kind === 'mahasiswa'}
         {#each data.records as row}<tr>
-          <td class="px-3 py-4 font-medium">{row.nim}</td><td class="px-3 py-4">{row.nama}</td><td class="px-3 py-4">{row.programStudi.nama}<span class="block text-xs text-slate-500">{row.fakultas.nama}</span></td><td class="px-3 py-4">{row.kurikulum.nama}</td><td class="px-3 py-4">{row.angkatan}</td><td class="px-3 py-4"><span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium">{row.status}</span></td><td class="px-3 py-4"><a class="mr-4 font-semibold text-brand-700" href={`/akademik/mahasiswa/${row.id}/hasil-studi`}>Hasil studi</a><a class="font-semibold text-brand-700" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a></td>
+          <td class="px-3 py-4 font-medium">{row.nim}</td><td class="px-3 py-4">{row.nama}</td><td class="px-3 py-4">{row.programStudi.nama}<span class="block text-xs text-slate-500">{row.fakultas.nama}</span></td><td class="px-3 py-4">{row.kurikulum.nama}</td><td class="px-3 py-4">{row.dosenPa?.nama ?? 'Belum ditetapkan'}</td><td class="px-3 py-4">{row.angkatan}</td><td class="px-3 py-4"><span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium">{row.status}</span></td><td class="px-3 py-4"><a class="mr-4 font-semibold text-brand-700" href={`/akademik/mahasiswa/${row.id}/hasil-studi`}>Hasil studi</a><a class="font-semibold text-brand-700" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a></td>
         </tr>{/each}
       {:else}
         {#each data.records as row}<tr>
@@ -120,6 +120,9 @@
       <Pagination {...data.curricula.meta} href={number => href({ curriculum_page: number })} />
     </section>
   {/if}
+  {#if data.kind === 'mahasiswa' && data.advisers}
+    <section class="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4" aria-label="Cari Dosen PA"><h2 class="text-sm font-bold">Cari Dosen PA aktif</h2><form method="GET" class="mt-3 flex items-end gap-3" use:seamlessFilter={{ pageKey: 'adviser_page' }}>{#each [...page.url.searchParams].filter(([key]) => !['adviser_search', 'adviser_page'].includes(key)) as [key, entry]}<input type="hidden" name={key} value={entry} />{/each}<label class="flex-1 text-sm">Kode, NIDN, atau nama<input class={inputClass} name="adviser_search" value={data.adviserQuery.search} /></label><noscript><button class={buttonClass}>Cari</button></noscript></form><Pagination {...data.advisers.meta} href={number => href({ adviser_page: number })} /></section>
+  {/if}
   {#key data.edit?.id + JSON.stringify(form)}
     <form method="POST" class="mt-4 grid gap-4 sm:grid-cols-2" use:enhance={() => {
       saving = true;
@@ -144,6 +147,7 @@
         </select></label>
         <label class="text-sm font-medium">Angkatan<input class={inputClass} name="angkatan" type="number" min="1900" max="9999" step="1" required value={value('angkatan', student ? String(student.angkatan) : '')} /></label>
         <label class="text-sm font-medium">Status<select class={inputClass} name="status" required value={value('status', student?.status ?? 'AKTIF')}>{#each data.statuses as item}<option value={item}>{item}</option>{/each}</select></label>
+        <label class="text-sm font-medium">Dosen PA (opsional)<select class={inputClass} name="dosen_pa_id" value={value('dosen_pa_id', student?.dosenPaId ?? '')}><option value="">Belum ditetapkan</option>{#if student?.dosenPa && !data.advisers?.data.some(item => item.id === student.dosenPaId)}<option value={student.dosenPa.id}>{student.dosenPa.kodeDosen} — {student.dosenPa.nama}</option>{/if}{#each data.advisers?.data ?? [] as item}<option value={item.id}>{item.kodeDosen} — {item.nama}</option>{/each}</select><span class="text-xs font-normal text-slate-500">Wajib sebelum mahasiswa mengajukan KRS.</span></label>
         <p class="text-sm text-slate-500 sm:col-span-2">Status akademik tidak menonaktifkan login. Perubahan program studi atau kurikulum memerlukan peninjauan akademik dan ditolak bila ada riwayat KRS disetujui.</p>
       {:else}<p class="text-sm text-slate-500">Homebase tidak membatasi program studi tempat dosen mengajar. Ubah status melalui tindakan pada tabel.</p>{/if}
       <label class="text-sm font-medium sm:col-span-2">ID akun pengguna (opsional)<input class={inputClass} name="user_id" value={value('user_id', data.edit?.userId ?? '')} placeholder="UUID akun pengguna" /><span class="text-xs font-normal text-slate-500">Gunakan akun berperan {data.kind === 'mahasiswa' ? 'MAHASISWA' : 'DOSEN'}. Kosongkan untuk profil tanpa akun login.</span></label>

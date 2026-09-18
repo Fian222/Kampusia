@@ -38,7 +38,7 @@ test.skipIf(!enabled)('PostgreSQL KRS lifecycle, scoped queries, uniqueness, eff
       const schedules = createJadwalService(createJadwalRepository(tx));
       await expect(schedules.update(b.id, f.slots[1]!.id, { hari: 1 })).rejects.toThrow('bentrok');
       await service.reopen(f.admin, plan.id, true); expect((await classService.findById(a.id))!.jumlahMahasiswa).toBe(0);
-      expect((await service.get(f.admin, plan.id)).disetujuiAt).toBeNull();
+      expect((await service.get(f.admin, plan.id)).disetujuiAt).not.toBeNull();
       await service.submit(f.user, plan.id); const pendingAt = (await service.get(f.admin, plan.id)).diajukanAt;
       await service.reject(f.admin, plan.id); expect((await service.get(f.admin, plan.id)).diajukanAt).toEqual(pendingAt);
       await service.reopen(f.user, plan.id); await service.submit(f.user, plan.id); await service.approve(f.admin, plan.id);
@@ -63,7 +63,7 @@ test.skipIf(!enabled)('PostgreSQL KRS creation derives a complete previous IPS s
       await tx.update(semester).set({ isActive: false }).where(eq(semester.isActive, true));
       const [previous, target] = await tx.insert(semester).values([
         { kode: `${year}1`, nama: `Ganjil ${year}`, tahunMulai: year, jenis: 'GANJIL', tanggalMulai: `${year}-01-01`, tanggalSelesai: `${year}-06-30` },
-        { kode: `${year}2`, nama: `Genap ${year}`, tahunMulai: year, jenis: 'GENAP', tanggalMulai: `${year}-08-01`, tanggalSelesai: `${year}-12-31`, isActive: true },
+        { kode: `${year}2`, nama: `Genap ${year}`, tahunMulai: year, jenis: 'GENAP', tanggalMulai: `${year}-08-01`, tanggalSelesai: `${year}-12-31`, krsMulaiAt: new Date(Date.now() - 60_000), krsSelesaiAt: new Date(Date.now() + 60 * 60_000), isActive: true },
       ]).returning();
       const f = await fixture(tx); expect(f.term.id).toBe(target!.id);
       const previousClasses = await tx.insert(kelasKuliah).values(f.courses.slice(0, 2).map(course => ({

@@ -15,6 +15,12 @@ function enumFilter<T extends string>(value: string | null, values: readonly T[]
   return found;
 }
 export const statuses = ['DRAFT', 'DIBUKA', 'DITUTUP', 'DIBATALKAN'] as const;
+export function jakartaDateTimeLocal(value: Date | string | null | undefined) {
+  if (!value) return '';
+  const instant = new Date(value); const local = new Date(instant.getTime() + 7 * 60 * 60 * 1000);
+  const pad = (number: number) => String(number).padStart(2, '0');
+  return `${local.getUTCFullYear()}-${pad(local.getUTCMonth() + 1)}-${pad(local.getUTCDate())}T${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}`;
+}
 export function query(event: RequestEvent, prefix = '') {
   return { page: integer(event.url.searchParams.get(prefix + 'page'), 1, 1000000), limit: 20, search: event.url.searchParams.get(prefix + 'search') ?? '' };
 }
@@ -76,7 +82,7 @@ export async function saveOffering(event: RequestEvent, kind: 'semester' | 'kela
       } else if (values.mode === 'save') {
         const jenis = ['GANJIL', 'GENAP'].find((item): item is 'GANJIL' | 'GENAP' => item === values.jenis);
         if (!jenis) return invalid('Pilih jenis semester.');
-        const body = { kode: values.kode!, nama: values.nama!, tahun_mulai: Number(values.tahun_mulai), jenis, tanggal_mulai: values.tanggal_mulai!, tanggal_selesai: values.tanggal_selesai! };
+        const body = { kode: values.kode!, nama: values.nama!, tahun_mulai: Number(values.tahun_mulai), jenis, tanggal_mulai: values.tanggal_mulai!, tanggal_selesai: values.tanggal_selesai!, krs_mulai_at: values.krs_mulai_at?.trim() || null, krs_selesai_at: values.krs_selesai_at?.trim() || null };
         result = values.id ? await client.semester({ id: values.id }).patch(body) : await client.semester.post(body);
       } else return invalid('Tindakan tidak valid.');
     } else if (kind === 'kelas') {

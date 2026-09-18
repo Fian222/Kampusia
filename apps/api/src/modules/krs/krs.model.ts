@@ -9,4 +9,5 @@ export const krsQuery = t.Object({ ...listQuery.properties,
 export type KrsQuery = typeof krsQuery.static;
 export const selectionBody = t.Object({ kelas_kuliah_id: t.String({ format: 'uuid' }) }, { additionalProperties: false });
 export const emptyBody = t.Object({}, { additionalProperties: false });
+export const reasonBody = t.Object({ alasan: t.String({ minLength: 1, maxLength: 2000 }) }, { additionalProperties: false });
 export const detailParams = t.Object({ id: t.String({ format: 'uuid' }), detailId: t.String({ format: 'uuid' }) });

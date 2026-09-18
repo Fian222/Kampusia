@@ -136,7 +136,7 @@ export async function seedDevelopment(url: string, password: string, environment
   requireDevelopmentTarget(url, environment);
   if (password.length < 12) throw new Error('SEED_PASSWORD must have at least 12 characters.');
   const passwordHash = await Bun.password.hash(password, { algorithm: 'argon2id' });
-  const data = developmentData(passwordHash);
+  const data = developmentData(passwordHash, new Date());
   const { db, client } = createDatabase(url);
   try {
     for (let attempt = 0; ; attempt++) {
@@ -181,6 +181,14 @@ export async function seedDevelopment(url: string, password: string, environment
             .where(and(eq(schema.semester.isActive, true), ne(schema.semester.id, data.semester[0]!.id)));
           await tx.update(schema.semester).set({ isActive: true, updatedAt: now })
             .where(and(eq(schema.semester.id, data.semester[0]!.id), eq(schema.semester.isActive, false)));
+          // Keep the development fixture immediately usable without a permanently stale
+          // calendar window. Reruns roll the window relative to the current Jakarta date.
+          await tx.update(schema.semester).set({
+            krsMulaiAt: data.semester[0]!.krsMulaiAt, krsSelesaiAt: data.semester[0]!.krsSelesaiAt, updatedAt: now,
+          }).where(and(eq(schema.semester.id, data.semester[0]!.id), sql`(
+            ${schema.semester.krsMulaiAt} IS DISTINCT FROM ${data.semester[0]!.krsMulaiAt!.toISOString()}::timestamptz
+            OR ${schema.semester.krsSelesaiAt} IS DISTINCT FROM ${data.semester[0]!.krsSelesaiAt!.toISOString()}::timestamptz
+          )`));
           if (!existing.length) {
             await tx.insert(schema.krs).values(data.krs.map(row => ({
               ...row, status: 'DRAFT' as const, diajukanAt: null, disetujuiAt: null, disetujuiOleh: null,
@@ -200,8 +208,8 @@ export async function seedDevelopment(url: string, password: string, environment
           await tx.update(schema.dosen).set({ userId: linkedDosen.userId })
             .where(and(eq(schema.dosen.id, linkedDosen.id), isNull(schema.dosen.userId)));
           const linkedMahasiswa = data.mahasiswa.find(row => row.userId !== null)!;
-          await tx.update(schema.mahasiswa).set({ userId: linkedMahasiswa.userId })
-            .where(and(eq(schema.mahasiswa.id, linkedMahasiswa.id), isNull(schema.mahasiswa.userId)));
+          await tx.update(schema.mahasiswa).set({ userId: linkedMahasiswa.userId, dosenPaId: linkedMahasiswa.dosenPaId })
+            .where(eq(schema.mahasiswa.id, linkedMahasiswa.id));
           // Validation runs before COMMIT; any mismatch or collision rolls back the entire seed.
           return await verifyFixtures(tx, data);
         }, { isolationLevel: 'serializable' });

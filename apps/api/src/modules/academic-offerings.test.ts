@@ -107,6 +107,16 @@ test('Semester API create, detail, update, list, filtering and pagination', asyn
   const filtered = await read<Term[]>(await ctx.request('/semester?jenis=GANJIL&tahun_mulai=2026&is_active=false&search=koreksi'));
   expect(filtered.data[0]?.id).toBe(row.id); expect(filtered.meta.total).toBe(1);
 });
+test('Semester KRS window uses Jakarta local time, validates pairs/order, and remains editable with history', async () => {
+  const ctx = setup(); const body = { ...termBody(), krs_mulai_at: '2026-01-02T08:30', krs_selesai_at: '2026-01-10T16:00' };
+  const created = await ctx.request('/semester', 'POST', body); expect(created.status).toBe(201);
+  const row = (await read<Term>(created)).data;
+  expect(new Date(row.krsMulaiAt!).toISOString()).toEqual('2026-01-02T01:30:00.000Z'); expect(new Date(row.krsSelesaiAt!).toISOString()).toEqual('2026-01-10T09:00:00.000Z');
+  ctx.history.add(row.id);
+  expect((await ctx.request('/semester/' + row.id, 'PATCH', { krs_mulai_at: '2026-01-03T08:30', krs_selesai_at: '2026-01-11T16:00' })).status).toBe(200);
+  for (const patch of [{ krs_mulai_at: '2026-01-01T08:00', krs_selesai_at: null }, { krs_mulai_at: '2026-01-10T08:00', krs_selesai_at: '2026-01-09T08:00' }]) expect((await ctx.request('/semester/' + row.id, 'PATCH', patch)).status).toBe(400);
+  expect((await ctx.request('/semester/' + row.id, 'PATCH', { krs_mulai_at: null, krs_selesai_at: null })).status).toBe(200);
+});
 test('Semester duplicates, code/jenis relationship, calendar dates and date range rejected', async () => {
   const ctx = setup(); await ctx.term();
   expect((await ctx.request('/semester', 'POST', termBody())).status).toBe(409);

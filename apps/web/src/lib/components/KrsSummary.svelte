@@ -10,7 +10,7 @@
 
 <section class="surface-panel my-6 overflow-hidden">
   <div class="flex flex-col justify-between gap-4 border-b border-slate-100 p-5 sm:flex-row sm:items-start sm:p-6">
-    <div><p class="eyebrow">Rencana studi</p><h2 class="mt-2 text-xl font-bold">{krs.mahasiswa.nama}</h2><p class="mt-1 text-sm text-slate-500">{krs.mahasiswa.nim} · {krs.programStudi.nama} · {krs.semester.nama}</p></div>
+    <div><p class="eyebrow">Rencana studi</p><h2 class="mt-2 text-xl font-bold">{krs.mahasiswa.nama}</h2><p class="mt-1 text-sm text-slate-500">{krs.mahasiswa.nim} · {krs.programStudi.nama} · {krs.semester.nama}</p><p class="mt-1 text-sm text-slate-500">Dosen PA: <strong class="font-semibold text-slate-700">{krs.dosenPa?.nama ?? 'Belum ditetapkan'}</strong></p></div>
     <Badge {tone}><span class="size-1.5 rounded-full bg-current opacity-70"></span>{krs.status}</Badge>
   </div>
   <div class="p-5 sm:p-6">
@@ -21,6 +21,8 @@
     </div>
     <div class="mt-4"><div class="mb-2 flex justify-between text-xs font-medium text-slate-500"><span>Pemakaian batas SKS</span><span>{Math.round(percentage)}%</span></div><div class="h-2 overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full bg-brand-600 transition-[width]" style={`width: ${percentage}%`}></div></div></div>
     <div class="mt-4 flex items-start gap-2 text-xs leading-5 text-slate-500"><Icon name="info" size={15} class="mt-0.5 shrink-0" /><p>Batas SKS adalah snapshot saat KRS dibuat dan tidak dihitung ulang ketika KRS dibuka kembali.</p></div>
+    {#if krs.previousIps}<p class="mt-2 text-xs text-slate-500">IPS semester sebelumnya: <strong class="text-slate-700">{krs.previousIps}</strong></p>{/if}
+    {#if krs.alasanPenolakan}<p class="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"><strong>Alasan penolakan:</strong> {krs.alasanPenolakan}</p>{/if}
     {#if krs.diajukanAt || krs.disetujuiAt}<div class="mt-4 flex flex-wrap gap-x-5 gap-y-1 border-t border-slate-100 pt-4 text-xs text-slate-500">{#if krs.diajukanAt}<p>Diajukan <strong class="font-medium text-slate-700">{new Date(krs.diajukanAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}</strong></p>{/if}{#if krs.disetujuiAt}<p>Disetujui <strong class="font-medium text-slate-700">{new Date(krs.disetujuiAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}</strong></p>{/if}</div>{/if}
   </div>
 </section>

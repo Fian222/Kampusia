@@ -30,6 +30,8 @@
   function href(changes: Record<string, string | number>) { const p = new URLSearchParams(page.url.searchParams); for (const [key, value] of Object.entries(changes)) { if (value === '') p.delete(key); else p.set(key, String(value)); } return '?' + p; }
   const submit = () => { saving = true; return async ({ update }: { update: (options: { reset: boolean }) => Promise<void> }) => { try { await update({ reset: false }); } finally { saving = false; } }; };
   function openEdit(id: string) { requestedEditId = id; formOpen = true; }
+  function jakartaDateTimeLocal(value: Date | string | null | undefined) { if (!value) return ''; const instant = new Date(value); const local = new Date(instant.getTime() + 7 * 60 * 60 * 1000); const pad = (number: number) => String(number).padStart(2, '0'); return `${local.getUTCFullYear()}-${pad(local.getUTCMonth() + 1)}-${pad(local.getUTCDate())}T${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}`; }
+  function periodState(row: { krsMulaiAt: Date | string | null; krsSelesaiAt: Date | string | null }) { if (!row.krsMulaiAt || !row.krsSelesaiAt) return 'Belum dijadwalkan'; const now = new Date(); if (now < new Date(row.krsMulaiAt)) return 'Belum dibuka'; if (now >= new Date(row.krsSelesaiAt)) return 'Sudah ditutup'; return 'Sedang dibuka'; }
   $effect(() => { const state = editModal; if (queryEditId && requestedEditId === queryEditId) requestedEditId = null; if (state.open) formOpen = true; else if (requestedEditId === null) formOpen = false; });
 </script>
 <svelte:head><title>Semester · Kampusia</title></svelte:head>
@@ -47,13 +49,14 @@
   <ListPending />
   <div class="flex justify-between"><h2 class="font-semibold">Daftar Semester</h2></div>
   <div class="mt-4 overflow-x-auto transition-opacity" class:opacity-80={listPending}><table class="w-full text-left text-sm">
-    <thead class="border-b text-slate-500"><tr>{#each ['Kode', 'Nama', 'Tahun Akademik', 'Jenis', 'Tanggal Mulai', 'Tanggal Selesai', 'Status Aktif', 'Tindakan'] as label}<th class="p-3">{label}</th>{/each}</tr></thead>
+    <thead class="border-b text-slate-500"><tr>{#each ['Kode', 'Nama', 'Tahun Akademik', 'Jenis', 'Tanggal Mulai', 'Tanggal Selesai', 'Periode KRS', 'Status Aktif', 'Tindakan'] as label}<th class="p-3">{label}</th>{/each}</tr></thead>
     <tbody>{#each data.records.data as row}<tr class="border-b border-slate-100">
       <td class="p-3">{row.kode}</td><td class="p-3">{row.nama}</td><td class="p-3">{row.tahunMulai}/{row.tahunMulai + 1}</td><td class="p-3">{row.jenis}</td><td class="p-3 whitespace-nowrap">{row.tanggalMulai}</td><td class="p-3 whitespace-nowrap">{row.tanggalSelesai}</td>
+      <td class="p-3"><Badge tone={periodState(row) === 'Sedang dibuka' ? 'success' : periodState(row) === 'Sudah ditutup' ? 'danger' : 'neutral'}>{periodState(row)}</Badge><span class="mt-1 block whitespace-nowrap text-xs text-slate-500">{row.krsMulaiAt ? new Date(row.krsMulaiAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) : '—'}{row.krsSelesaiAt ? ` – ${new Date(row.krsSelesaiAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}` : ''}</span></td>
       <td class="p-3"><Badge tone={row.isActive ? 'success' : 'neutral'}>{row.isActive ? 'Semester aktif' : 'Tidak dipilih'}</Badge></td>
       <td class="p-3"><a class="text-teal-800" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a>
         {#if !row.isActive}<details class="mt-2"><summary class="cursor-pointer text-teal-800">Aktifkan</summary><p class="my-2">Ganti semester aktif menjadi {row.nama}?</p><form method="POST" use:enhance={submit}><input type="hidden" name="mode" value="activate" /><input type="hidden" name="id" value={row.id} /><input type="hidden" name="confirm" value="yes" /><button class={button} disabled={saving}>Ya, aktifkan semester</button></form></details>{/if}
-      </td></tr>{:else}<tr><td colspan="8" class="p-8 text-center text-slate-500">Tidak ada semester yang cocok.</td></tr>{/each}</tbody>
+      </td></tr>{:else}<tr><td colspan="9" class="p-8 text-center text-slate-500">Tidak ada semester yang cocok.</td></tr>{/each}</tbody>
   </table></div>
   <Pagination {...data.records.meta} href={number => href({ page: number })} />
 </section>
@@ -71,6 +74,7 @@
       { name: 'tahun_mulai', label: 'Tahun mulai', type: 'number', min: 1900, max: 9998, value: data.edit?.tahunMulai },
       { name: 'jenis', label: 'Jenis', value: data.edit?.jenis ?? 'GANJIL', options: ['GANJIL', 'GENAP'].map(value => ({ value, label: value })) },
       { name: 'tanggal_mulai', label: 'Tanggal Mulai', type: 'date', value: data.edit?.tanggalMulai }, { name: 'tanggal_selesai', label: 'Tanggal Selesai', type: 'date', value: data.edit?.tanggalSelesai },
+      { name: 'krs_mulai_at', label: 'KRS mulai (WIB)', type: 'datetime-local', required: false, value: jakartaDateTimeLocal(data.edit?.krsMulaiAt) }, { name: 'krs_selesai_at', label: 'KRS selesai (WIB)', type: 'datetime-local', required: false, value: jakartaDateTimeLocal(data.edit?.krsSelesaiAt) },
     ]} />
     <div class="flex justify-end gap-3 sm:col-span-2"><button type="button" class="px-4 py-2 text-sm font-semibold text-slate-600" disabled={saving} onclick={() => formOpen = false}>Batal</button><button class={button} disabled={saving}>{saving ? 'Menyimpan…' : 'Simpan'}</button></div>
   </form>{/key}

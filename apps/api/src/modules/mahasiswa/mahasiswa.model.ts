@@ -8,6 +8,7 @@ export const mahasiswaBody = t.Object({
   user_id: t.Optional(t.Nullable(uuid)),
   program_studi_id: uuid,
   kurikulum_id: uuid,
+  dosen_pa_id: t.Optional(t.Nullable(uuid)),
   nim: t.String({ minLength: 1, maxLength: 30 }),
   nama: t.String({ minLength: 1, maxLength: 150 }),
   angkatan: t.Integer({ minimum: 1900, maximum: 9999 }),

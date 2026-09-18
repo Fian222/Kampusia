@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import type { krs, krsDetail, mahasiswa, semester } from '@kampusia/db/schema';
 import { createKrsService } from './krs.service';
+import { getMaximumCreditsFromIps } from './credit-limit-policy';
 import type { KrsTransaction } from './krs.repository';
 import { createApp } from '../../app';
 import type { AuthUser } from '../auth/auth.model';
@@ -8,10 +9,15 @@ import type { AuthService } from '../auth/auth.service';
 const uuid = () => crypto.randomUUID();
 const common = () => ({ id: uuid(), createdAt: new Date(), updatedAt: new Date() });
 function fixture() {
+  const now = new Date('2026-09-18T05:00:00.000Z');
   const user: AuthUser = { id: uuid(), email: 'student@test.local', role: 'MAHASISWA' };
   const admin: AuthUser = { id: uuid(), email: 'admin@test.local', role: 'AKADEMIK' };
-  const owner: typeof mahasiswa.$inferSelect = { ...common(), userId: user.id, programStudiId: uuid(), kurikulumId: uuid(), dosenPaId: null, nim: '001', nama: 'Student', angkatan: 2026, status: 'AKTIF' };
-  const term: typeof semester.$inferSelect = { ...common(), kode: '20261', nama: 'Ganjil', tahunMulai: 2026, jenis: 'GANJIL', tanggalMulai: '2026-08-24', tanggalSelesai: '2027-01-15', krsMulaiAt: null, krsSelesaiAt: null, isActive: true };
+  const adviserUser: AuthUser = { id: uuid(), email: 'adviser@test.local', role: 'DOSEN' };
+  const adviserId = uuid();
+  const adviserAccount = { id: adviserUser.id, role: 'DOSEN' as const, isActive: true };
+  const adviserProfile = { ...common(), id: adviserId, userId: adviserUser.id as string | null, programStudiId: null as string | null, kodeDosen: 'PA', nidn: null as string | null, nama: 'Adviser', isActive: true };
+  const owner: typeof mahasiswa.$inferSelect = { ...common(), userId: user.id, programStudiId: uuid(), kurikulumId: uuid(), dosenPaId: adviserId, nim: '001', nama: 'Student', angkatan: 2026, status: 'AKTIF' };
+  const term: typeof semester.$inferSelect = { ...common(), kode: '20261', nama: 'Ganjil', tahunMulai: 2026, jenis: 'GANJIL', tanggalMulai: '2026-08-24', tanggalSelesai: '2027-01-15', krsMulaiAt: new Date('2026-09-01T00:00:00Z'), krsSelesaiAt: new Date('2026-10-01T00:00:00Z'), isActive: true };
   const terms: (typeof semester.$inferSelect)[] = [term];
   const academicResults = new Map<string, { sks: number; nilaiIndeks: string }[]>();
   const unfinishedResults = new Map<string, number>();
@@ -25,8 +31,10 @@ function fixture() {
   const members = classes.map(row => ({ id: row.mataKuliahId }));
   let inactive = false; const locks: string[][] = []; const finalized = new Set<string>();
   const tx: KrsTransaction = {
-    actor: async id => ({ id, role: id === admin.id ? admin.role : user.role, isActive: !inactive }),
+    actor: async id => ({ id, role: id === admin.id ? admin.role : id === adviserUser.id ? adviserUser.role : user.role, isActive: !inactive }),
     student: async id => id === user.id ? owner : { ...owner, id: uuid(), userId: id }, studentById: async () => owner,
+    adviser: async id => id === adviserId ? { ...adviserProfile, account: adviserProfile.userId ? adviserAccount : null } : undefined,
+    lecturerByUser: async id => id === adviserUser.id ? adviserProfile : undefined,
     term: async id => terms.find(item => item.id === id),
     previousTerm: async target => terms.filter(item => item.id !== target.id && item.tanggalSelesai < target.tanggalMulai && (item.tahunMulai < target.tahunMulai || (item.tahunMulai === target.tahunMulai && target.jenis === 'GENAP' && item.jenis === 'GANJIL'))).sort((a, b) => b.tahunMulai - a.tahunMulai || (b.jenis === 'GENAP' ? 2 : 1) - (a.jenis === 'GENAP' ? 2 : 1) || b.tanggalSelesai.localeCompare(a.tanggalSelesai))[0],
     academicResults: async (studentId, semesterId) => academicResults.get(`${studentId}:${semesterId}`) ?? [],
@@ -34,9 +42,10 @@ function fixture() {
     activeTerm: async () => term.isActive ? term : null,
     program: async () => ({ isActive: true, facultyActive: true }), memberships: async () => members,
     lockPlan: async id => plans.find(row => row.id === id), findPlan: async (studentId, termId) => plans.find(row => row.mahasiswaId === studentId && row.semesterId === termId),
+    lockAdvisedPlan: async (id, lecturerId) => plans.find(row => row.id === id && owner.dosenPaId === lecturerId),
     lockClasses: async ids => { locks.push(ids); }, finalizedClassIds: async ids => ids.filter(id => finalized.has(id)), details: async id => details.filter(row => row.krsId === id),
     classes: async ids => classes.filter(row => ids.includes(row.id)).map(row => { const count = details.filter(detail => detail.kelasKuliahId === row.id && detail.status === 'AKTIF' && plans.some(plan => plan.id === detail.krsId && plan.status === 'DISETUJUI')).length; return { ...row, jumlahMahasiswa: count, sisaKapasitas: row.kapasitas - count }; }),
-    detail: async id => { const plan = plans.find(row => row.id === id); if (!plan) return undefined; const rows = details.filter(row => row.krsId === id).map(row => ({ ...row, kelas: classes.find(kelas => kelas.id === row.kelasKuliahId)! })); const totalSks = rows.reduce((sum, row) => sum + (row.status === 'AKTIF' ? row.kelas.mataKuliah.sks : 0), 0); return { ...plan, mahasiswa: owner, semester: term, programStudi: { id: owner.programStudiId, kode: 'IF', nama: 'IF' }, details: rows, totalSks, remainingSks: Math.max(0, plan.batasSks - totalSks) }; },
+    detail: async id => { const plan = plans.find(row => row.id === id); if (!plan) return undefined; const rows = details.filter(row => row.krsId === id).map(row => ({ ...row, kelas: classes.find(kelas => kelas.id === row.kelasKuliahId)! })); const totalSks = rows.reduce((sum, row) => sum + (row.status === 'AKTIF' ? row.kelas.mataKuliah.sks : 0), 0); return { ...plan, mahasiswa: owner, semester: term, programStudi: { id: owner.programStudiId, kode: 'IF', nama: 'IF' }, dosenPa: { id: adviserId, kodeDosen: 'PA', nama: 'Adviser', isActive: true }, details: rows, totalSks, remainingSks: Math.max(0, plan.batasSks - totalSks) }; },
     list: async () => ({ data: [], meta: { page: 1, limit: 20, total: 0 } }), available: async () => ({ data: classes, meta: { page: 1, limit: 20, total: classes.length } }),
     create: async (mahasiswaId, semesterId, batasSks) => { const row: typeof krs.$inferSelect = { ...common(), mahasiswaId, semesterId, batasSks, status: 'DRAFT', diajukanAt: null, disetujuiAt: null, disetujuiOleh: null, ditolakAt: null, ditolakOleh: null, alasanPenolakan: null, dibukaKembaliAt: null, dibukaKembaliOleh: null, dibatalkanAt: null, dibatalkanOleh: null, alasanPembatalan: null }; plans.push(row); return row; },
     update: async (id, changes) => { const row = plans.find(row => row.id === id)!; Object.assign(row, changes, { updatedAt: new Date() }); return row; },
@@ -45,7 +54,7 @@ function fixture() {
     cancelDetails: async id => { details.filter(row => row.krsId === id).forEach(row => row.status = 'DIBATALKAN'); },
   };
   const repository = { transaction: <T>(fn: (tx: KrsTransaction) => Promise<T>) => fn(tx) };
-  const service = createKrsService(repository, 6);
+  const service = createKrsService(repository, 6, getMaximumCreditsFromIps, () => new Date(now));
   const draft = () => service.create(user, term.id);
   const selected = async () => { const plan = await draft(); await service.add(user, plan.id, classes[0]!.id); return plan; };
   const submitted = async () => { const plan = await selected(); await service.submit(user, plan.id); return plan; };
@@ -53,7 +62,7 @@ function fixture() {
     const previous: typeof semester.$inferSelect = { ...common(), kode: `${year}${jenis === 'GANJIL' ? '1' : '2'}`, nama: `${jenis} ${year}`, tahunMulai: year, jenis, tanggalMulai: dates[0], tanggalSelesai: dates[1], krsMulaiAt: null, krsSelesaiAt: null, isActive: false };
     terms.push(previous); academicResults.set(`${owner.id}:${previous.id}`, results); return previous;
   }
-  return { user, admin, owner, term, terms, plans, details, classes, members, finalized, academicResults, unfinishedResults, tx, repository, service, locks, draft, selected, submitted, addPreviousTerm, deactivate: () => { inactive = true; } };
+  return { user, admin, adviserUser, adviserId, adviserAccount, adviserProfile, owner, term, terms, plans, details, classes, members, finalized, academicResults, unfinishedResults, tx, repository, service, locks, draft, selected, submitted, addPreviousTerm, deactivate: () => { inactive = true; } };
 }
 
 test('KRS creates/gets the same draft with server-assigned limit; missing policy fails closed', async () => {
@@ -141,6 +150,52 @@ test('KRS empty submission and ineligible students/semesters are rejected', asyn
   f.term.isActive = false; await expect(f.service.add(f.user, plan.id, f.classes[0]!.id)).rejects.toThrow('semester aktif');
   const g = fixture(); const pending = await g.submitted(); g.owner.status = 'LULUS'; await expect(g.service.approve(g.admin, pending.id)).rejects.toThrow('AKTIF');
 });
+test('KRS period uses configured half-open boundaries and fails closed when missing', async () => {
+  const before = fixture(); before.term.krsMulaiAt = new Date('2026-09-18T05:00:00.001Z');
+  await expect(before.draft()).rejects.toThrow('belum dibuka');
+  const opening = fixture(); opening.term.krsMulaiAt = new Date('2026-09-18T05:00:00.000Z');
+  expect((await opening.draft()).status).toBe('DRAFT');
+  const closing = fixture(); closing.term.krsSelesaiAt = new Date('2026-09-18T05:00:00.000Z');
+  await expect(closing.draft()).rejects.toThrow('ditutup');
+  const missing = fixture(); missing.term.krsMulaiAt = null; missing.term.krsSelesaiAt = null;
+  await expect(missing.draft()).rejects.toThrow('belum dijadwalkan');
+});
+test('Kosongkan KRS retains parent, limit and details and permits reactivation', async () => {
+  const f = fixture(); const plan = await f.selected(); const detail = f.details[0]!;
+  await f.service.clear(f.user, plan.id);
+  expect(plan.status).toBe('DRAFT'); expect(plan.batasSks).toBe(6); expect(detail.status).toBe('DIBATALKAN'); expect(f.details).toHaveLength(1);
+  await f.service.add(f.user, plan.id, f.classes[0]!.id);
+  expect(detail.status).toBe('AKTIF'); expect(f.details).toHaveLength(1);
+});
+test('submission requires a complete active Dosen PA account', async () => {
+  const missing = fixture(); const missingPlan = await missing.selected(); missing.owner.dosenPaId = null;
+  await expect(missing.service.submit(missing.user, missingPlan.id)).rejects.toThrow('belum ditetapkan');
+  const inactive = fixture(); const inactivePlan = await inactive.selected(); inactive.adviserProfile.isActive = false;
+  await expect(inactive.service.submit(inactive.user, inactivePlan.id)).rejects.toThrow('tidak aktif');
+  const unlinked = fixture(); const unlinkedPlan = await unlinked.selected(); unlinked.adviserProfile.userId = null;
+  await expect(unlinked.service.submit(unlinked.user, unlinkedPlan.id)).rejects.toThrow('belum terhubung');
+  const inactiveAccount = fixture(); const inactiveAccountPlan = await inactiveAccount.selected(); inactiveAccount.adviserAccount.isActive = false;
+  await expect(inactiveAccount.service.submit(inactiveAccount.user, inactiveAccountPlan.id)).rejects.toThrow('Akun Dosen PA tidak aktif');
+  const wrongRole = fixture(); const wrongRolePlan = await wrongRole.selected(); wrongRole.adviserAccount.role = 'AKADEMIK' as 'DOSEN';
+  await expect(wrongRole.service.submit(wrongRole.user, wrongRolePlan.id)).rejects.toThrow('peran DOSEN');
+  const valid = fixture(); expect((await valid.submitted()).status).toBe('DIAJUKAN');
+});
+test('Dosen PA review is ownership scoped and rejection metadata is retained for correction', async () => {
+  const f = fixture(); const plan = await f.submitted();
+  await f.service.reject(f.adviserUser, plan.id, '  Jadwal perlu diperbaiki  ');
+  expect(plan).toMatchObject({ status: 'DITOLAK', ditolakOleh: f.adviserUser.id, alasanPenolakan: 'Jadwal perlu diperbaiki' });
+  const rejectedAt = plan.ditolakAt; await f.service.reopenRejected(f.user, plan.id);
+  expect(plan).toMatchObject({ status: 'DRAFT', diajukanAt: null, ditolakAt: rejectedAt, alasanPenolakan: 'Jadwal perlu diperbaiki', batasSks: 6 });
+  const other = fixture(); const pending = await other.submitted(); other.owner.dosenPaId = uuid();
+  await expect(other.service.approve(other.adviserUser, pending.id)).rejects.toThrow('KRS tidak ditemukan');
+});
+test('administrative cancellation is reasoned, terminal, and allowed after period close', async () => {
+  const f = fixture(); const plan = await f.submitted(); f.term.krsSelesaiAt = new Date('2026-09-18T05:00:00.000Z');
+  await f.service.cancel(f.admin, plan.id, ' Koreksi registrasi ');
+  expect(plan).toMatchObject({ status: 'DIBATALKAN', dibatalkanOleh: f.admin.id, alasanPembatalan: 'Koreksi registrasi', batasSks: 6 });
+  expect(f.details[0]!.status).toBe('DIBATALKAN');
+  await expect(f.service.cancel(f.admin, plan.id, 'lagi')).rejects.toThrow('final');
+});
 test('KRS rejection/reopen/resubmission timestamps and invalid transitions', async () => {
   const f = fixture(); const plan = await f.submitted(); const submittedAt = plan.diajukanAt;
   await expect(f.service.add(f.user, plan.id, f.classes[1]!.id)).rejects.toThrow('DRAFT');
@@ -155,7 +210,7 @@ test('KRS approval, student immutability, administrative reopen and terminal can
   expect(plan.status).toBe('DISETUJUI'); expect(plan.disetujuiOleh).toBe(f.admin.id); expect(plan.disetujuiAt).toBeInstanceOf(Date);
   await expect(f.service.submit(f.user, plan.id)).rejects.toThrow('DRAFT'); await expect(f.service.reopen(f.user, plan.id)).rejects.toThrow('DITOLAK');
   f.term.isActive = false; await expect(f.service.reopen(f.admin, plan.id, true)).rejects.toThrow('semester aktif'); f.term.isActive = true;
-  await f.service.reopen(f.admin, plan.id, true); expect(plan.disetujuiOleh).toBeNull(); expect(plan.diajukanAt).toBeNull(); expect(f.details[0]!.status).toBe('AKTIF');
+  const originalApprover = plan.disetujuiOleh; await f.service.reopen(f.admin, plan.id, true); expect(plan.disetujuiOleh).toBe(originalApprover); expect(plan.dibukaKembaliOleh).toBe(f.admin.id); expect(plan.diajukanAt).toBeNull(); expect(f.details[0]!.status).toBe('AKTIF');
   expect(plan.batasSks).toBe(6);
   await f.service.submit(f.user, plan.id); await f.service.approve(f.admin, plan.id); const approvedAt = plan.disetujuiAt;
   await f.service.cancel(f.admin, plan.id); expect(plan.disetujuiAt).toBe(approvedAt); expect(plan.disetujuiOleh).toBe(f.admin.id); expect(f.details[0]!.status).toBe('DIBATALKAN');
@@ -173,7 +228,7 @@ test('KRS capacity counts only approved active details, and cancel/reopen releas
 });
 test('KRS service enforces admin role and live account status', async () => {
   const f = fixture(); const plan = await f.submitted();
-  for (const user of [f.user, { ...f.admin, role: 'DOSEN' as const }]) for (const action of [() => f.service.approve(user, plan.id), () => f.service.reject(user, plan.id), () => f.service.cancel(user, plan.id), () => f.service.reopen(user, plan.id, true), () => f.service.list(user, {}), () => f.service.get(user, plan.id)]) await expect(action()).rejects.toThrow('akses');
+  for (const user of [f.user, { ...f.admin, role: 'DOSEN' as const }]) for (const action of [() => f.service.approve(user, plan.id), () => f.service.reject(user, plan.id), () => f.service.cancel(user, plan.id), () => f.service.reopen(user, plan.id, true), () => f.service.list(user, {}), () => f.service.get(user, plan.id)]) await expect(action()).rejects.toThrow(/akses|izin KRS/);
   f.deactivate(); await expect(f.service.approve(f.admin, plan.id)).rejects.toThrow('izin KRS');
 });
 test('KRS API rejects missing session, other roles, foreign ownership, CSRF; credit-limit payload cannot change policy', async () => {
@@ -186,8 +241,14 @@ test('KRS API rejects missing session, other roles, foreign ownership, CSRF; cre
   expect((await request('/krs')).status).toBe(403);
   expect((await request(`/mahasiswa/me/krs/${f.term.id}`, 'POST', { batas_sks: 100 })).status).toBe(200);
   expect(plan.batasSks).toBe(6);
+  expect((await request(`/mahasiswa/me/krs/${plan.id}/clear`, 'POST', {})).status).toBe(200);
+  expect(f.details[0]!.status).toBe('DIBATALKAN'); await f.service.add(f.user, plan.id, f.classes[0]!.id);
   expect((await request(`/mahasiswa/me/krs/${plan.id}/submit`, 'POST', {}, 'http://evil.test')).status).toBe(403);
   current = { ...f.user, id: uuid() }; expect((await request(`/mahasiswa/me/krs/${plan.id}/submit`, 'POST', {})).status).toBe(404);
+  current = f.user; expect((await request(`/mahasiswa/me/krs/${plan.id}/submit`, 'POST', {})).status).toBe(200);
+  current = f.adviserUser; expect((await request('/dosen/me/krs')).status).toBe(200); expect((await request(`/dosen/me/krs/${plan.id}`)).status).toBe(200);
+  expect((await request(`/dosen/me/krs/${plan.id}/reject`, 'POST', { alasan: '' })).status).toBe(400);
+  expect((await request(`/dosen/me/krs/${plan.id}/reject`, 'POST', { alasan: 'Perbaiki jadwal' })).status).toBe(200);
   current = { ...f.admin, role: 'DOSEN' }; expect((await request(`/krs/${plan.id}/approve`, 'POST', {})).status).toBe(403);
   current = f.admin; expect((await request('/krs')).status).toBe(200); expect((await request(`/krs/${plan.id}`)).status).toBe(200);
   current = null; expect((await request('/mahasiswa/me/krs')).status).toBe(401);

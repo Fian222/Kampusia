@@ -6,9 +6,13 @@ import { classAssignments } from '../kelas-kuliah/kelas-kuliah.repository';
 import type { KrsQuery } from './krs.model';
 type Database = ReturnType<typeof createDatabase>['db'];
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
-const planSelection = { ...getTableColumns(krs), mahasiswa: getTableColumns(mahasiswa), semester: getTableColumns(semester), programStudi: { id: programStudi.id, nama: programStudi.nama, kode: programStudi.kode } };
+const planSelection = {
+  ...getTableColumns(krs), mahasiswa: getTableColumns(mahasiswa), semester: getTableColumns(semester),
+  programStudi: { id: programStudi.id, nama: programStudi.nama, kode: programStudi.kode },
+  dosenPa: { id: dosen.id, kodeDosen: dosen.kodeDosen, nama: dosen.nama, isActive: dosen.isActive },
+};
 export function krsTransaction(tx: Transaction) {
-  const plans = () => tx.select(planSelection).from(krs).innerJoin(mahasiswa, eq(krs.mahasiswaId, mahasiswa.id)).innerJoin(semester, eq(krs.semesterId, semester.id)).innerJoin(programStudi, eq(mahasiswa.programStudiId, programStudi.id));
+  const plans = () => tx.select(planSelection).from(krs).innerJoin(mahasiswa, eq(krs.mahasiswaId, mahasiswa.id)).innerJoin(semester, eq(krs.semesterId, semester.id)).innerJoin(programStudi, eq(mahasiswa.programStudiId, programStudi.id)).leftJoin(dosen, eq(mahasiswa.dosenPaId, dosen.id));
   const classes = () => tx.select({ ...getTableColumns(kelasKuliah), mataKuliah: getTableColumns(mataKuliah) }).from(kelasKuliah).innerJoin(mataKuliah, eq(kelasKuliah.mataKuliahId, mataKuliah.id));
   async function enrich(rows: Awaited<ReturnType<ReturnType<typeof classes>['execute']>>) {
     const ids = rows.map(row => row.id);
@@ -21,6 +25,13 @@ export function krsTransaction(tx: Transaction) {
     async actor(id: string) { return (await tx.select({ id: users.id, role: users.role, isActive: users.isActive }).from(users).where(eq(users.id, id)).for('share'))[0]; },
     async student(userId: string) { return (await tx.select().from(mahasiswa).where(eq(mahasiswa.userId, userId)).for('share'))[0]; },
     async studentById(id: string) { return (await tx.select().from(mahasiswa).where(eq(mahasiswa.id, id)).for('share'))[0]; },
+    async adviser(id: string) {
+      const row = (await tx.select().from(dosen).where(eq(dosen.id, id)).for('share'))[0];
+      if (!row) return undefined;
+      const account = row.userId ? (await tx.select({ id: users.id, role: users.role, isActive: users.isActive }).from(users).where(eq(users.id, row.userId)).for('share'))[0] : undefined;
+      return { ...row, account: account ?? null };
+    },
+    async lecturerByUser(userId: string) { return (await tx.select().from(dosen).where(eq(dosen.userId, userId)).for('share'))[0]; },
     async term(id: string) { return (await tx.select().from(semester).where(eq(semester.id, id)).for('share'))[0]; },
     async previousTerm(target: typeof semester.$inferSelect) {
       const earlierAcademicPosition = target.jenis === 'GENAP'
@@ -63,6 +74,7 @@ export function krsTransaction(tx: Transaction) {
     async program(id: string) { return (await tx.select({ isActive: programStudi.isActive, facultyActive: fakultas.isActive }).from(programStudi).innerJoin(fakultas, eq(programStudi.fakultasId, fakultas.id)).where(eq(programStudi.id, id)).for('share'))[0]; },
     async memberships(id: string) { return tx.select({ id: kurikulumMatkul.mataKuliahId }).from(kurikulumMatkul).where(eq(kurikulumMatkul.kurikulumId, id)); },
     async lockPlan(id: string) { return (await tx.select().from(krs).where(eq(krs.id, id)).for('update'))[0]; },
+    async lockAdvisedPlan(id: string, adviserId: string) { return (await tx.select(getTableColumns(krs)).from(krs).innerJoin(mahasiswa, eq(krs.mahasiswaId, mahasiswa.id)).where(and(eq(krs.id, id), eq(mahasiswa.dosenPaId, adviserId))).for('update', { of: krs }))[0]; },
     async findPlan(studentId: string, semesterId: string) { return (await tx.select().from(krs).where(and(eq(krs.mahasiswaId, studentId), eq(krs.semesterId, semesterId))).for('update'))[0]; },
     async lockClasses(ids: string[]) { if (ids.length) await tx.select({ id: kelasKuliah.id }).from(kelasKuliah).where(inArray(kelasKuliah.id, ids)).orderBy(asc(kelasKuliah.id)).for('update'); },
     async finalizedClassIds(ids: string[]) { return ids.length ? (await tx.selectDistinct({ id: hasilStudi.kelasKuliahId }).from(hasilStudi).where(inArray(hasilStudi.kelasKuliahId, ids))).map(row => row.id) : []; },
@@ -77,13 +89,17 @@ export function krsTransaction(tx: Transaction) {
       const totalSks = details.reduce((total, item) => total + (item.status === 'AKTIF' ? item.kelas.mataKuliah.sks : 0), 0);
       return { ...row, details, totalSks, remainingSks: Math.max(0, row.batasSks - totalSks) };
     },
-    async list(query: KrsQuery, studentId?: string) {
+    async list(query: KrsQuery, studentId?: string, adviserId?: string) {
       const { page, limit } = pagination(query);
-      const where = and(studentId ? eq(krs.mahasiswaId, studentId) : undefined, query.semester_id ? eq(krs.semesterId, query.semester_id) : undefined, query.program_studi_id ? eq(mahasiswa.programStudiId, query.program_studi_id) : undefined, query.status ? eq(krs.status, query.status) : undefined,
+      const where = and(studentId ? eq(krs.mahasiswaId, studentId) : undefined, adviserId ? eq(mahasiswa.dosenPaId, adviserId) : undefined, query.semester_id ? eq(krs.semesterId, query.semester_id) : undefined, query.program_studi_id ? eq(mahasiswa.programStudiId, query.program_studi_id) : undefined, query.status ? eq(krs.status, query.status) : undefined,
         query.search?.trim() ? or(ilike(mahasiswa.nim, searchPattern(query.search)), ilike(mahasiswa.nama, searchPattern(query.search))) : undefined);
       const data = await plans().where(where).orderBy(desc(krs.createdAt), asc(krs.id)).limit(limit).offset((page - 1) * limit);
       const [total] = await tx.select({ value: count() }).from(krs).innerJoin(mahasiswa, eq(krs.mahasiswaId, mahasiswa.id)).where(where);
-      return { data, meta: { page, limit, total: total!.value } };
+      const ids = data.map(item => item.id);
+      const totals = ids.length ? await tx.select({ id: krsDetail.krsId, value: sql<number>`coalesce(sum(${mataKuliah.sks}), 0)`.mapWith(Number) })
+        .from(krsDetail).innerJoin(kelasKuliah, eq(krsDetail.kelasKuliahId, kelasKuliah.id)).innerJoin(mataKuliah, eq(kelasKuliah.mataKuliahId, mataKuliah.id))
+        .where(and(inArray(krsDetail.krsId, ids), eq(krsDetail.status, 'AKTIF'))).groupBy(krsDetail.krsId) : [];
+      return { data: data.map(item => ({ ...item, totalSks: totals.find(total => total.id === item.id)?.value ?? 0 })), meta: { page, limit, total: total!.value } };
     },
     async available(student: typeof mahasiswa.$inferSelect, semesterId: string, query: ListQuery) {
       const { page, limit } = pagination(query);
@@ -99,10 +115,10 @@ export function krsTransaction(tx: Transaction) {
       return { data: await enrich(rows), meta: { page, limit, total: total!.value } };
     },
     async create(studentId: string, semesterId: string, batasSks: number) { return (await tx.insert(krs).values({ mahasiswaId: studentId, semesterId, batasSks }).returning())[0]!; },
-    async update(id: string, changes: Partial<Pick<typeof krs.$inferInsert, 'status' | 'diajukanAt' | 'disetujuiAt' | 'disetujuiOleh'>>) { return (await tx.update(krs).set({ ...changes, updatedAt: new Date() }).where(eq(krs.id, id)).returning())[0]!; },
+    async update(id: string, changes: Partial<Pick<typeof krs.$inferInsert, 'status' | 'diajukanAt' | 'disetujuiAt' | 'disetujuiOleh' | 'ditolakAt' | 'ditolakOleh' | 'alasanPenolakan' | 'dibukaKembaliAt' | 'dibukaKembaliOleh' | 'dibatalkanAt' | 'dibatalkanOleh' | 'alasanPembatalan' | 'updatedAt'>>) { return (await tx.update(krs).set({ ...changes, updatedAt: changes.updatedAt ?? new Date() }).where(eq(krs.id, id)).returning())[0]!; },
     async add(id: string, classId: string) { return (await tx.insert(krsDetail).values({ krsId: id, kelasKuliahId: classId }).returning())[0]!; },
     async selection(id: string, status: 'AKTIF' | 'DIBATALKAN') { return (await tx.update(krsDetail).set({ status, updatedAt: new Date() }).where(eq(krsDetail.id, id)).returning())[0]!; },
-    async cancelDetails(id: string) { await tx.update(krsDetail).set({ status: 'DIBATALKAN', updatedAt: new Date() }).where(and(eq(krsDetail.krsId, id), eq(krsDetail.status, 'AKTIF'))); },
+    async cancelDetails(id: string, at = new Date()) { await tx.update(krsDetail).set({ status: 'DIBATALKAN', updatedAt: at }).where(and(eq(krsDetail.krsId, id), eq(krsDetail.status, 'AKTIF'))); },
   };
 }
 export function createKrsRepository(db: Pick<Database, 'transaction'>) {

@@ -43,7 +43,7 @@ function setup(role: Role = 'AKADEMIK') {
     lockUser: async (id: string) => accounts.find(user => user.id === id),
     userLinks: async (id: string) => ({ mahasiswa: students.find(row => row.userId === id)?.id, dosen: lecturers.find(row => row.userId === id)?.id }),
   };
-  const relatedStudent = (row: Student) => ({ ...row, programStudi: program, fakultas: faculty, kurikulum: curriculum });
+  const relatedStudent = (row: Student) => { const adviser = lecturers.find(item => item.id === row.dosenPaId); return { ...row, programStudi: program, fakultas: faculty, kurikulum: curriculum, dosenPa: adviser ? { id: adviser.id, kodeDosen: adviser.kodeDosen, nama: adviser.nama, isActive: adviser.isActive } : null }; };
   const relatedLecturer = (row: Lecturer) => ({ ...row, programStudi: row.programStudiId ? program : null });
   const studentConstraints = { nim: 'mahasiswa_nim_unique', userId: 'mahasiswa_user_id_unique' };
   const lecturerConstraints = { kodeDosen: 'dosen_kode_dosen_unique', nidn: 'dosen_nidn_unique', userId: 'dosen_user_id_unique' };
@@ -55,9 +55,10 @@ function setup(role: Role = 'AKADEMIK') {
       ...references,
       findById: async id => students.find(row => row.id === id),
       lockKurikulum: async id => id === curriculum.id ? curriculum : undefined,
+      lockDosen: async id => lecturers.find(row => row.id === id),
       hasApprovedHistory: async id => approved.has(id),
       create: async input => {
-        const row: Student = { ...input, id: crypto.randomUUID(), userId: input.userId ?? null, dosenPaId: null, status: input.status ?? 'AKTIF', ...dates() };
+        const row: Student = { ...input, id: crypto.randomUUID(), userId: input.userId ?? null, dosenPaId: input.dosenPaId ?? null, status: input.status ?? 'AKTIF', ...dates() };
         duplicate(students, row, studentConstraints); students.push(row); return row;
       },
       update: async (id, input) => {
@@ -151,6 +152,18 @@ test('mahasiswa updates preserve omitted status and historical inactive referenc
   ctx.program.isActive = false; ctx.curriculum.isActive = false;
   expect((await ctx.request(path, 'PATCH', { nama: 'Riwayat', status: 'LULUS', program_studi_id: ctx.program.id, kurikulum_id: ctx.curriculum.id })).status).toBe(200);
   expect(ctx.students[0]?.status).toBe('LULUS'); expect(ctx.user.isActive).toBe(true);
+});
+test('mahasiswa assigns only an existing active Dosen PA and returns compact adviser data', async () => {
+  const ctx = setup(); const adviser = (await readLecturer(await ctx.request('/dosen', 'POST', ctx.lecturerBody))).data;
+  const response = await ctx.request('/mahasiswa', 'POST', { ...ctx.studentBody, dosen_pa_id: adviser.id });
+  expect(response.status).toBe(201); const student = (await readStudent(response)).data;
+  const detail = (await ctx.request('/mahasiswa/' + student.id)).json() as Promise<{ data: Student & { dosenPa: { id: string; kodeDosen: string; nama: string; isActive: boolean } | null } }>;
+  expect((await detail).data.dosenPa).toMatchObject({ id: adviser.id, kodeDosen: adviser.kodeDosen, nama: adviser.nama, isActive: true });
+  expect((await ctx.request('/mahasiswa/' + student.id, 'PATCH', { dosen_pa_id: missing })).status).toBe(400);
+  await ctx.request('/dosen/' + adviser.id, 'PATCH', { is_active: false });
+  expect((await ctx.request('/mahasiswa/' + student.id, 'PATCH', { dosen_pa_id: adviser.id })).status).toBe(200);
+  const other = (await readStudent(await ctx.request('/mahasiswa', 'POST', { ...ctx.studentBody, nim: 'OTHER' }))).data;
+  expect((await ctx.request('/mahasiswa/' + other.id, 'PATCH', { dosen_pa_id: adviser.id })).status).toBe(400);
 });
 
 test('dosen create normalizes identifiers, optional NIDN/homebase and duplicate constraints', async () => {

@@ -26,7 +26,7 @@
       { path: '/akademik/ruangan', label: 'Ruangan', icon: 'door' },
     ] },
   ];
-  const lecturerGroups: NavGroup[] = [{ label: 'Perkuliahan', items: [{ path: '/dosen/kelas-kuliah', label: 'Kelas yang Diajar', icon: 'presentation' }] }];
+  const lecturerGroups: NavGroup[] = [{ label: 'Perkuliahan', items: [{ path: '/dosen/krs', label: 'Bimbingan KRS', icon: 'clipboard' }, { path: '/dosen/kelas-kuliah', label: 'Kelas yang Diajar', icon: 'presentation' }] }];
   const studentGroups: NavGroup[] = [{ label: 'Akademik', items: [
     { path: '/mahasiswa/krs', label: 'Kartu Rencana Studi', icon: 'clipboard' },
     { path: '/mahasiswa/khs', label: 'KHS & IPK', icon: 'chart' },
