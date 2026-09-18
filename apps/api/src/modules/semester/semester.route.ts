@@ -3,7 +3,7 @@ import { requireMasterData } from '../../middleware/master-data';
 import { authorization } from '../../middleware/authorization';
 import { idParams, MasterDataError } from '../../utils/master-data';
 import type { AuthService } from '../auth/auth.service';
-import { semesterBody, semesterPatch, semesterQuery } from './semester.model';
+import { semesterBody, semesterKrsPeriodBody, semesterPatch, semesterQuery } from './semester.model';
 import type { SemesterService } from './semester.service';
 
 export function semesterRoutes(auth: AuthService, origin: string, service?: SemesterService) {
@@ -17,5 +17,6 @@ export function semesterRoutes(auth: AuthService, origin: string, service?: Seme
       set.status = 201;
       return { success: true as const, data };
     }, { body: semesterBody })
+    .patch('/:id/krs-period', async ({ params, body }) => ({ success: true as const, data: await getService().updateKrsPeriod(params.id, body) }), { params: idParams, body: semesterKrsPeriodBody })
     .patch('/:id', async ({ params, body }) => ({ success: true as const, data: await getService().update(params.id, body) }), { params: idParams, body: semesterPatch });
 }

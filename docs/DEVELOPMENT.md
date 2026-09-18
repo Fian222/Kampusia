@@ -201,7 +201,7 @@ ADMIN and AKADEMIK share `/akademik/semester`, `/akademik/kelas-kuliah`, and `/a
 
 Endpoints (all require an active ADMIN/AKADEMIK account; writes also require the configured web origin):
 
-- `GET /semester`, `GET /semester/:id`, `POST /semester`, `PATCH /semester/:id`.
+- `GET /semester`, `GET /semester/:id`, `POST /semester`, `PATCH /semester/:id`, `PATCH /semester/:id/krs-period`.
 - `GET /kelas-kuliah`, `GET /kelas-kuliah/:id`, `POST /kelas-kuliah`, `PATCH /kelas-kuliah/:id`.
 - `GET /kelas-kuliah/:id/dosen`, `POST /kelas-kuliah/:id/dosen`.
 - `PATCH /kelas-kuliah/:id/dosen/:assignmentId`, `DELETE /kelas-kuliah/:id/dosen/:assignmentId`.
@@ -212,6 +212,7 @@ Semester rules:
 
 - GANJIL/GENAP, years 1900–9998, canonical YYYY1/YYYY2 codes, valid calendar dates, and ordered date ranges are validated. Both documented unique constraints remain authoritative.
 - `PATCH /semester/:id` with `{ "is_active": true }` switches the active term in one transaction. Creation may also explicitly activate a term. A failed write restores the previously active term. `{ "is_active": false }` permits zero active terms. Dates never activate terms automatically.
+- `PATCH /semester/:id/krs-period` changes or clears only the paired KRS opening/closing instants. The Semester page exposes this through a dedicated **Atur Periode KRS** modal so historical identity and calendar fields are not resubmitted when configuring the workflow window.
 - Writes use SERIALIZABLE transactions with up to three total attempts for serialization/deadlock conflicts. A transaction-scoped advisory lock serializes active-term switches even when no semester is active yet.
 - Identity and date changes are conservatively rejected when approved KRS (including retained approval timestamps after cancellation) or schedules exist. Unchanged identity fields and active-term changes remain allowed. No semester DELETE endpoint exists.
 

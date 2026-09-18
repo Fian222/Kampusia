@@ -30,7 +30,8 @@ export async function loadSemester(event: RequestEvent) {
   const filters = { ...query(event), jenis: enumFilter(p.get('jenis'), ['GANJIL', 'GENAP'] as const), tahun_mulai: p.get('tahun_mulai') ? integer(p.get('tahun_mulai'), 1900, 9998) : undefined, is_active: active(p.get('is_active')) };
   const records = await read(client.semester.get({ query: filters }));
   const edit = p.get('edit') ? (await read(client.semester({ id: p.get('edit')! }).get())).data : null;
-  return { records, filters, edit };
+  const krsPeriod = p.get('krs_period') ? (await read(client.semester({ id: p.get('krs_period')! }).get())).data : null;
+  return { records, filters, edit, krsPeriod };
 }
 export async function loadKelas(event: RequestEvent) {
   requireMasterAccess(event);
@@ -82,7 +83,7 @@ export async function saveOffering(event: RequestEvent, kind: 'semester' | 'kela
       } else if (values.mode === 'save') {
         const jenis = ['GANJIL', 'GENAP'].find((item): item is 'GANJIL' | 'GENAP' => item === values.jenis);
         if (!jenis) return invalid('Pilih jenis semester.');
-        const body = { kode: values.kode!, nama: values.nama!, tahun_mulai: Number(values.tahun_mulai), jenis, tanggal_mulai: values.tanggal_mulai!, tanggal_selesai: values.tanggal_selesai!, krs_mulai_at: values.krs_mulai_at?.trim() || null, krs_selesai_at: values.krs_selesai_at?.trim() || null };
+        const body = { kode: values.kode!, nama: values.nama!, tahun_mulai: Number(values.tahun_mulai), jenis, tanggal_mulai: values.tanggal_mulai!, tanggal_selesai: values.tanggal_selesai! };
         result = values.id ? await client.semester({ id: values.id }).patch(body) : await client.semester.post(body);
       } else return invalid('Tindakan tidak valid.');
     } else if (kind === 'kelas') {
@@ -108,4 +109,22 @@ export async function saveOffering(event: RequestEvent, kind: 'semester' | 'kela
   if (result.status === 401) redirect(303, '/login');
   if (result.error || !result.data?.success) return fail(result.status >= 400 && result.status < 500 ? result.status : 503, { values, message: apiMessage(result.error?.value) });
   return { saved: true as const, message: 'Perubahan berhasil disimpan.' };
+}
+
+export async function saveSemesterKrsPeriod(event: RequestEvent) {
+  requireMasterAccess(event);
+  const form = await event.request.formData();
+  const values: Record<string, string> = Object.fromEntries([...form].map(([key, value]) => [key, String(value)]));
+  const invalid = (message: string) => fail(400, { values, message });
+  if (!values.id) return invalid('Semester wajib dipilih.');
+  const body = {
+    krs_mulai_at: values.krs_mulai_at?.trim() || null,
+    krs_selesai_at: values.krs_selesai_at?.trim() || null,
+  };
+  let result;
+  try { result = await serverApi(event).semester({ id: values.id })['krs-period'].patch(body); }
+  catch { return fail(503, { values, message: apiMessage(null) }); }
+  if (result.status === 401) redirect(303, '/login');
+  if (result.error || !result.data?.success) return fail(result.status >= 400 && result.status < 500 ? result.status : 503, { values, message: apiMessage(result.error?.value) });
+  return { saved: true as const, values: { ...values, mode: 'krs-period' }, message: 'Periode KRS berhasil disimpan.' };
 }

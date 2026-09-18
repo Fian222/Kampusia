@@ -17,22 +17,31 @@
   let { data, form }: PageProps = $props();
   let saving = $state(false);
   let formOpen = $state(false);
+  let periodOpen = $state(false);
   let requestedEditId = $state<string | null>(null);
+  let requestedPeriodId = $state<string | null>(null);
   const listPending = $derived(isListNavigationPending(navigating, page.url.pathname));
   const filterKeys = ['search', 'jenis', 'tahun_mulai', 'is_active'];
   const filtersActive = $derived(hasActiveQuery(page.url, filterKeys));
   const queryEditId = $derived(page.url.searchParams.get('edit'));
+  const queryPeriodId = $derived(page.url.searchParams.get('krs_period'));
+  const actionValue = (name: string) => (form?.values as Record<string, string> | undefined)?.[name];
   const saveFailed = $derived(form?.values?.mode === 'save' && !form.saved);
-  const editModal = $derived(resolveEditModalState({ queryEditId, requestedEditId, loadedEditId: data.edit?.id ?? null, createRequested: page.url.searchParams.get('modal') === 'create', saveFailed, failedEditId: saveFailed ? form?.values?.id || null : null }));
+  const periodSaveFailed = $derived(form?.values?.mode === 'krs-period' && !form.saved);
+  const editModal = $derived(resolveEditModalState({ queryEditId, requestedEditId, loadedEditId: data.edit?.id ?? null, createRequested: page.url.searchParams.get('modal') === 'create', saveFailed, failedEditId: saveFailed ? actionValue('id') || null : null }));
+  const periodModal = $derived(resolveEditModalState({ queryEditId: queryPeriodId, requestedEditId: requestedPeriodId, loadedEditId: data.krsPeriod?.id ?? null, createRequested: false, saveFailed: periodSaveFailed, failedEditId: periodSaveFailed ? actionValue('id') || null : null }));
   const box = 'surface-panel mt-6 p-5 sm:p-6';
   const input = 'control-base mt-1.5';
   const button = 'min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-50';
   function href(changes: Record<string, string | number>) { const p = new URLSearchParams(page.url.searchParams); for (const [key, value] of Object.entries(changes)) { if (value === '') p.delete(key); else p.set(key, String(value)); } return '?' + p; }
   const submit = () => { saving = true; return async ({ update }: { update: (options: { reset: boolean }) => Promise<void> }) => { try { await update({ reset: false }); } finally { saving = false; } }; };
   function openEdit(id: string) { requestedEditId = id; formOpen = true; }
+  function openKrsPeriod(id: string) { requestedPeriodId = id; periodOpen = true; }
   function jakartaDateTimeLocal(value: Date | string | null | undefined) { if (!value) return ''; const instant = new Date(value); const local = new Date(instant.getTime() + 7 * 60 * 60 * 1000); const pad = (number: number) => String(number).padStart(2, '0'); return `${local.getUTCFullYear()}-${pad(local.getUTCMonth() + 1)}-${pad(local.getUTCDate())}T${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}`; }
+  function jakartaLabel(value: Date | string) { return new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(value)); }
   function periodState(row: { krsMulaiAt: Date | string | null; krsSelesaiAt: Date | string | null }) { if (!row.krsMulaiAt || !row.krsSelesaiAt) return 'Belum dijadwalkan'; const now = new Date(); if (now < new Date(row.krsMulaiAt)) return 'Belum dibuka'; if (now >= new Date(row.krsSelesaiAt)) return 'Sudah ditutup'; return 'Sedang dibuka'; }
   $effect(() => { const state = editModal; if (queryEditId && requestedEditId === queryEditId) requestedEditId = null; if (state.open) formOpen = true; else if (requestedEditId === null) formOpen = false; });
+  $effect(() => { const state = periodModal; if (queryPeriodId && requestedPeriodId === queryPeriodId) requestedPeriodId = null; if (state.open) periodOpen = true; else if (requestedPeriodId === null) periodOpen = false; });
 </script>
 <svelte:head><title>Semester · Kampusia</title></svelte:head>
 <PageHeader eyebrow="Akademik / Perkuliahan" title="Semester" description="Pilih periode akademik aktif secara eksplisit dan pertahankan seluruh riwayat semester.">{#snippet actions()}<a class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm" href={href({ edit: '', modal: 'create' })} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => { requestedEditId = null; formOpen = true; }}><Icon name="plus" size={16} /> Tambah Semester</a>{/snippet}</PageHeader>
@@ -52,10 +61,10 @@
     <thead class="border-b text-slate-500"><tr>{#each ['Kode', 'Nama', 'Tahun Akademik', 'Jenis', 'Tanggal Mulai', 'Tanggal Selesai', 'Periode KRS', 'Status Aktif', 'Tindakan'] as label}<th class="p-3">{label}</th>{/each}</tr></thead>
     <tbody>{#each data.records.data as row}<tr class="border-b border-slate-100">
       <td class="p-3">{row.kode}</td><td class="p-3">{row.nama}</td><td class="p-3">{row.tahunMulai}/{row.tahunMulai + 1}</td><td class="p-3">{row.jenis}</td><td class="p-3 whitespace-nowrap">{row.tanggalMulai}</td><td class="p-3 whitespace-nowrap">{row.tanggalSelesai}</td>
-      <td class="p-3"><Badge tone={periodState(row) === 'Sedang dibuka' ? 'success' : periodState(row) === 'Sudah ditutup' ? 'danger' : 'neutral'}>{periodState(row)}</Badge><span class="mt-1 block whitespace-nowrap text-xs text-slate-500">{row.krsMulaiAt ? new Date(row.krsMulaiAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) : '—'}{row.krsSelesaiAt ? ` – ${new Date(row.krsSelesaiAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}` : ''}</span></td>
+      <td class="p-3"><span class="block text-xs font-medium text-slate-500">Periode KRS:</span><Badge tone={periodState(row) === 'Sedang dibuka' ? 'success' : periodState(row) === 'Sudah ditutup' ? 'danger' : 'neutral'}>{periodState(row)}</Badge><span class="mt-1 block whitespace-nowrap text-xs text-slate-500">{row.krsMulaiAt && row.krsSelesaiAt ? `${jakartaLabel(row.krsMulaiAt)} – ${jakartaLabel(row.krsSelesaiAt)} WIB` : 'Belum diatur'}</span></td>
       <td class="p-3"><Badge tone={row.isActive ? 'success' : 'neutral'}>{row.isActive ? 'Semester aktif' : 'Tidak dipilih'}</Badge></td>
-      <td class="p-3"><a class="text-teal-800" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a>
-        {#if !row.isActive}<details class="mt-2"><summary class="cursor-pointer text-teal-800">Aktifkan</summary><p class="my-2">Ganti semester aktif menjadi {row.nama}?</p><form method="POST" use:enhance={submit}><input type="hidden" name="mode" value="activate" /><input type="hidden" name="id" value={row.id} /><input type="hidden" name="confirm" value="yes" /><button class={button} disabled={saving}>Ya, aktifkan semester</button></form></details>{/if}
+      <td class="p-3"><div class="flex flex-col items-start gap-2"><a class="text-teal-800" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit Semester</a><a class="text-teal-800" aria-label={`Atur periode KRS ${row.nama}`} href={href({ edit: '', modal: '', krs_period: row.id })} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openKrsPeriod(row.id)}>Atur Periode KRS</a></div>
+        {#if !row.isActive}<details class="mt-2"><summary class="cursor-pointer text-teal-800">Aktifkan</summary><p class="my-2">Ganti semester aktif menjadi {row.nama}?</p><form method="POST" action="?/semester" use:enhance={submit}><input type="hidden" name="mode" value="activate" /><input type="hidden" name="id" value={row.id} /><input type="hidden" name="confirm" value="yes" /><button class={button} disabled={saving}>Ya, aktifkan semester</button></form></details>{/if}
       </td></tr>{:else}<tr><td colspan="9" class="p-8 text-center text-slate-500">Tidak ada semester yang cocok.</td></tr>{/each}</tbody>
   </table></div>
   <Pagination {...data.records.meta} href={number => href({ page: number })} />
@@ -67,16 +76,33 @@
   <p class="mt-2 text-sm text-slate-500">Kode: tahun mulai diikuti 1 untuk Ganjil atau 2 untuk Genap. Identitas dan tanggal dengan riwayat KRS disetujui atau jadwal dipertahankan.</p>
   {#if form?.message && form.values?.mode === 'save'}<p role="alert" class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}
   {#key data.edit?.id + JSON.stringify(form)}
-  <form method="POST" class="mt-4 grid gap-4 sm:grid-cols-2" use:enhance={() => { saving = true; return async ({ update, result }) => { try { await update({ reset: false }); if (result.type === 'success') formOpen = false; } finally { saving = false; } }; }}>
+  <form method="POST" action="?/semester" class="mt-4 grid gap-4 sm:grid-cols-2" use:enhance={() => { saving = true; return async ({ update, result }) => { try { await update({ reset: false }); if (result.type === 'success') formOpen = false; } finally { saving = false; } }; }}>
     <input type="hidden" name="mode" value="save" /><input type="hidden" name="id" value={data.edit?.id ?? ''} />
     <AcademicFields values={form?.values?.mode === 'save' ? form.values : {}} fields={[
       { name: 'kode', label: 'Kode', value: data.edit?.kode, maxlength: 5 }, { name: 'nama', label: 'Nama', value: data.edit?.nama, maxlength: 100 },
       { name: 'tahun_mulai', label: 'Tahun mulai', type: 'number', min: 1900, max: 9998, value: data.edit?.tahunMulai },
       { name: 'jenis', label: 'Jenis', value: data.edit?.jenis ?? 'GANJIL', options: ['GANJIL', 'GENAP'].map(value => ({ value, label: value })) },
       { name: 'tanggal_mulai', label: 'Tanggal Mulai', type: 'date', value: data.edit?.tanggalMulai }, { name: 'tanggal_selesai', label: 'Tanggal Selesai', type: 'date', value: data.edit?.tanggalSelesai },
-      { name: 'krs_mulai_at', label: 'KRS mulai (WIB)', type: 'datetime-local', required: false, value: jakartaDateTimeLocal(data.edit?.krsMulaiAt) }, { name: 'krs_selesai_at', label: 'KRS selesai (WIB)', type: 'datetime-local', required: false, value: jakartaDateTimeLocal(data.edit?.krsSelesaiAt) },
     ]} />
     <div class="flex justify-end gap-3 sm:col-span-2"><button type="button" class="px-4 py-2 text-sm font-semibold text-slate-600" disabled={saving} onclick={() => formOpen = false}>Batal</button><button class={button} disabled={saving}>{saving ? 'Menyimpan…' : 'Simpan'}</button></div>
   </form>{/key}
+  {/if}
+</Modal>
+<Modal bind:open={periodOpen} title="Atur Periode KRS" description={periodModal.loading ? 'Menyiapkan periode KRS.' : 'Waktu ditampilkan dan disimpan berdasarkan zona Asia/Jakarta (WIB).'} closeDisabled={saving} width="md" onClose={() => { const shouldClear = requestedPeriodId !== null || queryPeriodId || form?.values?.mode === 'krs-period'; requestedPeriodId = null; if (shouldClear) void goto(href({ krs_period: '' }), { replaceState: true, ...modalNavigationOptions }); }}>
+  {#if periodModal.loading}
+    <div class="rounded-xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600" role="status">Memuat periode KRS…</div>
+  {:else}
+    <p class="mt-2 text-sm text-slate-500">Isi kedua waktu, atau kosongkan keduanya jika periode KRS belum dijadwalkan.</p>
+    {#if form?.message && form.values?.mode === 'krs-period'}<p role="alert" class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}
+    {#key data.krsPeriod?.id + JSON.stringify(form)}
+      <form method="POST" action="?/krsPeriod" class="mt-4 grid gap-4" use:enhance={() => { saving = true; return async ({ update, result }) => { try { await update({ reset: false }); if (result.type === 'success') periodOpen = false; } finally { saving = false; } }; }}>
+        <input type="hidden" name="mode" value="krs-period" /><input type="hidden" name="id" value={data.krsPeriod?.id ?? actionValue('id') ?? ''} />
+        <AcademicFields values={form?.values?.mode === 'krs-period' ? form.values : {}} fields={[
+          { name: 'krs_mulai_at', label: 'KRS mulai (WIB)', type: 'datetime-local', required: false, value: jakartaDateTimeLocal(data.krsPeriod?.krsMulaiAt) },
+          { name: 'krs_selesai_at', label: 'KRS selesai (WIB)', type: 'datetime-local', required: false, value: jakartaDateTimeLocal(data.krsPeriod?.krsSelesaiAt) },
+        ]} />
+        <div class="flex justify-end gap-3"><button type="button" class="px-4 py-2 text-sm font-semibold text-slate-600" disabled={saving} onclick={() => periodOpen = false}>Batal</button><button class={button} disabled={saving}>{saving ? 'Menyimpan…' : 'Simpan Periode KRS'}</button></div>
+      </form>
+    {/key}
   {/if}
 </Modal>

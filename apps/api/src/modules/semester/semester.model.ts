@@ -10,6 +10,11 @@ export const semesterBody = t.Object({
   is_active: t.Optional(t.Boolean()),
 });
 export const semesterPatch = t.Partial(semesterBody);
+export const semesterKrsPeriodBody = t.Object({
+  krs_mulai_at: t.Nullable(t.String({ minLength: 16, maxLength: 19 })),
+  krs_selesai_at: t.Nullable(t.String({ minLength: 16, maxLength: 19 })),
+});
 export const semesterQuery = t.Object({ ...listQuery.properties, jenis: t.Optional(jenis), tahun_mulai: t.Optional(t.Numeric({ minimum: 1900, maximum: 9998, multipleOf: 1 })) });
 export type SemesterInput = typeof semesterBody.static;
+export type SemesterKrsPeriodInput = typeof semesterKrsPeriodBody.static;
 export type SemesterQuery = typeof semesterQuery.static;

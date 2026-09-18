@@ -1,6 +1,6 @@
 import { MasterDataError, normalizeText, requirePatch } from '../../utils/master-data';
 import { academicWrite } from '../../utils/academic-write';
-import type { SemesterInput } from './semester.model';
+import type { SemesterInput, SemesterKrsPeriodInput } from './semester.model';
 import type { SemesterRepository } from './semester.repository';
 import { jakartaDateTimeToInstant } from './semester-time';
 function krsInstant(value: string | null | undefined) {
@@ -18,6 +18,19 @@ function normalize(input: Partial<SemesterInput>) {
     ...(input.krs_selesai_at !== undefined ? { krsSelesaiAt: krsInstant(input.krs_selesai_at) } : {}),
     ...(input.is_active !== undefined ? { isActive: input.is_active } : {}),
   };
+}
+const historicalKeys = ['kode', 'nama', 'tahunMulai', 'jenis', 'tanggalMulai', 'tanggalSelesai'] as const;
+type HistoricalKey = typeof historicalKeys[number];
+function semanticHistoricalValue(key: HistoricalKey, value: unknown) {
+  if ((key === 'tanggalMulai' || key === 'tanggalSelesai') && value instanceof Date) return value.toISOString().slice(0, 10);
+  if (key === 'tanggalMulai' || key === 'tanggalSelesai') return String(value).slice(0, 10);
+  return value;
+}
+function historicalChange(existing: NonNullable<Awaited<ReturnType<SemesterRepository['findById']>>>, changes: ReturnType<typeof normalize>) {
+  return historicalKeys.some(key => key in changes && semanticHistoricalValue(key, existing[key]) !== semanticHistoricalValue(key, changes[key]));
+}
+function normalizeKrsPeriod(input: SemesterKrsPeriodInput) {
+  return { krsMulaiAt: krsInstant(input.krs_mulai_at), krsSelesaiAt: krsInstant(input.krs_selesai_at) };
 }
 function validate(row: NonNullable<Awaited<ReturnType<SemesterRepository['findById']>>> | ReturnType<typeof normalize>) {
   if (!Number.isInteger(row.tahunMulai) || row.tahunMulai! < 1900 || row.tahunMulai! > 9998 || !['GANJIL', 'GENAP'].includes(row.jenis!)) throw new MasterDataError(400, 'Tahun mulai atau jenis semester tidak valid.');
@@ -49,9 +62,17 @@ export function createSemesterService(repository: SemesterRepository) {
         const existing = await tx.findById(id);
         if (!existing) throw new MasterDataError(404, 'Semester tidak ditemukan.');
         const next = { ...existing, ...changes }; validate(next);
-        const changed = (['kode', 'nama', 'tahunMulai', 'jenis', 'tanggalMulai', 'tanggalSelesai'] as const).some(key => existing[key] !== next[key]);
-        if (changed && await tx.hasHistory(id)) throw new MasterDataError(409, 'Identitas dan tanggal semester dengan riwayat persetujuan KRS atau jadwal harus dipertahankan.');
+        if (historicalChange(existing, changes) && await tx.hasHistory(id)) throw new MasterDataError(409, 'Identitas dan tanggal semester dengan riwayat persetujuan KRS atau jadwal harus dipertahankan.');
         if (changes.isActive === true && !existing.isActive) await tx.deactivate();
+        return tx.update(id, changes);
+      }));
+    },
+    updateKrsPeriod(id: string, input: SemesterKrsPeriodInput) {
+      const changes = normalizeKrsPeriod(input);
+      return academicWrite(() => repository.transaction(async tx => {
+        const existing = await tx.findById(id);
+        if (!existing) throw new MasterDataError(404, 'Semester tidak ditemukan.');
+        validate({ ...existing, ...changes });
         return tx.update(id, changes);
       }));
     },

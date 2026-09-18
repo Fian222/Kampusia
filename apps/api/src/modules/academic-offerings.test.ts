@@ -113,9 +113,10 @@ test('Semester KRS window uses Jakarta local time, validates pairs/order, and re
   const row = (await read<Term>(created)).data;
   expect(new Date(row.krsMulaiAt!).toISOString()).toEqual('2026-01-02T01:30:00.000Z'); expect(new Date(row.krsSelesaiAt!).toISOString()).toEqual('2026-01-10T09:00:00.000Z');
   ctx.history.add(row.id);
-  expect((await ctx.request('/semester/' + row.id, 'PATCH', { krs_mulai_at: '2026-01-03T08:30', krs_selesai_at: '2026-01-11T16:00' })).status).toBe(200);
-  for (const patch of [{ krs_mulai_at: '2026-01-01T08:00', krs_selesai_at: null }, { krs_mulai_at: '2026-01-10T08:00', krs_selesai_at: '2026-01-09T08:00' }]) expect((await ctx.request('/semester/' + row.id, 'PATCH', patch)).status).toBe(400);
-  expect((await ctx.request('/semester/' + row.id, 'PATCH', { krs_mulai_at: null, krs_selesai_at: null })).status).toBe(200);
+  expect((await ctx.request('/semester/' + row.id, 'PATCH', { ...termBody(), krs_mulai_at: '2026-01-03T08:30', krs_selesai_at: '2026-01-11T16:00' })).status).toBe(200);
+  for (const patch of [{ krs_mulai_at: '2026-01-01T08:00', krs_selesai_at: null }, { krs_mulai_at: '2026-01-10T08:00', krs_selesai_at: '2026-01-09T08:00' }]) expect((await ctx.request('/semester/' + row.id + '/krs-period', 'PATCH', patch)).status).toBe(400);
+  expect((await ctx.request('/semester/' + row.id + '/krs-period', 'PATCH', { krs_mulai_at: null, krs_selesai_at: null })).status).toBe(200);
+  expect((await ctx.request('/semester/' + missing + '/krs-period', 'PATCH', { krs_mulai_at: null, krs_selesai_at: null })).status).toBe(404);
 });
 test('Semester duplicates, code/jenis relationship, calendar dates and date range rejected', async () => {
   const ctx = setup(); await ctx.term();
@@ -134,8 +135,19 @@ test('Semester activation atomically replaces active term and failed write resto
 });
 test('Semester historical identity/date mutation rejected; unchanged identity and activation allowed', async () => {
   const ctx = setup(); const row = await ctx.term(); ctx.history.add(row.id);
-  for (const changes of [{ nama: 'Changed' }, { tanggal_selesai: '2026-07-01' }, { kode: '20262', jenis: 'GENAP' }]) expect((await ctx.request('/semester/' + row.id, 'PATCH', changes)).status).toBe(409);
-  expect((await ctx.request('/semester/' + row.id, 'PATCH', { nama: row.nama, is_active: true })).status).toBe(200);
+  Object.assign(row as unknown as { tanggalMulai: Date; tanggalSelesai: Date }, {
+    tanggalMulai: new Date('2026-01-01T00:00:00.000Z'),
+    tanggalSelesai: new Date('2026-06-30T00:00:00.000Z'),
+  });
+  expect((await ctx.request('/semester/' + row.id, 'PATCH', { ...termBody(), is_active: true })).status).toBe(200);
+  for (const changes of [
+    { nama: 'Changed' },
+    { tanggal_mulai: '2026-01-02' },
+    { tanggal_selesai: '2026-07-01' },
+    { kode: '20262', jenis: 'GENAP' as const },
+    { kode: '20271', tahun_mulai: 2027 },
+  ]) expect((await ctx.request('/semester/' + row.id, 'PATCH', changes)).status).toBe(409);
+  expect((await ctx.request('/semester/' + row.id, 'PATCH', { nama: row.nama })).status).toBe(200);
 });
 test('Kelas API create/list/detail/update, normalized identity, duplicate, combined filters and pagination', async () => {
   const ctx = setup(); const term = await ctx.term();
@@ -207,7 +219,7 @@ test('Kelas Dosen scopes assignment IDs, protects opened class and validates sch
 });
 for (const role of ['ADMIN', 'AKADEMIK', 'DOSEN', 'MAHASISWA'] as const) test('offering routes enforce role ' + role, async () => {
   const ctx = setup(role); const row = await ctx.kelas(); const a = await ctx.services.kelasDosen.add(row.id, { dosen_id: ctx.lecturers[0]!.id }); const allowed = ['ADMIN', 'AKADEMIK'].includes(role);
-  const routes = [ ['/semester', 'GET'], ['/semester/' + row.semesterId, 'GET'], ['/semester', 'POST', termBody(2027)], ['/semester/' + row.semesterId, 'PATCH', { is_active: true }], ['/kelas-kuliah', 'GET'], ['/kelas-kuliah/' + row.id, 'GET'], ['/kelas-kuliah', 'POST', ctx.classBody(row.semesterId, 'B')], ['/kelas-kuliah/' + row.id, 'PATCH', { kapasitas: 20 }], ['/kelas-kuliah/' + row.id, 'PATCH', { status: 'DITUTUP' }], [`/kelas-kuliah/${row.id}/dosen`, 'GET'], [`/kelas-kuliah/${row.id}/dosen`, 'POST', { dosen_id: ctx.lecturers[1]!.id }], [`/kelas-kuliah/${row.id}/dosen/${a.id}`, 'PATCH', { is_koordinator: true }], [`/kelas-kuliah/${row.id}/dosen/${a.id}`, 'DELETE'] ] as const;
+  const routes = [ ['/semester', 'GET'], ['/semester/' + row.semesterId, 'GET'], ['/semester', 'POST', termBody(2027)], ['/semester/' + row.semesterId, 'PATCH', { is_active: true }], ['/semester/' + row.semesterId + '/krs-period', 'PATCH', { krs_mulai_at: null, krs_selesai_at: null }], ['/kelas-kuliah', 'GET'], ['/kelas-kuliah/' + row.id, 'GET'], ['/kelas-kuliah', 'POST', ctx.classBody(row.semesterId, 'B')], ['/kelas-kuliah/' + row.id, 'PATCH', { kapasitas: 20 }], ['/kelas-kuliah/' + row.id, 'PATCH', { status: 'DITUTUP' }], [`/kelas-kuliah/${row.id}/dosen`, 'GET'], [`/kelas-kuliah/${row.id}/dosen`, 'POST', { dosen_id: ctx.lecturers[1]!.id }], [`/kelas-kuliah/${row.id}/dosen/${a.id}`, 'PATCH', { is_koordinator: true }], [`/kelas-kuliah/${row.id}/dosen/${a.id}`, 'DELETE'] ] as const;
   for (const [path, method, body] of routes) expect((await ctx.request(path, method, body)).status).toBe(allowed ? method === 'POST' ? 201 : 200 : 403);
 });
 test('offering routes enforce sessions, origin, validation, no hard deletes and scoped missing IDs', async () => {
