@@ -1,6 +1,6 @@
 # Authentication and authorization
 
-The initial flow uses existing `users` records and Bun password verification. Successful responses expose only `id`, `email`, and `role`. Unknown emails, incorrect passwords, and inactive accounts receive the same 401 response. Login accepts a normalized email and limits attempts per email to 20 in a 15-minute window within the API process.
+The authentication flow uses existing `users` records and Bun password verification. Successful responses expose only `id`, `loginId`, optional contact `email`, and `role`. Unknown or null Nomor Induk values, incorrect passwords, and inactive accounts receive the same 401 response. Login accepts a one-through-30 digit `login_id` string, preserves leading zeroes, and limits attempts per normalized identifier to 20 in a 15-minute window within the API process. Email is not a login fallback.
 
 ## API contract
 
@@ -8,7 +8,7 @@ Account eligibility is controlled by `users.is_active`, independently of `mahasi
 
 | Method | Path | Behavior |
 | --- | --- | --- |
-| POST | `/auth/login` | Accept `{ email, password }`, set session cookie, return safe user |
+| POST | `/auth/login` | Accept `{ login_id, password }`, set session cookie, return safe user |
 | POST | `/auth/logout` | Revoke the supplied session and expire the cookie; safe to repeat |
 | GET | `/auth/me` | Return current safe user or 401 |
 | GET | `/dashboard/:area` | Require login and the matching role; return area and safe user |
@@ -34,7 +34,7 @@ The browser submits same-origin SvelteKit form actions. SvelteKit uses Eden Trea
 | DOSEN | `/dosen` |
 | MAHASISWA | `/mahasiswa` |
 
-Each role can access its own dashboard. ADMIN does not implicitly bypass other role checks. The SvelteKit server hook checks access on every request, and dashboard loads also call the protected API endpoint. Unauthenticated visitors go to `/login`; authenticated visitors requesting another role's area receive 403. All areas share a responsive sidebar, user information, and logout form.
+Each role can access its own dashboard. ADMIN does not implicitly bypass other role checks. The SvelteKit server hook checks access on every request, and dashboard loads also call the protected API endpoint. Unauthenticated visitors go to `/login`; authenticated visitors requesting another role's area receive 403. All areas share a responsive sidebar, Nomor Induk-first user information, optional contact email, and logout form.
 
 The explicitly shared master-data pages `/akademik/fakultas` and `/akademik/program-studi` allow both ADMIN and AKADEMIK. Their loads and form actions enforce that allowlist, as do all Fakultas and Program Studi API endpoints. Master-data mutations also verify `Origin` against `WEB_URL`. This exception does not grant ADMIN access to the AKADEMIK dashboard or other role areas.
 

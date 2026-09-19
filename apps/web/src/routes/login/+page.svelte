@@ -56,8 +56,8 @@
         return async ({ update }) => { try { await update(); } finally { submitting = false; } };
       }}>
         <div>
-          <label for="email" class="mb-2 block text-sm font-semibold text-slate-700">Email</label>
-          <input id="email" name="email" type="email" autocomplete="username" inputmode="email" required maxlength="254" value={form?.email ?? ''} placeholder="nama@kampus.ac.id" class="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm shadow-sm outline-none placeholder:text-slate-400" />
+          <label for="login_id" class="mb-2 block text-sm font-semibold text-slate-700">Nomor Induk</label>
+          <input id="login_id" name="login_id" type="text" autocomplete="username" inputmode="numeric" required maxlength="30" pattern="[0-9]+" value={form?.loginId ?? ''} placeholder="Masukkan NIM atau NIK" class="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm shadow-sm outline-none placeholder:text-slate-400" />
         </div>
         <div>
           <label for="password" class="mb-2 block text-sm font-semibold text-slate-700">Kata sandi</label>

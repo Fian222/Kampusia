@@ -8,12 +8,12 @@ import { sessionSeconds, type AuthRecord, type Role } from './auth.model';
 let passwordHash: string;
 beforeAll(async () => { passwordHash = await Bun.password.hash('TestPassword2026!', { algorithm: 'argon2id' }); });
 
-function setup(role: Role = 'AKADEMIK', production = false) {
-  const record: AuthRecord = { id: '00000000-0000-4000-8000-000000000001', loginId: null, email: 'test@kampusia.test',
+function setup(role: Role = 'AKADEMIK', production = false, loginId = '00123456') {
+  const record: AuthRecord = { id: '00000000-0000-4000-8000-000000000001', loginId, email: 'test@kampusia.test',
     role, passwordHash, isActive: true, createdAt: new Date(), updatedAt: new Date() };
   let now = Date.now();
   const service = createAuthService({
-    findByEmail: async email => email === record.email ? record : undefined,
+    findByLoginId: async value => value === record.loginId ? record : undefined,
     findById: async id => id === record.id ? record : undefined,
   }, createSessionStore(() => now));
   const origin = production ? 'https://kampusia.test' : 'http://localhost:5173';
@@ -22,31 +22,34 @@ function setup(role: Role = 'AKADEMIK', production = false) {
     method, headers: { origin: source, ...(cookie ? { cookie } : {}), ...(body ? { 'content-type': 'application/json' } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   }));
-  const login = () => request('/auth/login', 'POST', undefined, { email: record.email, password: 'TestPassword2026!' });
+  const login = () => request('/auth/login', 'POST', undefined, { login_id: loginId, password: 'TestPassword2026!' });
   return { record, request, login, advance: () => { now += sessionSeconds * 1000 + 1; } };
 }
 const cookieOf = (response: Response) => response.headers.get('set-cookie')!.split(';')[0]!;
 
-test('valid login normalizes email, returns safe user, and sets an HTTP-only cookie', async () => {
+test('valid leading-zero Nomor Induk login returns safe user and sets an HTTP-only cookie', async () => {
   const ctx = setup();
-  const response = await ctx.request('/auth/login', 'POST', undefined, { email: ' TEST@KAMPUSIA.TEST ', password: 'TestPassword2026!' });
+  const response = await ctx.login();
   expect(response.status).toBe(200);
-  expect(await response.json()).toEqual({ success: true, data: { id: ctx.record.id, email: ctx.record.email, role: 'AKADEMIK' } });
+  expect(await response.json()).toEqual({ success: true, data: { id: ctx.record.id, loginId: '00123456', email: ctx.record.email, role: 'AKADEMIK' } });
   expect(response.headers.get('set-cookie')).toContain('HttpOnly');
   expect(response.headers.get('set-cookie')).toContain('SameSite=Lax');
   expect(response.headers.get('set-cookie')).not.toContain('Secure');
   expect(response.headers.get('cache-control')).toBe('no-store');
 });
 
-test('unknown email, incorrect password, and inactive accounts return the same error', async () => {
+test('unknown, null, incorrect-password, and inactive accounts return the same error', async () => {
   const ctx = setup();
-  const wrong = await ctx.request('/auth/login', 'POST', undefined, { email: ctx.record.email, password: 'wrong' });
-  const unknown = await ctx.request('/auth/login', 'POST', undefined, { email: 'missing@kampusia.test', password: 'wrong' });
+  const wrong = await ctx.request('/auth/login', 'POST', undefined, { login_id: ctx.record.loginId, password: 'wrong' });
+  const unknown = await ctx.request('/auth/login', 'POST', undefined, { login_id: '99999999', password: 'wrong' });
   ctx.record.isActive = false;
   const inactive = await ctx.login();
-  for (const response of [wrong, unknown, inactive]) {
+  ctx.record.isActive = true;
+  ctx.record.loginId = null;
+  const unmapped = await ctx.login();
+  for (const response of [wrong, unknown, inactive, unmapped]) {
     expect(response.status).toBe(401);
-    expect(await response.json()).toEqual({ success: false, message: 'Email atau kata sandi salah.' });
+    expect(await response.json()).toEqual({ success: false, message: 'Nomor Induk atau kata sandi salah.' });
     expect(response.headers.get('set-cookie')).toBeNull();
   }
 });
@@ -64,7 +67,7 @@ test('current-user endpoint returns only authenticated public fields', async () 
   const cookie = cookieOf(await ctx.login());
   const response = await ctx.request('/auth/me', 'GET', cookie);
   expect(response.status).toBe(200);
-  expect(await response.json()).toEqual({ success: true, data: { id: ctx.record.id, email: ctx.record.email, role: 'AKADEMIK' } });
+  expect(await response.json()).toEqual({ success: true, data: { id: ctx.record.id, loginId: ctx.record.loginId, email: ctx.record.email, role: 'AKADEMIK' } });
 });
 
 for (const status of ['AKTIF', 'CUTI', 'NONAKTIF', 'LULUS', 'KELUAR'] as const) {
@@ -84,7 +87,7 @@ for (const status of ['AKTIF', 'CUTI', 'NONAKTIF', 'LULUS', 'KELUAR'] as const) 
     const current = await ctx.request('/auth/me', 'GET', existingCookie);
     expect(current.status).toBe(200);
     expect(await current.json()).toEqual({
-      success: true, data: { id: ctx.record.id, email: ctx.record.email, role: 'MAHASISWA' },
+      success: true, data: { id: ctx.record.id, loginId: ctx.record.loginId, email: ctx.record.email, role: 'MAHASISWA' },
     });
     expect((await ctx.request('/dashboard/mahasiswa', 'GET', existingCookie)).status).toBe(200);
 
@@ -100,7 +103,7 @@ for (const status of ['AKTIF', 'CUTI', 'NONAKTIF', 'LULUS', 'KELUAR'] as const) 
     ctx.record.isActive = false;
     const denied = await ctx.login();
     expect(denied.status).toBe(401);
-    expect(await denied.json()).toEqual({ success: false, message: 'Email atau kata sandi salah.' });
+    expect(await denied.json()).toEqual({ success: false, message: 'Nomor Induk atau kata sandi salah.' });
     expect(denied.headers.get('set-cookie')).toBeNull();
     expect((await ctx.request('/auth/me', 'GET', existingCookie)).status).toBe(401);
     expect((await ctx.request('/dashboard/mahasiswa', 'GET', newCookie)).status).toBe(401);
@@ -144,19 +147,20 @@ test('sessions expire and account deactivation and role changes take effect imme
 test('login rotates a previous session and rejects cross-origin mutations', async () => {
   const ctx = setup();
   const first = cookieOf(await ctx.login());
-  const next = await ctx.request('/auth/login', 'POST', first, { email: ctx.record.email, password: 'TestPassword2026!' });
+  const next = await ctx.request('/auth/login', 'POST', first, { login_id: ctx.record.loginId, password: 'TestPassword2026!' });
   expect(next.status).toBe(200);
   expect(cookieOf(next)).not.toBe(first);
   expect((await ctx.request('/auth/me', 'GET', first)).status).toBe(401);
   expect((await ctx.request('/auth/logout', 'POST', cookieOf(next), undefined, 'https://evil.test')).status).toBe(403);
-  expect((await ctx.request('/auth/login', 'POST', undefined, { email: ctx.record.email, password: 'TestPassword2026!' }, 'https://evil.test')).status).toBe(403);
+  expect((await ctx.request('/auth/login', 'POST', undefined, { login_id: ctx.record.loginId, password: 'TestPassword2026!' }, 'https://evil.test')).status).toBe(403);
 });
 
 test('production cookies are Secure and malformed input has safe validation errors', async () => {
   const ctx = setup('AKADEMIK', true);
   expect((await ctx.login()).headers.get('set-cookie')).toContain('Secure');
-  expect((await ctx.request('/auth/login', 'POST', undefined, { email: 'bad', password: 'x' })).status).toBe(400);
-  const response = await ctx.request('/auth/login', 'POST', undefined, { email: ctx.record.email });
+  expect((await ctx.request('/auth/login', 'POST', undefined, { login_id: '12A', password: 'x' })).status).toBe(400);
+  expect((await ctx.request('/auth/login', 'POST', undefined, { email: ctx.record.email, password: 'TestPassword2026!' })).status).toBe(400);
+  const response = await ctx.request('/auth/login', 'POST', undefined, { login_id: ctx.record.loginId });
   expect(response.status).toBe(400);
   expect(await response.json()).toEqual({ success: false, message: 'Periksa format dan kelengkapan data yang dikirim.' });
 });

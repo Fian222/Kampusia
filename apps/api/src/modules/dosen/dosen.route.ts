@@ -19,4 +19,3 @@ export function dosenRoutes(auth: AuthService, origin: string, service?: DosenSe
     }, { body: dosenBody })
     .patch('/:id', async ({ params, body }) => ({ success: true as const, data: await getService().update(params.id, body) }), { params: idParams, body: dosenPatch });
 }
-

@@ -5,7 +5,6 @@ import { mahasiswaStatusValues } from './mahasiswa.options';
 const uuid = t.String({ format: 'uuid' });
 export const mahasiswaStatus = t.UnionEnum(mahasiswaStatusValues, { default: undefined });
 export const mahasiswaBody = t.Object({
-  user_id: t.Optional(t.Nullable(uuid)),
   program_studi_id: uuid,
   kurikulum_id: uuid,
   dosen_pa_id: t.Optional(t.Nullable(uuid)),

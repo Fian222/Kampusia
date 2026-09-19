@@ -11,7 +11,7 @@ test.skipIf(Bun.env.RUN_CATALOG_E2E !== '1')('SvelteKit catalog pages render lis
   };
   const paths = ['/akademik/mata-kuliah', '/akademik/kurikulum'];
   for (const path of paths) expect((await request(path)).headers.get('location')).toBe('/login');
-  const login = await request('/login', { method: 'POST', headers: { origin }, body: new URLSearchParams({ email: 'akademik@kampusia.test', password }) });
+  const login = await request('/login', { method: 'POST', headers: { origin }, body: new URLSearchParams({ login_id: '99000002', password }) });
   expect(login.status).toBe(303);
   const cookie = login.headers.getSetCookie().find(value => value.startsWith('kampusia_session='))!.split(';')[0]!;
   try {

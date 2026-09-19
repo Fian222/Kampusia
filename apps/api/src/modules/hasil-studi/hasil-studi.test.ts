@@ -9,11 +9,11 @@ import { createHasilStudiService } from './hasil-studi.service';
 const uuid = () => crypto.randomUUID();
 
 function fixture() {
-  const admin: AuthUser = { id: uuid(), email: 'admin@test.local', role: 'ADMIN' };
-  const academic: AuthUser = { id: uuid(), email: 'akademik@test.local', role: 'AKADEMIK' };
-  const lecturer: AuthUser = { id: uuid(), email: 'dosen@test.local', role: 'DOSEN' };
-  const studentUser: AuthUser = { id: uuid(), email: 'student@test.local', role: 'MAHASISWA' };
-  const otherUser: AuthUser = { id: uuid(), email: 'other@test.local', role: 'MAHASISWA' };
+  const admin: AuthUser = { id: uuid(), loginId: '9001', email: 'admin@test.local', role: 'ADMIN' };
+  const academic: AuthUser = { id: uuid(), loginId: '9002', email: 'akademik@test.local', role: 'AKADEMIK' };
+  const lecturer: AuthUser = { id: uuid(), loginId: '9003', email: 'dosen@test.local', role: 'DOSEN' };
+  const studentUser: AuthUser = { id: uuid(), loginId: '1001', email: 'student@test.local', role: 'MAHASISWA' };
+  const otherUser: AuthUser = { id: uuid(), loginId: '1002', email: 'other@test.local', role: 'MAHASISWA' };
   const users = [admin, academic, lecturer, studentUser, otherUser];
   const program = { id: uuid(), kode: 'IF', nama: 'Informatika' };
   const students = [

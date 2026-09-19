@@ -25,6 +25,7 @@
     searchPlaceholder = 'Cari kode atau nama…',
     required = false,
     nullable = false,
+    clearLabel,
     disabled = false,
     error,
     help,
@@ -43,6 +44,7 @@
     searchPlaceholder?: string;
     required?: boolean;
     nullable?: boolean;
+    clearLabel?: string;
     disabled?: boolean;
     error?: string;
     help?: string;
@@ -183,7 +185,7 @@
       <Icon name="chevron-down" size={17} class={`shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
     </button>
     {#if nullable && value && !disabled}
-      <button type="button" class="absolute right-9 top-1/2 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={`Kosongkan ${label}`} onclick={(event) => { event.stopPropagation(); clear(); }}><Icon name="close" size={15} /></button>
+      <button type="button" class="absolute right-9 top-1/2 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={clearLabel ?? `Kosongkan ${label}`} onclick={(event) => { event.stopPropagation(); clear(); }}><Icon name="close" size={15} /></button>
     {/if}
   </div>
 

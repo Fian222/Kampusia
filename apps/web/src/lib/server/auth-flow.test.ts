@@ -9,15 +9,15 @@ test.skipIf(process.env.RUN_AUTH_E2E !== '1')('all seeded roles can sign in thro
   expect((await request('/akademik')).headers.get('location')).toBe('/login');
   expect((await request('/login')).status).toBe(200);
   const accounts = [
-    { email: 'admin@kampusia.test', path: '/admin', forbidden: '/dosen' },
-    { email: 'akademik@kampusia.test', path: '/akademik', forbidden: '/admin' },
-    { email: 'dosen@kampusia.test', path: '/dosen', forbidden: '/akademik' },
-    { email: 'mahasiswa@kampusia.test', path: '/mahasiswa', forbidden: '/admin' },
+    { loginId: '99000001', path: '/admin', forbidden: '/dosen' },
+    { loginId: '99000002', path: '/akademik', forbidden: '/admin' },
+    { loginId: '99000003', path: '/dosen', forbidden: '/akademik' },
+    { loginId: '99202601', path: '/mahasiswa', forbidden: '/admin' },
   ];
   for (const account of accounts) {
     const signedIn = await request('/login', {
       method: 'POST', headers: { origin, accept: 'text/html' },
-      body: new URLSearchParams({ email: account.email, password }),
+      body: new URLSearchParams({ login_id: account.loginId, password }),
     });
     expect(signedIn.status).toBe(303);
     expect(signedIn.headers.get('location')).toBe(account.path);
@@ -28,7 +28,7 @@ test.skipIf(process.env.RUN_AUTH_E2E !== '1')('all seeded roles can sign in thro
     expect(dashboard.status).toBe(200);
     const html = await dashboard.text();
     expect(html).toContain('Selamat datang di Kampusia');
-    expect(html).toContain(account.email);
+    expect(html).toContain(account.loginId);
     expect(html).not.toContain(cookie.slice(cookie.indexOf('=') + 1));
     expect((await request(account.forbidden, { headers: { cookie } })).status).toBe(403);
     expect((await request('/login', { headers: { cookie } })).headers.get('location')).toBe(account.path);

@@ -6,7 +6,7 @@ test.skipIf(Bun.env.RUN_GRADING_E2E !== '1')('SvelteKit grading grid renders and
   const password = Bun.env.SEED_PASSWORD; if (!password) throw new Error('SEED_PASSWORD is required.');
   const request = (path: string, options: RequestInit = {}) => { const headers = new Headers(options.headers); headers.set('accept', 'text/html'); return fetch(origin + path, { redirect: 'manual', ...options, headers }); };
   expect((await request('/akademik/kelas-kuliah')).headers.get('location')).toBe('/login');
-  const login = await request('/login', { method: 'POST', headers: { origin }, body: new URLSearchParams({ email: 'akademik@kampusia.test', password }) }); expect(login.status).toBe(303);
+  const login = await request('/login', { method: 'POST', headers: { origin }, body: new URLSearchParams({ login_id: '99000002', password }) }); expect(login.status).toBe(303);
   const cookie = login.headers.getSetCookie().find(value => value.startsWith('kampusia_session='))!.split(';')[0]!;
   try {
     const classes = await request('/akademik/kelas-kuliah', { headers: { cookie } }); const listHtml = await classes.text(); const classId = /edit=([0-9a-f-]{36})/.exec(listHtml)?.[1]; expect(classId).toBeDefined();

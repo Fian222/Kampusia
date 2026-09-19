@@ -14,7 +14,7 @@ test.skipIf(Bun.env.RUN_KRS_E2E !== '1')('SvelteKit student/admin KRS forms comp
     f = await db.transaction(fixture);
     const password = crypto.randomUUID() + '!'; await db.update(users).set({ passwordHash: await Bun.password.hash(password, { algorithm: 'argon2id' }) }).where(inArray(users.id, f.accounts.map(row => row.id)));
     for (const account of [f.user, f.admin]) {
-      const result = await request('/login', '', { email: account.email!, password }); expect(result.status).toBe(303);
+      const result = await request('/login', '', { login_id: account.loginId!, password }); expect(result.status).toBe(303);
       const cookie = result.headers.getSetCookie().find(value => value.startsWith('kampusia_session='))?.split(';')[0]; expect(cookie).toBeDefined(); cookies.push(cookie!);
     }
     const student = cookies[0]!, admin = cookies[1]!; const path = '/mahasiswa/krs';

@@ -69,10 +69,10 @@ function setup(role: Role = 'AKADEMIK') {
       },
     }),
   };
-  const user: AuthRecord = { id: crypto.randomUUID(), loginId: null, email: 'test@kampusia.test', passwordHash: 'unused-test-hash', role, isActive: true, createdAt: new Date(), updatedAt: new Date() };
+  const user: AuthRecord = { id: crypto.randomUUID(), loginId: '99000002', email: 'test@kampusia.test', passwordHash: 'unused-test-hash', role, isActive: true, createdAt: new Date(), updatedAt: new Date() };
   const sessions = createSessionStore();
   const token = sessions.create(user.id, user.passwordHash);
-  const auth = createAuthService({ findByEmail: async () => user, findById: async () => user }, sessions);
+  const auth = createAuthService({ findByLoginId: async () => user, findById: async () => user }, sessions);
   const app = createApp(auth, { webOrigin: origin, production: false }, { fakultas: createFakultasService(facultyRepository), programStudi: createProgramStudiService(programRepository) });
   const request = (path: string, method = 'GET', body?: unknown, cookie = token, source = origin) => app.handle(new Request('http://localhost' + path, {
     method, headers: { origin: source, cookie: 'kampusia_session=' + cookie, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body),

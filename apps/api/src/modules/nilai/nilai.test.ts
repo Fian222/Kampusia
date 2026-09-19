@@ -10,11 +10,11 @@ import { createNilaiService } from './nilai.service';
 const uuid = () => crypto.randomUUID();
 const common = () => ({ id: uuid(), createdAt: new Date(), updatedAt: new Date() });
 function fixture() {
-  const admin: AuthUser = { id: uuid(), email: 'admin@test.local', role: 'ADMIN' };
-  const academic: AuthUser = { id: uuid(), email: 'academic@test.local', role: 'AKADEMIK' };
-  const lecturerUser: AuthUser = { id: uuid(), email: 'dosen@test.local', role: 'DOSEN' };
-  const foreignLecturer: AuthUser = { id: uuid(), email: 'foreign@test.local', role: 'DOSEN' };
-  const studentUser: AuthUser = { id: uuid(), email: 'student@test.local', role: 'MAHASISWA' };
+  const admin: AuthUser = { id: uuid(), loginId: '9001', email: 'admin@test.local', role: 'ADMIN' };
+  const academic: AuthUser = { id: uuid(), loginId: '9002', email: 'academic@test.local', role: 'AKADEMIK' };
+  const lecturerUser: AuthUser = { id: uuid(), loginId: '9003', email: 'dosen@test.local', role: 'DOSEN' };
+  const foreignLecturer: AuthUser = { id: uuid(), loginId: '9004', email: 'foreign@test.local', role: 'DOSEN' };
+  const studentUser: AuthUser = { id: uuid(), loginId: '1001', email: 'student@test.local', role: 'MAHASISWA' };
   const users = [admin, academic, lecturerUser, foreignLecturer, studentUser];
   const kelas: typeof kelasKuliah.$inferSelect = { ...common(), semesterId: uuid(), mataKuliahId: uuid(), programStudiId: uuid(), namaKelas: 'A', kapasitas: 30, status: 'DITUTUP' };
   const classInfo = { ...kelas, semester: { id: kelas.semesterId, kode: '20261', nama: 'Ganjil' }, mataKuliah: { id: kelas.mataKuliahId, kode: 'IF101', nama: 'Basis Data', sks: 3 }, programStudi: { id: kelas.programStudiId, kode: 'IF', nama: 'Informatika' } };

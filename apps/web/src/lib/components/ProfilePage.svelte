@@ -91,7 +91,7 @@
     {#each ['program_search', 'program_page', 'curriculum_search', 'curriculum_page', 'choice_program'] as key}
       {#if page.url.searchParams.has(key)}<input type="hidden" name={key} value={page.url.searchParams.get(key)} />{/if}
     {/each}
-    <label class="text-sm font-medium">{data.kind === 'mahasiswa' ? 'Cari NIM atau nama' : 'Cari kode dosen, NIDN, atau nama'}<input class={inputClass} name="search" value={data.filters.search} maxlength="150" /></label>
+    <label class="text-sm font-medium">{data.kind === 'mahasiswa' ? 'Cari NIM atau nama' : 'Cari NIK, kode dosen, NIDN, atau nama'}<input class={inputClass} name="search" value={data.filters.search} maxlength="150" /></label>
     <label class="text-sm font-medium">Program Studi<select class={inputClass} name="program_studi_id" value={data.filters.program_studi_id ?? ''}><option value="">Semua program studi</option>{#each programs as item}{#if item}<option value={item.id}>{item.kode} — {item.nama}</option>{/if}{/each}</select></label>
     {#if data.kind === 'mahasiswa'}
       <label class="text-sm font-medium">Kurikulum<select class={inputClass} name="kurikulum_id" value={data.filters.kurikulum_id ?? ''}><option value="">Semua kurikulum</option>
@@ -115,7 +115,7 @@
     <tbody class="divide-y divide-slate-100">
       {#if data.kind === 'mahasiswa'}
         {#each data.records as row}<tr>
-          <td class="px-5 py-4"><p class="font-semibold text-slate-950">{row.nama}</p><p class="mt-1 font-mono text-xs font-semibold text-slate-500">{row.nim}</p></td>
+          <td class="px-5 py-4"><p class="font-semibold text-slate-950">{row.nama}</p><p class="mt-1 font-mono text-xs font-semibold text-slate-500">{row.nim}</p><p class="mt-1 text-xs text-slate-500">{row.account?.loginId ? `Akun ${row.account.loginId} · ${row.account.isActive ? 'Aktif' : 'Nonaktif'}` : 'Belum memiliki akun login'}</p></td>
           <td class="px-5 py-4"><p class="font-medium text-slate-800">{row.programStudi.nama}</p><p class="mt-1 text-xs text-slate-500">{row.programStudi.kode} · {row.fakultas.nama}</p></td>
           <td class="px-5 py-4"><p class="font-medium text-slate-800">Angkatan {row.angkatan}</p><p class="mt-1 text-xs text-slate-500">{row.kurikulum.nama}</p></td>
           <td class="px-5 py-4"><p class="font-medium text-slate-800">{row.dosenPa?.nama ?? 'Belum ditetapkan'}</p>{#if row.dosenPa}<p class="mt-1 text-xs text-slate-500">{row.dosenPa.kodeDosen}</p>{/if}</td>
@@ -124,7 +124,7 @@
         </tr>{/each}
       {:else}
         {#each data.records as row}<tr>
-          <td class="px-5 py-4"><p class="font-semibold text-slate-950">{row.nama}</p><p class="mt-1 text-xs text-slate-500"><span class="font-mono font-semibold">{row.kodeDosen}</span>{row.nidn ? ` · NIDN ${row.nidn}` : ''}</p></td>
+          <td class="px-5 py-4"><p class="font-semibold text-slate-950">{row.nama}</p><p class="mt-1 text-xs text-slate-500"><span class="font-mono font-semibold">{row.kodeDosen}</span>{row.nik ? ` · NIK ${row.nik}` : ''}{row.nidn ? ` · NIDN ${row.nidn}` : ''}</p><p class="mt-1 text-xs text-slate-500">{row.account?.loginId ? `Akun ${row.account.loginId} · ${row.account.isActive ? 'Aktif' : 'Nonaktif'}` : 'Belum memiliki akun login'}</p></td>
           <td class="px-5 py-4"><p class="font-medium text-slate-800">{row.programStudi?.nama ?? 'Tanpa homebase'}</p>{#if row.programStudi}<p class="mt-1 text-xs text-slate-500">{row.programStudi.kode}</p>{/if}</td><td class="px-5 py-4"><StatusBadge active={row.isActive} /></td>
           <td class="px-5 py-4"><div class="flex flex-wrap gap-2"><a class="inline-flex min-h-8 items-center rounded-lg px-2.5 text-xs font-semibold text-brand-700 hover:bg-brand-50" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a><button class="inline-flex min-h-8 items-center rounded-lg px-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100" onclick={() => { confirmation = row; confirmationOpen = true; }}>{row.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button></div></td>
         </tr>{/each}
@@ -135,7 +135,7 @@
     {#if data.kind === 'mahasiswa'}
     {#each data.records as row}
       <li class="p-4">
-        <div class="flex items-start justify-between gap-3"><div><p class="font-semibold text-slate-950">{row.nama}</p><p class="mt-1 font-mono text-xs font-semibold text-slate-500">{row.nim}</p></div><Badge tone={row.status === 'AKTIF' ? 'success' : 'neutral'}>{row.status}</Badge></div>
+        <div class="flex items-start justify-between gap-3"><div><p class="font-semibold text-slate-950">{row.nama}</p><p class="mt-1 font-mono text-xs font-semibold text-slate-500">{row.nim}</p><p class="mt-1 text-xs text-slate-500">{row.account?.loginId ? `Akun ${row.account.loginId} · ${row.account.isActive ? 'Aktif' : 'Nonaktif'}` : 'Belum memiliki akun login'}</p></div><Badge tone={row.status === 'AKTIF' ? 'success' : 'neutral'}>{row.status}</Badge></div>
         <div class="mt-3 text-sm text-slate-600"><p>{row.programStudi.nama}</p><p class="mt-1 text-xs text-slate-500">Angkatan {row.angkatan} · PA: {row.dosenPa?.nama ?? 'Belum ditetapkan'}</p></div>
         <div class="mt-4 flex gap-2"><a class="inline-flex min-h-9 items-center rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700" href={`/akademik/mahasiswa/${row.id}/hasil-studi`}>Hasil Studi</a><a class="inline-flex min-h-9 items-center rounded-lg px-3 text-xs font-semibold text-brand-700" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a></div>
       </li>
@@ -145,7 +145,7 @@
     {:else}
     {#each data.records as row}
       <li class="p-4">
-        <div class="flex items-start justify-between gap-3"><div><p class="font-semibold text-slate-950">{row.nama}</p><p class="mt-1 font-mono text-xs font-semibold text-slate-500">{row.kodeDosen}</p></div><StatusBadge active={row.isActive} /></div>
+        <div class="flex items-start justify-between gap-3"><div><p class="font-semibold text-slate-950">{row.nama}</p><p class="mt-1 font-mono text-xs font-semibold text-slate-500">{row.kodeDosen}</p><p class="mt-1 text-xs text-slate-500">{row.nik ? `NIK ${row.nik}` : 'NIK belum diisi'} · {row.account?.loginId ? `Akun ${row.account.loginId} · ${row.account.isActive ? 'Aktif' : 'Nonaktif'}` : 'Belum memiliki akun login'}</p></div><StatusBadge active={row.isActive} /></div>
         <div class="mt-3 text-sm text-slate-600"><p>{row.programStudi?.nama ?? 'Tanpa homebase'}</p>{#if row.nidn}<p class="mt-1 text-xs text-slate-500">NIDN {row.nidn}</p>{/if}</div>
         <div class="mt-4 flex gap-2"><a class="inline-flex min-h-9 items-center rounded-lg px-3 text-xs font-semibold text-brand-700" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a><button class="inline-flex min-h-9 items-center rounded-lg px-3 text-xs font-semibold text-slate-600" onclick={() => { confirmation = row; confirmationOpen = true; }}>{row.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button></div>
       </li>
@@ -170,8 +170,9 @@
     }}>
       <input type="hidden" name="mode" value="save" /><input type="hidden" name="id" value={data.edit?.id ?? ''} />
       {#if data.kind === 'mahasiswa'}
-        <label class="text-sm font-medium">NIM<input class={inputClass} name="nim" value={value('nim', student?.nim)} required maxlength="30" pattern=".*\S.*" /><span class="text-xs font-normal text-slate-500">Unik; disimpan dalam huruf kapital.</span></label>
+        <label class="text-sm font-medium">NIM<input class={inputClass} name="nim" type="text" inputmode="numeric" value={value('nim', student?.nim)} required maxlength="30" pattern="[0-9]+" /><span class="text-xs font-normal text-slate-500">1–30 digit; nol di depan tetap dipertahankan.</span></label>
       {:else}
+        <label class="text-sm font-medium">NIK pegawai (opsional)<input class={inputClass} name="nik" type="text" inputmode="numeric" value={value('nik', lecturer?.nik ?? '')} maxlength="30" pattern="[0-9]*" /><span class="text-xs font-normal text-slate-500">Nomor pegawai internal kampus, bukan NIK KTP. Akun login yang cocok akan dihubungkan otomatis.</span></label>
         <label class="text-sm font-medium">Kode Dosen<input class={inputClass} name="kode_dosen" value={value('kode_dosen', lecturer?.kodeDosen)} required maxlength="30" pattern=".*\S.*" /></label>
         <label class="text-sm font-medium">NIDN (opsional)<input class={inputClass} name="nidn" value={value('nidn', lecturer?.nidn ?? '')} maxlength="30" /></label>
       {/if}
@@ -184,7 +185,16 @@
         <ReferenceCombobox name="dosen_pa_id" label="Dosen PA" bind:value={selectedAdviserId} options={adviserOptions} selectedOption={selectedAdviserOption} meta={data.advisers.meta} searchParam="adviser_search" pageParam="adviser_page" placeholder="Belum ditetapkan" searchPlaceholder="Cari nama, kode dosen, atau NIDN…" nullable help="Wajib sebelum mahasiswa mengajukan KRS." />
         <p class="text-sm text-slate-500 sm:col-span-2">Status akademik tidak menonaktifkan login. Perubahan program studi atau kurikulum memerlukan peninjauan akademik dan ditolak bila ada riwayat KRS disetujui.</p>
       {:else}<p class="text-sm text-slate-500">Homebase tidak membatasi program studi tempat dosen mengajar. Ubah status melalui tindakan pada tabel.</p>{/if}
-      <label class="text-sm font-medium sm:col-span-2">ID akun pengguna (opsional)<input class={inputClass} name="user_id" value={value('user_id', data.edit?.userId ?? '')} placeholder="UUID akun pengguna" /><span class="text-xs font-normal text-slate-500">Gunakan akun berperan {data.kind === 'mahasiswa' ? 'MAHASISWA' : 'DOSEN'}. Kosongkan untuk profil tanpa akun login.</span></label>
+      <section class="rounded-xl border border-slate-200 bg-slate-50 p-4 sm:col-span-2" aria-label="Akun Login">
+        <p class="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Akun Login</p>
+        {#if data.edit?.account?.loginId}
+          <div class="mt-2 flex flex-wrap items-center gap-2"><span class="font-mono text-sm font-semibold text-slate-900">{data.edit.account.loginId}</span><StatusBadge active={data.edit.account.isActive} /></div>
+          {#if data.edit.account.email}<p class="mt-1 text-xs text-slate-500">{data.edit.account.email}</p>{/if}
+        {:else}
+          <p class="mt-2 text-sm font-semibold text-slate-700">Belum memiliki akun login</p>
+        {/if}
+        <p class="mt-1 text-xs text-slate-500">Akun yang sudah tersedia dicocokkan otomatis melalui {data.kind === 'mahasiswa' ? 'NIM' : 'NIK'} yang sama persis. Formulir ini tidak membuat akun atau kata sandi.</p>
+      </section>
       <div class="flex justify-end gap-3 sm:col-span-2"><button type="button" class="px-4 py-2 text-sm font-semibold text-slate-600" disabled={saving} onclick={() => formOpen = false}>Batal</button><button class={buttonClass} disabled={saving}>{saving ? 'Menyimpan…' : 'Simpan'}</button></div>
     </form>
   {/key}

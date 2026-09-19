@@ -20,4 +20,3 @@ export function mahasiswaRoutes(auth: AuthService, origin: string, service?: Mah
     }, { body: mahasiswaBody })
     .patch('/:id', async ({ params, body }) => ({ success: true as const, data: await getService().update(params.id, body) }), { params: idParams, body: mahasiswaPatch });
 }
-

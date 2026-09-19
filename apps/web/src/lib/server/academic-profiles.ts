@@ -55,7 +55,7 @@ export async function loadProfiles(event: RequestEvent, kind: ProfileKind) {
 export async function saveProfile(event: RequestEvent, kind: ProfileKind) {
   requireMasterAccess(event);
   const form = await event.request.formData();
-  const values = Object.fromEntries(['mode', 'id', 'user_id', 'program_studi_id', 'kurikulum_id', 'dosen_pa_id', 'nim', 'nama', 'angkatan', 'status', 'kode_dosen', 'nidn', 'is_active'].map(key => [key, String(form.get(key) ?? '')]));
+  const values = Object.fromEntries(['mode', 'id', 'program_studi_id', 'kurikulum_id', 'dosen_pa_id', 'nim', 'nik', 'nama', 'angkatan', 'status', 'kode_dosen', 'nidn', 'is_active'].map(key => [key, String(form.get(key) ?? '')]));
   const invalid = (message: string) => fail(400, { values, message });
   const mode = form.get('mode');
   if (mode !== 'save' && mode !== 'status') return invalid('Tindakan tidak valid.');
@@ -68,7 +68,7 @@ export async function saveProfile(event: RequestEvent, kind: ProfileKind) {
       result = await client.dosen({ id: values.id }).patch({ is_active: values.is_active === 'true' });
     } else {
       if (!values.nama?.trim()) return invalid('Nama wajib diisi.');
-      const common = { nama: values.nama, user_id: values.user_id?.trim() || null };
+      const common = { nama: values.nama };
       if (kind === 'mahasiswa') {
         const selectedStatus = mahasiswaStatusValues.find(item => item === values.status);
         const angkatan = Number(values.angkatan);
@@ -79,7 +79,7 @@ export async function saveProfile(event: RequestEvent, kind: ProfileKind) {
         result = values.id ? await client.mahasiswa({ id: values.id }).patch(body) : await client.mahasiswa.post(body);
       } else {
         if (!values.kode_dosen?.trim()) return invalid('Kode dosen wajib diisi.');
-        const body = { ...common, kode_dosen: values.kode_dosen, nidn: values.nidn?.trim() || null, program_studi_id: values.program_studi_id || null };
+        const body = { ...common, nik: values.nik?.trim() || null, kode_dosen: values.kode_dosen, nidn: values.nidn?.trim() || null, program_studi_id: values.program_studi_id || null };
         result = values.id ? await client.dosen({ id: values.id }).patch(body) : await client.dosen.post(body);
       }
     }

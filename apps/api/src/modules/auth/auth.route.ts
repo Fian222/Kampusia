@@ -12,7 +12,7 @@ export function authRoutes(auth: AuthService, options: { webOrigin: string; prod
   };
   return new Elysia({ prefix: '/auth' })
     .post('/login', async ({ body, request, cookie }) => {
-      const result = await auth.login(body.email, body.password, readSession(request));
+      const result = await auth.login(body.login_id, body.password, readSession(request));
       cookie[sessionCookie]!.set({ ...cookieOptions, value: result.token, maxAge: sessionSeconds });
       return { success: true as const, data: result.user };
     }, { body: loginBody, beforeHandle: ({ request }) => checkOrigin(request) })

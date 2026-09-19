@@ -10,6 +10,7 @@ export function connect() {
 }
 export async function fixture(tx: Transaction) {
   const prefix = 'K' + crypto.randomUUID().slice(0, 8).toUpperCase();
+  const identityBase = Array.from(crypto.getRandomValues(new Uint8Array(12)), value => String(value % 10)).join('');
   const [term] = await tx.select().from(semester).where(eq(semester.isActive, true));
   if (!term) throw new Error('KRS integration tests need a configured active development semester.');
   const originalKrsWindow = { krsMulaiAt: term.krsMulaiAt, krsSelesaiAt: term.krsSelesaiAt };
@@ -25,10 +26,11 @@ export async function fixture(tx: Transaction) {
   const [lecturer] = await tx.insert(dosen).values({ kodeDosen: prefix, nama: prefix }).returning();
   await tx.insert(kelasDosen).values(classes.map(row => ({ kelasKuliahId: row.id, dosenId: lecturer!.id })));
   const slots = await tx.insert(jadwalKuliah).values(classes.map((row, i) => ({ kelasKuliahId: row.id, ruanganId: room!.id, hari: i + 1, jamMulai: '08:00', jamSelesai: '10:00' }))).returning();
-  const accounts = await tx.insert(users).values(['MAHASISWA', 'MAHASISWA', 'AKADEMIK', 'DOSEN'].map((role, i) => ({ email: `${prefix.toLowerCase()}${i}@test.local`, passwordHash: 'unused-test-account', role: role as 'MAHASISWA' | 'AKADEMIK' | 'DOSEN' }))).returning();
-  await tx.update(dosen).set({ userId: accounts[3]!.id }).where(eq(dosen.id, lecturer!.id));
+  const accounts = await tx.insert(users).values(['MAHASISWA', 'MAHASISWA', 'AKADEMIK', 'DOSEN'].map((role, i) => ({ loginId: identityBase + i, email: `${prefix.toLowerCase()}${i}@test.local`, passwordHash: 'unused-test-account', role: role as 'MAHASISWA' | 'AKADEMIK' | 'DOSEN' }))).returning();
+  await tx.update(dosen).set({ userId: accounts[3]!.id, nik: accounts[3]!.loginId }).where(eq(dosen.id, lecturer!.id));
   lecturer!.userId = accounts[3]!.id;
-  const students = await tx.insert(mahasiswa).values(accounts.slice(0, 2).map((row, i) => ({ userId: row.id, nim: prefix + i, nama: prefix + i, programStudiId: program!.id, kurikulumId: curriculum!.id, dosenPaId: lecturer!.id, angkatan: 2026 }))).returning();
+  lecturer!.nik = accounts[3]!.loginId;
+  const students = await tx.insert(mahasiswa).values(accounts.slice(0, 2).map((row, i) => ({ userId: row.id, nim: row.loginId!, nama: prefix + i, programStudiId: program!.id, kurikulumId: curriculum!.id, dosenPaId: lecturer!.id, angkatan: 2026 }))).returning();
   return { prefix, term, originalKrsWindow, faculty: faculty!, program: program!, courses, curriculum: curriculum!, classes, room: room!, lecturer: lecturer!, slots, accounts, students, admin: accounts[2]!, adviser: accounts[3]!, user: accounts[0]!, other: accounts[1]! };
 }
 export async function cleanup(db: Database, f: Awaited<ReturnType<typeof fixture>>) {

@@ -11,11 +11,11 @@ test.skipIf(Bun.env.RUN_PROFILE_E2E !== '1')('SvelteKit profile pages render lis
     return fetch(origin + path, { redirect: 'manual', ...options, headers });
   };
   for (const path of ['/akademik/mahasiswa', '/akademik/dosen']) expect((await request(path)).headers.get('location')).toBe('/login');
-  const login = await request('/login', { method: 'POST', headers: { origin }, body: new URLSearchParams({ email: 'akademik@kampusia.test', password }) });
+  const login = await request('/login', { method: 'POST', headers: { origin }, body: new URLSearchParams({ login_id: '99000002', password }) });
   expect(login.status).toBe(303);
   const cookie = login.headers.getSetCookie().find(value => value.startsWith('kampusia_session='))!.split(';')[0]!;
   try {
-    for (const [path, identifier] of [['/akademik/mahasiswa', 'DEV20260001'], ['/akademik/dosen', 'DEV-DOS-']] as const) {
+    for (const [path, identifier, loginId] of [['/akademik/mahasiswa', '99202601', '99202601'], ['/akademik/dosen', 'DEV-DOS-', '99000003']] as const) {
       const response = await request(path, { headers: { cookie } });
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -23,7 +23,9 @@ test.skipIf(Bun.env.RUN_PROFILE_E2E !== '1')('SvelteKit profile pages render lis
       expect(html).not.toContain('passwordHash');
       const id = /edit=([0-9a-f-]{36})/.exec(html)?.[1]; expect(id).toBeDefined();
       const edit = await request(path + '?edit=' + id, { headers: { cookie } });
-      expect(edit.status).toBe(200); expect(await edit.text()).toContain('Batal edit');
+      expect(edit.status).toBe(200); const editHtml = await edit.text();
+      expect(editHtml).toContain('Batal edit'); expect(editHtml).toContain('Akun Login'); expect(editHtml).toContain(loginId); expect(editHtml).toContain('Aktif');
+      expect(editHtml).not.toContain('Hubungkan akun'); expect(editHtml).not.toContain('name="user_id"');
       const empty = await request(path + '?search=NO-MATCH-' + crypto.randomUUID(), { headers: { cookie } });
       expect(empty.status).toBe(200); expect(await empty.text()).toContain('Data tidak ditemukan');
       const invalid = await request(path, { method: 'POST', headers: { cookie, origin }, body: new URLSearchParams({ mode: 'save', nama: ' ' }) });

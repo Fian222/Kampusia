@@ -86,10 +86,10 @@ function setup(role: Role = 'AKADEMIK') {
       update: async (id, isKoordinator) => Object.assign(assignments.find(row => row.id === id)!, { isKoordinator }), remove: async id => { assignments.splice(assignments.findIndex(row => row.id === id), 1); },
     }),
   };
-  const user: AuthRecord = { ...stamps(), loginId: null, email: 'test@kampusia.test', passwordHash: 'test', role, isActive: true };
+  const user: AuthRecord = { ...stamps(), loginId: '99000002', email: 'test@kampusia.test', passwordHash: 'test', role, isActive: true };
   const sessions = createSessionStore(); const token = sessions.create(user.id, user.passwordHash);
   const services = { semester: createSemesterService(termRepository), kelasKuliah: createKelasKuliahService(classRepository), kelasDosen: createKelasDosenService(assignmentRepository) };
-  const app = createApp(createAuthService({ findById: async () => user, findByEmail: async () => user }, sessions), { webOrigin: origin, production: false }, services);
+  const app = createApp(createAuthService({ findById: async () => user, findByLoginId: async () => user }, sessions), { webOrigin: origin, production: false }, services);
   const request = (path: string, method = 'GET', body?: unknown, cookie = token, source = origin) => app.handle(new Request('http://localhost' + path, { method, headers: { origin: source, cookie: 'kampusia_session=' + cookie, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }));
   const term = async (year = 2026) => services.semester.create(termBody(year));
   const classBody = (semester_id: string, nama_kelas = 'A') => ({ semester_id, mata_kuliah_id: courses[0]!.id, program_studi_id: programs[0]!.id, nama_kelas, kapasitas: 30 });

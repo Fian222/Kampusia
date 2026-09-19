@@ -91,12 +91,12 @@
 
       <details class="group relative">
         <summary class="flex list-none items-center gap-2 rounded-xl p-1.5 pr-2 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
-          <UserAvatar label={data.user.email} />
-          <span class="hidden min-w-0 text-left md:block"><span class="block max-w-44 truncate text-sm font-semibold text-slate-800">{data.user.email}</span><span class="block text-xs text-slate-500">{area.label}</span></span>
+          <UserAvatar label={data.user.loginId ?? 'Akun'} />
+          <span class="hidden min-w-0 text-left md:block"><span class="block max-w-44 truncate text-sm font-semibold text-slate-800">{data.user.loginId ?? 'Belum diprovisikan'}</span><span class="block text-xs text-slate-500">{area.label}</span></span>
           <Icon name="chevron-down" size={16} class="hidden text-slate-400 transition-transform group-open:rotate-180 sm:block" />
         </summary>
         <div class="absolute right-0 mt-2 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
-          <div class="border-b border-slate-100 px-3 py-2.5"><p class="truncate text-sm font-semibold text-slate-900">{data.user.email}</p><p class="mt-0.5 text-xs text-slate-500">Peran: {area.label}</p></div>
+          <div class="border-b border-slate-100 px-3 py-2.5"><p class="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Nomor Induk</p><p class="mt-1 truncate text-sm font-semibold text-slate-900">{data.user.loginId ?? 'Belum diprovisikan'}</p><p class="mt-1 text-xs text-slate-500">Peran: {area.label}</p>{#if data.user.email}<p class="mt-1 truncate text-xs text-slate-500">{data.user.email}</p>{/if}</div>
           <form method="POST" action="/logout" class="pt-2"><button class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-red-700 hover:bg-red-50"><Icon name="logout" size={17} />Keluar dari akun</button></form>
         </div>
       </details>

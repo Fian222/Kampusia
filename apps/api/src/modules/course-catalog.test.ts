@@ -90,9 +90,9 @@ function setup(role: Role = 'AKADEMIK') {
       remove: async id => { memberships.splice(memberships.findIndex(row => row.id === id), 1); },
     }),
   };
-  const user: AuthRecord = { ...stamps(), loginId: null, email: 'test@kampusia.test', passwordHash: 'unused-test-hash', role, isActive: true };
+  const user: AuthRecord = { ...stamps(), loginId: '99000002', email: 'test@kampusia.test', passwordHash: 'unused-test-hash', role, isActive: true };
   const sessions = createSessionStore(); const token = sessions.create(user.id, user.passwordHash);
-  const auth = createAuthService({ findById: async () => user, findByEmail: async () => user }, sessions);
+  const auth = createAuthService({ findById: async () => user, findByLoginId: async () => user }, sessions);
   const app = createApp(auth, { webOrigin: origin, production: false }, { mataKuliah: createMataKuliahService(courseRepository), kurikulum: createKurikulumService(curriculumRepository), kurikulumMatkul: createKurikulumMatkulService(membershipRepository) });
   const request = (path: string, method = 'GET', body?: unknown, cookie = token, source = origin) => app.handle(new Request('http://localhost' + path, { method, headers: { origin: source, cookie: 'kampusia_session=' + cookie, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }));
   const course = async (kode = 'IF101') => (await read<Course>(await request('/mata-kuliah', 'POST', { kode, nama: 'Basis Data', sks: 3 }))).data;

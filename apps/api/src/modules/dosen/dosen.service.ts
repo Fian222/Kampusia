@@ -1,5 +1,5 @@
 import { MasterDataError, normalizeText, requirePatch } from '../../utils/master-data';
-import { validateProgram, validateUserLink, withProfileConstraints } from '../../utils/profile-service';
+import { normalizeIdentity, resolveUserLink, validateProgram, validateUserLink, withoutUserId, withProfileConstraints } from '../../utils/profile-service';
 import type { DosenInput } from './dosen.model';
 import type { DosenRepository } from './dosen.repository';
 
@@ -8,8 +8,8 @@ export function createDosenService(repository: DosenRepository) {
     return {
       ...(input.kode_dosen !== undefined ? { kodeDosen: normalizeText(input.kode_dosen, 'Kode dosen', 30, true) } : {}),
       ...(input.nama !== undefined ? { nama: normalizeText(input.nama, 'Nama', 150) } : {}),
+      ...(input.nik !== undefined ? { nik: input.nik === null ? null : normalizeIdentity(input.nik, 'NIK') } : {}),
       ...(input.nidn !== undefined ? { nidn: input.nidn === null ? null : normalizeText(input.nidn, 'NIDN', 30, true) } : {}),
-      ...(input.user_id !== undefined ? { userId: input.user_id } : {}),
       ...(input.program_studi_id !== undefined ? { programStudiId: input.program_studi_id } : {}),
       ...(input.is_active !== undefined ? { isActive: input.is_active } : {}),
     };
@@ -25,8 +25,10 @@ export function createDosenService(repository: DosenRepository) {
       const changes = normalize(input);
       return withProfileConstraints(() => repository.transaction(async tx => {
         if (input.program_studi_id) await validateProgram(tx, input.program_studi_id);
-        await validateUserLink(tx, input.user_id, 'dosen');
-        return tx.create({ kodeDosen: normalizeText(input.kode_dosen, 'Kode dosen', 30, true), nama: normalizeText(input.nama, 'Nama', 150), nidn: changes.nidn ?? null, userId: input.user_id ?? null, programStudiId: input.program_studi_id ?? null, isActive: input.is_active ?? true });
+        const nik = changes.nik ?? null;
+        if (nik && await tx.nikOwner(nik)) throw new MasterDataError(409, 'NIK sudah digunakan oleh dosen lain.');
+        const userId = nik ? await resolveUserLink(tx, 'dosen', nik) : null;
+        return withoutUserId(await tx.create({ kodeDosen: changes.kodeDosen!, nama: changes.nama!, nik, nidn: changes.nidn ?? null, userId, programStudiId: input.program_studi_id ?? null, isActive: input.is_active ?? true }));
       }));
     },
     update(id: string, input: Partial<DosenInput>) {
@@ -36,8 +38,25 @@ export function createDosenService(repository: DosenRepository) {
         const existing = await tx.findById(id);
         if (!existing) throw new MasterDataError(404, 'Dosen tidak ditemukan.');
         if (changes.programStudiId && changes.programStudiId !== existing.programStudiId) await validateProgram(tx, changes.programStudiId);
-        await validateUserLink(tx, changes.userId === undefined ? existing.userId : changes.userId, 'dosen', id);
-        return tx.update(id, { ...changes, updatedAt: new Date() });
+        const nextNik = changes.nik === undefined ? existing.nik : changes.nik;
+        let userId = existing.userId;
+        if (userId && !nextNik) throw new MasterDataError(400, 'NIK tidak dapat dikosongkan selama akun DOSEN terhubung.');
+        if (nextNik !== existing.nik && nextNik) {
+          const owner = await tx.nikOwner(nextNik);
+          if (owner && owner.id !== id) throw new MasterDataError(409, 'NIK sudah digunakan oleh dosen lain.');
+        }
+        if (userId) {
+          if (!existing.nik) throw new MasterDataError(409, 'Akun terhubung tidak memiliki NIK yang selaras dan memerlukan perbaikan administratif.');
+          await validateUserLink(tx, userId, 'dosen', existing.nik, id);
+        }
+        if (userId && nextNik !== existing.nik) {
+          const loginOwner = await tx.loginIdOwner(nextNik!);
+          if (loginOwner && loginOwner.id !== userId) throw new MasterDataError(409, 'Nomor Induk sudah digunakan oleh akun lain.');
+          await tx.updateUserLoginId(userId, nextNik!, new Date());
+        } else if (!userId && nextNik) {
+          userId = await resolveUserLink(tx, 'dosen', nextNik, id);
+        }
+        return withoutUserId(await tx.update(id, { ...changes, userId, updatedAt: new Date() }));
       }));
     },
   };

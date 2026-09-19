@@ -10,7 +10,7 @@ test.skipIf(Bun.env.RUN_SCHEDULING_E2E !== '1')('SvelteKit room and schedule for
     return fetch(origin + path, { redirect: 'manual', ...options, headers });
   };
   expect((await request('/akademik/ruangan')).headers.get('location')).toBe('/login');
-  const login = await request('/login', { method: 'POST', headers: { origin }, body: new URLSearchParams({ email: 'akademik@kampusia.test', password }) });
+  const login = await request('/login', { method: 'POST', headers: { origin }, body: new URLSearchParams({ login_id: '99000002', password }) });
   expect(login.status).toBe(303);
   const cookie = login.headers.getSetCookie().find(value => value.startsWith('kampusia_session='))!.split(';')[0]!;
   const post = (path: string, body: Record<string, string>) => request(path, { method: 'POST', headers: { cookie, origin }, body: new URLSearchParams(body) });

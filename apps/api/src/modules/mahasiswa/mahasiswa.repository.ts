@@ -1,16 +1,19 @@
-import { dosen, fakultas, krs, kurikulum, mahasiswa, programStudi } from '@kampusia/db/schema';
+import { dosen, fakultas, krs, kurikulum, mahasiswa, programStudi, users } from '@kampusia/db/schema';
 import { and, asc, count, eq, getTableColumns, ilike, isNotNull, or } from 'drizzle-orm';
 import { pagination, searchPattern } from '../../utils/master-data';
 import { profileReferences, type Database, type Transaction } from '../../utils/profile-repository';
 import type { KurikulumOptionsQuery, MahasiswaQuery } from './mahasiswa.model';
 
 type Write = Pick<typeof mahasiswa.$inferInsert, 'userId' | 'programStudiId' | 'kurikulumId' | 'dosenPaId' | 'nim' | 'nama' | 'angkatan' | 'status'>;
+const { userId: privateUserId, ...profileColumns } = getTableColumns(mahasiswa);
+void privateUserId;
 const selection = {
-  ...getTableColumns(mahasiswa),
+  ...profileColumns,
   programStudi: { id: programStudi.id, kode: programStudi.kode, nama: programStudi.nama, isActive: programStudi.isActive },
   fakultas: { id: fakultas.id, kode: fakultas.kode, nama: fakultas.nama },
   kurikulum: { id: kurikulum.id, kode: kurikulum.kode, nama: kurikulum.nama, programStudiId: kurikulum.programStudiId, isActive: kurikulum.isActive },
   dosenPa: { id: dosen.id, kodeDosen: dosen.kodeDosen, nama: dosen.nama, isActive: dosen.isActive },
+  account: { loginId: users.loginId, email: users.email, isActive: users.isActive },
 };
 function transactionRepository(tx: Transaction) {
   return {
@@ -27,6 +30,9 @@ function transactionRepository(tx: Transaction) {
     async hasApprovedHistory(id: string) {
       const [row] = await tx.select({ id: krs.id }).from(krs).where(and(eq(krs.mahasiswaId, id), or(eq(krs.status, 'DISETUJUI'), isNotNull(krs.disetujuiAt)))).limit(1);
       return !!row;
+    },
+    async nimOwner(nim: string) {
+      return (await tx.select({ id: mahasiswa.id }).from(mahasiswa).where(eq(mahasiswa.nim, nim)).limit(1))[0];
     },
     async create(input: Write) {
       const [row] = await tx.insert(mahasiswa).values(input).returning();
@@ -55,6 +61,7 @@ export function createMahasiswaRepository(db: Pick<Database, 'select' | 'transac
           .innerJoin(fakultas, eq(programStudi.fakultasId, fakultas.id))
           .innerJoin(kurikulum, eq(mahasiswa.kurikulumId, kurikulum.id))
           .leftJoin(dosen, eq(mahasiswa.dosenPaId, dosen.id))
+          .leftJoin(users, eq(mahasiswa.userId, users.id))
           .where(where).orderBy(asc(mahasiswa.nim), asc(mahasiswa.id)).limit(limit).offset((page - 1) * limit);
         const [total] = await tx.select({ value: count() }).from(mahasiswa).where(where);
         return { data, meta: { page, limit, total: total!.value } };
@@ -65,7 +72,8 @@ export function createMahasiswaRepository(db: Pick<Database, 'select' | 'transac
         .innerJoin(programStudi, eq(mahasiswa.programStudiId, programStudi.id))
         .innerJoin(fakultas, eq(programStudi.fakultasId, fakultas.id))
         .innerJoin(kurikulum, eq(mahasiswa.kurikulumId, kurikulum.id))
-        .leftJoin(dosen, eq(mahasiswa.dosenPaId, dosen.id)).where(eq(mahasiswa.id, id));
+        .leftJoin(dosen, eq(mahasiswa.dosenPaId, dosen.id))
+        .leftJoin(users, eq(mahasiswa.userId, users.id)).where(eq(mahasiswa.id, id));
       return row;
     },
     async kurikulumOptions(query: KurikulumOptionsQuery) {

@@ -10,7 +10,7 @@ test.skipIf(Bun.env.RUN_MASTER_E2E !== '1')('SvelteKit master pages render seede
     return fetch(origin + path, { redirect: 'manual', ...options, headers });
   };
   for (const path of ['/akademik/fakultas', '/akademik/program-studi']) expect((await request(path)).headers.get('location')).toBe('/login');
-  const signedIn = await request('/login', { method: 'POST', headers: { origin }, body: new URLSearchParams({ email: 'akademik@kampusia.test', password }) });
+  const signedIn = await request('/login', { method: 'POST', headers: { origin }, body: new URLSearchParams({ login_id: '99000002', password }) });
   expect(signedIn.status).toBe(303);
   const cookie = signedIn.headers.getSetCookie().find(value => value.startsWith('kampusia_session='))!.split(';')[0]!;
   try {
