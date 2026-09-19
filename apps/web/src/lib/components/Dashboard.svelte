@@ -17,7 +17,7 @@
     { title: 'Semester', description: 'Atur semester aktif dan periode KRS.', href: '/akademik/semester', icon: 'calendar' },
   ];
   const lecturerShortcuts: Shortcut[] = [
-    { title: 'Kelas yang Diajar', description: 'Pertemuan, absensi, dan penilaian kelas.', href: '/dosen/kelas-kuliah', icon: 'presentation' },
+    { title: 'Kelas yang Diajar', description: 'Lanjutkan absensi dan penilaian kelas.', href: '/dosen/kelas-kuliah', icon: 'presentation' },
     { title: 'Bimbingan KRS', description: 'Tinjau rencana studi mahasiswa bimbingan.', href: '/dosen/krs', icon: 'clipboard' },
   ];
   const studentShortcuts: Shortcut[] = [

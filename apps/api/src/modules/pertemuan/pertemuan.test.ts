@@ -37,6 +37,8 @@ function fixture() {
     lockMeeting: async (id: string) => meetings.find(row => row.id === id),
     meetingDetail: async (id: string) => { const row = meetings.find(row => row.id === id); return row ? { ...row, kelas: classDetail, jumlahAbsensi: attendance.filter(item => item.pertemuanId === id).length } : undefined; },
     listMeetings: async (id: string) => ({ data: meetings.filter(row => row.kelasKuliahId === id), meta: { page: 1, limit: 20, total: meetings.length } }),
+    nextMeetingNumber: async (id: string) => Math.max(0, ...meetings.filter(row => row.kelasKuliahId === id).map(row => row.nomorPertemuan)) + 1,
+    attendanceForMeetings: async (ids: string[]) => attendance.filter(row => ids.includes(row.pertemuanId)).map(row => ({ meetingId: row.pertemuanId, mahasiswaId: row.mahasiswaId })),
     listLecturerClasses: async () => ({ data: [classDetail], meta: { page: 1, limit: 20, total: 1 } }),
     createMeeting: async (input: typeof pertemuan.$inferInsert) => {
       if (meetings.some(row => row.kelasKuliahId === input.kelasKuliahId && row.nomorPertemuan === input.nomorPertemuan)) throw { cause: { code: '23505', constraint_name: 'pertemuan_kelas_kuliah_id_nomor_pertemuan_unique' } };
@@ -60,11 +62,16 @@ function fixture() {
     setEffective: (rows: typeof students) => { effective = rows; }, setAssigned: (value: boolean) => { assigned = value; }, deactivate: () => { inactive = true; } };
 }
 
-test('Pertemuan lists, creates, reads and rejects duplicate number or dates outside semester', async () => {
-  const f = fixture(); const row = await f.create(); expect((await f.service.list(f.admin, f.kelas.id, {})).data[0]!.id).toBe(row.id); expect((await f.service.get(f.admin, row.id)).kelas.mataKuliah.kode).toBe('IF101');
+test('AKADEMIK and ADMIN create Pertemuan while validation and attendance progress stay intact', async () => {
+  const f = fixture(); const row = await f.create();
+  const listed = await f.service.list(f.admin, f.kelas.id, {});
+  expect(listed.data[0]!.id).toBe(row.id); expect(listed.data[0]!.attendanceProgress).toEqual({ total: 2, recorded: 0 });
+  expect((await f.service.get(f.admin, row.id)).kelas.mataKuliah.kode).toBe('IF101');
+  const adminMeeting = await f.service.create(f.otherAdmin, f.kelas.id, { nomor_pertemuan: 2, tanggal: '2026-09-15', jam_mulai: '08:00', jam_selesai: '10:00' });
+  expect(adminMeeting.nomorPertemuan).toBe(2);
   await expect(f.create()).rejects.toThrow('Nomor pertemuan sudah digunakan');
-  await expect(f.service.create(f.admin, f.kelas.id, { nomor_pertemuan: 2, tanggal: '2027-02-01', jam_mulai: '08:00', jam_selesai: '10:00' })).rejects.toThrow('rentang semester');
-  await expect(f.service.create(f.admin, f.kelas.id, { nomor_pertemuan: 2, tanggal: '2026-09-14', jam_mulai: '10:00', jam_selesai: '08:00' })).rejects.toThrow('lebih awal');
+  await expect(f.service.create(f.admin, f.kelas.id, { nomor_pertemuan: 3, tanggal: '2027-02-01', jam_mulai: '08:00', jam_selesai: '10:00' })).rejects.toThrow('rentang semester');
+  await expect(f.service.create(f.admin, f.kelas.id, { nomor_pertemuan: 3, tanggal: '2026-09-14', jam_mulai: '10:00', jam_selesai: '08:00' })).rejects.toThrow('lebih awal');
 });
 
 test('Pertemuan lifecycle retains cancellation and restricts completed changes', async () => {
@@ -76,10 +83,14 @@ test('Pertemuan lifecycle retains cancellation and restricts completed changes',
   await f.service.update(f.admin, completed.id, { materi: 'Fakta terkoreksi', koreksi: true }); expect(completed.materi).toBe('Fakta terkoreksi');
 });
 
-test('assigned Dosen and ADMIN/AKADEMIK are allowed while foreign Dosen and Mahasiswa are rejected', async () => {
+test('Dosen may read assigned meetings but cannot mutate Pertemuan metadata', async () => {
   const f = fixture(); const row = await f.create();
   expect((await f.service.get(f.lecturerUser, row.id)).id).toBe(row.id); expect((await f.service.get(f.otherAdmin, row.id)).id).toBe(row.id);
   await expect(f.service.get(f.foreignLecturer, row.id)).rejects.toThrow('ditugaskan');
+  await expect(f.service.roster(f.foreignLecturer, row.id)).rejects.toThrow('ditugaskan');
+  await expect(f.service.create(f.lecturerUser, f.kelas.id, { nomor_pertemuan: 2, tanggal: '2026-09-15', jam_mulai: '08:00', jam_selesai: '10:00' })).rejects.toThrow('akses');
+  await expect(f.service.update(f.lecturerUser, row.id, { materi: 'Tidak diizinkan' })).rejects.toThrow('akses');
+  await expect(f.service.cancel(f.lecturerUser, row.id)).rejects.toThrow('akses');
   await expect(f.service.cancel(f.studentUser, row.id)).rejects.toThrow('akses');
   f.deactivate(); await expect(f.service.get(f.admin, row.id)).rejects.toThrow('izin');
 });
@@ -112,6 +123,18 @@ test('completion requires every current effective student and retains former enr
   await expect(f.service.cancel(f.admin, meeting.id)).rejects.toThrow('TERJADWAL');
 });
 
+test('assigned Dosen completes attendance but completed rows become read-only until administrative correction', async () => {
+  const f = fixture(); const meeting = await f.create();
+  await f.service.record(f.lecturerUser, meeting.id, f.students[0]!.id, { status: 'HADIR' });
+  await expect(f.service.complete(f.lecturerUser, meeting.id)).rejects.toThrow('1 mahasiswa');
+  await f.service.record(f.lecturerUser, meeting.id, f.students[1]!.id, { status: 'IZIN' });
+  await f.service.complete(f.lecturerUser, meeting.id);
+  await expect(f.service.record(f.lecturerUser, meeting.id, f.students[0]!.id, { status: 'SAKIT' })).rejects.toThrow('koreksi');
+  await expect(f.service.correct(f.lecturerUser, meeting.id, f.students[0]!.id, { status: 'SAKIT', keterangan: 'Tidak diizinkan' })).rejects.toThrow('akses');
+  const corrected = await f.service.correct(f.otherAdmin, meeting.id, f.students[0]!.id, { status: 'SAKIT', keterangan: 'Bukti administrasi diterima' });
+  expect(corrected.status).toBe('SAKIT');
+});
+
 test('student history is scoped to the authenticated profile and API enforces CSRF and mutation roles', async () => {
   const f = fixture(); const meeting = await f.create(); await f.service.record(f.admin, meeting.id, f.students[0]!.id, { status: 'SAKIT' });
   expect((await f.service.studentHistory(f.studentUser, {})).data).toHaveLength(1);
@@ -121,6 +144,10 @@ test('student history is scoped to the authenticated profile and API enforces CS
   const request = (path: string, method = 'GET', body?: object, origin = 'http://localhost:5173') => app.handle(new Request('http://localhost' + path, { method, headers: { origin, 'content-type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) }));
   expect((await request('/mahasiswa/me/absensi')).status).toBe(200);
   expect((await request(`/pertemuan/${meeting.id}/absensi/${f.students[0]!.id}`, 'PUT', { status: 'HADIR' })).status).toBe(403);
+  current = f.lecturerUser;
+  expect((await request(`/kelas-kuliah/${f.kelas.id}/pertemuan`, 'POST', { nomor_pertemuan: 2, tanggal: '2026-09-15', jam_mulai: '08:00', jam_selesai: '10:00' })).status).toBe(403);
+  expect((await request(`/pertemuan/${meeting.id}`, 'PATCH', { materi: 'Bypass UI' })).status).toBe(403);
+  expect((await request(`/pertemuan/${meeting.id}/cancel`, 'POST', {})).status).toBe(403);
   current = f.admin; expect((await request(`/pertemuan/${meeting.id}/absensi/${f.students[0]!.id}`, 'PUT', { status: 'HADIR' }, 'http://evil.test')).status).toBe(403);
   current = null; expect((await request('/mahasiswa/me/absensi')).status).toBe(401);
 });

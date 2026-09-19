@@ -6,7 +6,6 @@ import type { AbsensiInput, AbsensiPatch, DosenKelasQuery, PertemuanInput, Perte
 import type { PertemuanRepository, PertemuanTransaction } from './pertemuan.repository';
 
 const managers = ['ADMIN', 'AKADEMIK'] as const;
-type Meeting = NonNullable<Awaited<ReturnType<PertemuanTransaction['lockMeeting']>>>;
 
 function date(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new MasterDataError(400, 'Tanggal pertemuan tidak valid.');
@@ -50,7 +49,7 @@ export function createPertemuanService(repository: PertemuanRepository) {
 
   async function actor(tx: PertemuanTransaction, user: AuthUser) {
     const current = await tx.actor(user.id);
-    if (!current?.isActive || current.role !== user.role) throw new AuthError(403, 'Akun tidak memiliki izin mengelola pertemuan dan absensi.');
+    if (!current?.isActive || current.role !== user.role) throw new AuthError(403, 'Akun tidak memiliki izin mengakses pertemuan dan absensi.');
     return current;
   }
 
@@ -59,7 +58,12 @@ export function createPertemuanService(repository: PertemuanRepository) {
     if ((managers as readonly string[]).includes(user.role)) return;
     requireRole(user, ['DOSEN']);
     const lecturer = await tx.lecturer(user.id);
-    if (!lecturer || !await tx.assigned(classId, lecturer.id)) throw new AuthError(403, 'Dosen hanya dapat mengelola kelas yang ditugaskan kepadanya.');
+    if (!lecturer?.isActive || !await tx.assigned(classId, lecturer.id)) throw new AuthError(403, 'Dosen hanya dapat mengakses kelas yang ditugaskan kepadanya.');
+  }
+
+  async function managerAccess(tx: PertemuanTransaction, user: AuthUser) {
+    await actor(tx, user);
+    requireRole(user, managers);
   }
 
   async function attendanceContext(tx: PertemuanTransaction, user: AuthUser, id: string) {
@@ -77,14 +81,14 @@ export function createPertemuanService(repository: PertemuanRepository) {
     return { kelas, meeting, roster, attendance };
   }
 
-  async function lockedMeeting(tx: PertemuanTransaction, user: AuthUser, id: string) {
+  async function managerMeeting(tx: PertemuanTransaction, user: AuthUser, id: string) {
+    await managerAccess(tx, user);
     const peek = await tx.peekMeeting(id);
     if (!peek) throw new MasterDataError(404, 'Pertemuan tidak ditemukan.');
     const kelas = await tx.lockClass(peek.kelasKuliahId);
     if (!kelas) throw new MasterDataError(404, 'Kelas kuliah tidak ditemukan.');
     const meeting = await tx.lockMeeting(id);
-    if (!meeting) throw new MasterDataError(404, 'Pertemuan tidak ditemukan.');
-    await classAccess(tx, user, kelas.id);
+    if (!meeting || meeting.kelasKuliahId !== kelas.id) throw new MasterDataError(404, 'Pertemuan tidak ditemukan.');
     return { kelas, meeting };
   }
 
@@ -102,7 +106,27 @@ export function createPertemuanService(repository: PertemuanRepository) {
         const kelas = await tx.classInfo(classId);
         if (!kelas) throw new MasterDataError(404, 'Kelas kuliah tidak ditemukan.');
         await classAccess(tx, user, classId);
-        return { ...await tx.listMeetings(classId, query), kelas };
+        const [meetings, roster, nextMeetingNumber] = await Promise.all([
+          tx.listMeetings(classId, query),
+          tx.effectiveRoster(classId),
+          tx.nextMeetingNumber(classId),
+        ]);
+        const attendance = await tx.attendanceForMeetings(meetings.data.map(row => row.id));
+        const effectiveStudentIds = new Set(roster.map(row => row.id));
+        const recordedByMeeting = new Map<string, number>();
+        for (const row of attendance) {
+          if (!effectiveStudentIds.has(row.mahasiswaId)) continue;
+          recordedByMeeting.set(row.meetingId, (recordedByMeeting.get(row.meetingId) ?? 0) + 1);
+        }
+        return {
+          ...meetings,
+          data: meetings.data.map(row => ({
+            ...row,
+            attendanceProgress: { total: roster.length, recorded: recordedByMeeting.get(row.id) ?? 0 },
+          })),
+          nextMeetingNumber,
+          kelas,
+        };
       });
     },
     get(user: AuthUser, id: string) {
@@ -115,9 +139,9 @@ export function createPertemuanService(repository: PertemuanRepository) {
     },
     create(user: AuthUser, classId: string, input: PertemuanInput) {
       return run(async tx => {
+        await managerAccess(tx, user);
         const kelas = await tx.lockClass(classId);
         if (!kelas) throw new MasterDataError(404, 'Kelas kuliah tidak ditemukan.');
-        await classAccess(tx, user, classId);
         if (!['DIBUKA', 'DITUTUP'].includes(kelas.status)) throw new MasterDataError(409, 'Pertemuan hanya dapat dibuat untuk kelas DIBUKA atau DITUTUP.');
         const term = await tx.term(kelas.semesterId);
         if (!term) throw new MasterDataError(404, 'Semester kelas tidak ditemukan.');
@@ -128,7 +152,7 @@ export function createPertemuanService(repository: PertemuanRepository) {
     },
     update(user: AuthUser, id: string, input: PertemuanPatch) {
       return run(async tx => {
-        const { kelas, meeting } = await lockedMeeting(tx, user, id);
+        const { kelas, meeting } = await managerMeeting(tx, user, id);
         requirePatch(input);
         const changes = meetingChanges(input);
         if (!Object.keys(changes).length) throw new MasterDataError(400, 'Kirim setidaknya satu perubahan data pertemuan.');
@@ -143,7 +167,7 @@ export function createPertemuanService(repository: PertemuanRepository) {
     },
     cancel(user: AuthUser, id: string) {
       return run(async tx => {
-        const { meeting } = await lockedMeeting(tx, user, id);
+        const { meeting } = await managerMeeting(tx, user, id);
         if (meeting.status !== 'TERJADWAL') throw new MasterDataError(409, `Hanya pertemuan TERJADWAL yang dapat dibatalkan; status saat ini ${meeting.status}.`);
         if (await tx.attendanceCount(id)) throw new MasterDataError(409, 'Pertemuan dengan absensi tidak dapat dibatalkan. Koreksi fakta atau absensinya tanpa menghapus riwayat.');
         return tx.updateMeeting(id, { status: 'DIBATALKAN' });
@@ -199,6 +223,7 @@ export function createPertemuanService(repository: PertemuanRepository) {
       return run(async tx => {
         const { meeting, attendance } = await attendanceContext(tx, user, id);
         if (meeting.status === 'DIBATALKAN') throw new MasterDataError(409, 'Absensi pertemuan yang dibatalkan tidak dapat diubah.');
+        if (meeting.status === 'SELESAI') requireRole(user, managers);
         const existing = attendance.find(row => row.mahasiswaId === studentId);
         if (!existing) throw new MasterDataError(404, 'Absensi belum pernah dicatat; gunakan pencatatan absensi.');
         const changes = attendanceWrite(input);
@@ -211,6 +236,7 @@ export function createPertemuanService(repository: PertemuanRepository) {
         await actor(tx, user); requireRole(user, ['DOSEN']);
         const lecturer = await tx.lecturer(user.id);
         if (!lecturer) throw new MasterDataError(404, 'Akun belum terhubung dengan dosen.');
+        if (!lecturer.isActive) throw new AuthError(403, 'Profil dosen tidak aktif.');
         return tx.listLecturerClasses(lecturer.id, query);
       });
     },

@@ -19,7 +19,12 @@ test.skipIf(!enabled)('PostgreSQL meeting finalization is atomic and attendance 
       const plan = await krsService.create(f.user, f.term.id);
       await krsService.add(f.user, plan.id, f.classes[0]!.id);
       const service = createPertemuanService(createPertemuanRepository(tx));
-      const meeting = await service.create(lecturerAccount!, f.classes[0]!.id, { nomor_pertemuan: 1, tanggal: f.term.tanggalMulai, jam_mulai: '08:00', jam_selesai: '10:00', materi: 'Integrasi' });
+      const meeting = await service.create(f.admin, f.classes[0]!.id, { nomor_pertemuan: 1, tanggal: f.term.tanggalMulai, jam_mulai: '08:00', jam_selesai: '10:00', materi: 'Integrasi' });
+      expect((await service.get(lecturerAccount!, meeting.id)).id).toBe(meeting.id);
+      await expect(service.roster(f.adviser, meeting.id)).rejects.toThrow('ditugaskan');
+      await expect(service.create(lecturerAccount!, f.classes[0]!.id, { nomor_pertemuan: 2, tanggal: f.term.tanggalMulai, jam_mulai: '10:00', jam_selesai: '12:00' })).rejects.toThrow('akses');
+      await expect(service.update(lecturerAccount!, meeting.id, { materi: 'Bypass dosen' })).rejects.toThrow('akses');
+      await expect(service.cancel(lecturerAccount!, meeting.id)).rejects.toThrow('akses');
       expect((await service.roster(f.admin, meeting.id)).data).toHaveLength(0);
       await krsService.submit(f.user, plan.id); expect((await service.roster(f.admin, meeting.id)).data).toHaveLength(0);
       await krsService.approve(f.admin, plan.id); expect((await service.roster(f.admin, meeting.id)).data).toHaveLength(1);

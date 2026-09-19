@@ -1,6 +1,6 @@
 import type { createDatabase } from '@kampusia/db';
 import { absensi, dosen, kelasDosen, kelasKuliah, krs, krsDetail, mahasiswa, mataKuliah, pertemuan, programStudi, semester, users } from '@kampusia/db/schema';
-import { and, asc, count, desc, eq, getTableColumns, ilike, inArray, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, getTableColumns, ilike, inArray, max, or } from 'drizzle-orm';
 import { pagination, searchPattern, type ListQuery } from '../../utils/master-data';
 import type { DosenKelasQuery } from './pertemuan.model';
 
@@ -75,6 +75,15 @@ function transactionRepository(tx: Transaction) {
         .orderBy(asc(pertemuan.nomorPertemuan), asc(pertemuan.id)).limit(limit).offset((page - 1) * limit);
       const [total] = await tx.select({ value: count() }).from(pertemuan).where(eq(pertemuan.kelasKuliahId, classId));
       return { data, meta: { page, limit, total: total!.value } };
+    },
+    async nextMeetingNumber(classId: string) {
+      const [row] = await tx.select({ value: max(pertemuan.nomorPertemuan) }).from(pertemuan).where(eq(pertemuan.kelasKuliahId, classId));
+      return (row?.value ?? 0) + 1;
+    },
+    async attendanceForMeetings(meetingIds: string[]) {
+      if (!meetingIds.length) return [];
+      return tx.select({ meetingId: absensi.pertemuanId, mahasiswaId: absensi.mahasiswaId })
+        .from(absensi).where(inArray(absensi.pertemuanId, meetingIds));
     },
     async listLecturerClasses(lecturerId: string, query: DosenKelasQuery) {
       const { page, limit } = pagination(query);

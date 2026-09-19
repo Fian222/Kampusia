@@ -37,7 +37,7 @@ test('SvelteKit action maps never mix a default action with named actions', asyn
 
 test('class detail forms submit to their explicit named actions', async () => {
   const dosenServer = await read('routes/(app)/dosen/kelas-kuliah/[id]/+page.server.ts');
-  expect(actionNames(dosenServer, 'dosen/+page.server.ts')).toEqual(['meeting', 'grading']);
+  expect(actionNames(dosenServer, 'dosen/+page.server.ts')).toEqual(['grading']);
 
   const akademikServer = await read('routes/(app)/akademik/kelas-kuliah/[id]/+page.server.ts');
   expect(actionNames(akademikServer, 'akademik/+page.server.ts')).toEqual(['detail', 'meeting', 'grading']);

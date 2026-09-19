@@ -52,8 +52,8 @@ async function respond(result: { status: number; error: unknown; data: { success
   if (result.error || !result.data?.success) return fail(result.status >= 400 && result.status < 500 ? result.status : 503, { values, message: apiMessage(result.error && typeof result.error === 'object' && 'value' in result.error ? result.error.value : null) });
   return { saved: true as const, message: 'Perubahan berhasil disimpan.' };
 }
-export async function saveMeeting(event: RequestEvent, admin: boolean) {
-  if (admin) requireMasterAccess(event); else lecturerAccess(event);
+export async function saveMeeting(event: RequestEvent) {
+  requireMasterAccess(event);
   const form = await event.request.formData(); const values: Record<string, string> = Object.fromEntries([...form].map(([key, value]) => [key, String(value)]));
   const client = serverApi(event); const classId = event.params.id!; let result;
   try {
@@ -66,7 +66,7 @@ export async function saveMeeting(event: RequestEvent, admin: boolean) {
       if (values.confirm !== 'yes') return fail(400, { values, message: 'Konfirmasikan pembatalan pertemuan.' });
       result = await client.pertemuan({ id: values.pertemuan_id! }).cancel.post({});
     } else if (values.mode === 'meeting-complete') {
-      if (values.confirm !== 'yes') return fail(400, { values, message: 'Konfirmasikan penyelesaian pertemuan.' });
+      if (values.confirm !== 'yes') return fail(400, { values, message: 'Konfirmasikan penyelesaian absensi.' });
       result = await client.pertemuan({ id: values.pertemuan_id! }).complete.post({});
     } else return fail(400, { values, message: 'Tindakan pertemuan tidak valid.' });
   } catch { return fail(503, { values, message: apiMessage(null) }); }
@@ -78,7 +78,7 @@ export async function saveAttendance(event: RequestEvent, admin: boolean) {
   const client = serverApi(event); let result;
   try {
     if (values.mode === 'complete') {
-      if (values.confirm !== 'yes') return fail(400, { values, message: 'Konfirmasikan penyelesaian pertemuan.' });
+      if (values.confirm !== 'yes') return fail(400, { values, message: 'Konfirmasikan penyelesaian absensi.' });
       result = await client.pertemuan({ id: event.params.id! }).complete.post({});
     } else {
       const body = { status: status(values.status!), keterangan: values.keterangan?.trim() || null };

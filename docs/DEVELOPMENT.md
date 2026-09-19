@@ -487,11 +487,12 @@ The schema extension deliberately leaves semester-range validation, effective-en
 
 The application layer implements Pertemuan and Absensi through the existing Route → Service → Repository → Drizzle structure. It does not change the database schema, migrations, or development seed.
 
-Authenticated ADMIN/AKADEMIK and an assigned DOSEN use:
+Authorization is deliberately split by responsibility:
 
-- `GET/POST /kelas-kuliah/:id/pertemuan` to list or create meetings.
-- `GET/PATCH /pertemuan/:id` to read, edit, or perform an explicit factual correction.
-- `POST /pertemuan/:id/cancel` and `POST /pertemuan/:id/complete` for lifecycle transitions.
+- ADMIN/AKADEMIK use `POST /kelas-kuliah/:id/pertemuan`, `PATCH /pertemuan/:id`, and `POST /pertemuan/:id/cancel` to create, edit/correct, and cancel meeting metadata. ADMIN has the same administrative capability as AKADEMIK.
+- Creating a TERJADWAL meeting is the “open meeting” action. No separate draft/open column or migration is needed.
+- ADMIN/AKADEMIK and an assigned DOSEN use `GET /kelas-kuliah/:id/pertemuan` and `GET /pertemuan/:id` within their allowed class scope.
+- An assigned DOSEN uses `POST /pertemuan/:id/complete` as the attendance-centric “Selesaikan Absensi” action; ADMIN/AKADEMIK retain oversight access to the same completion transition.
 - `GET /pertemuan/:id/absensi` for the effective roster and retained historical rows.
 - `PUT /pertemuan/:id/absensi/:mahasiswaId` for initial/incremental entry and `PATCH` on the same path for an in-place correction.
 
@@ -501,7 +502,7 @@ MAHASISWA use only `GET /mahasiswa/me/absensi` and `/mahasiswa/absensi`. The pro
 
 The effective roster is derived only from an AKTIF `krs_detail` whose parent KRS is DISETUJUI. DRAFT, DIAJUKAN, DITOLAK, and DIBATALKAN plans do not appear. Rows are lazy: the roster returns `BELUM_DICATAT` with a null attendance value when no row exists, never inferred ALPHA. Finalization locks related KRS rows, then the class, meeting, and attendance rows in the documented order. It rejects incomplete coverage with the missing count and changes the meeting to SELESAI only in the same successful SERIALIZABLE transaction. An empty effective roster is valid.
 
-TERJADWAL meetings accept incremental attendance. DIBATALKAN meetings accept none. Existing rows are corrected in place, preserving `created_at` and `dicatat_oleh` while updating `updated_at` and `diubah_oleh`. Completed corrections require an explicit note. ADMIN/AKADEMIK can make an explicit, justified late insertion for a currently effective student; DOSEN cannot. Existing attendance remains visible as historical data after KRS reopen/cancellation or other prospective enrollment changes. No revision log or roster snapshot is created.
+TERJADWAL meetings accept incremental attendance from an assigned DOSEN or ADMIN/AKADEMIK. DIBATALKAN meetings accept none. Existing rows are corrected in place, preserving `created_at` and `dicatat_oleh` while updating `updated_at` and `diubah_oleh`. Once attendance is completed, the DOSEN workspace is read-only; completed corrections require ADMIN/AKADEMIK and an explicit note. ADMIN/AKADEMIK can also make an explicit, justified late insertion for a currently effective student; DOSEN cannot. Existing attendance remains visible as historical data after KRS reopen/cancellation or other prospective enrollment changes. No revision log or roster snapshot is created.
 
 Verification:
 
@@ -515,4 +516,4 @@ bun --bun --cwd apps/web run build
 RUN_ATTENDANCE_APP_DB_TESTS=1 bun --env-file=packages/db/.env test apps/api/src/modules/pertemuan/pertemuan.integration.test.ts
 ```
 
-The isolated tests cover meeting CRUD/lifecycle, date/number validation, ADMIN/AKADEMIK/DOSEN/MAHASISWA authorization, all four explicit attendance statuses, lazy missing rows, correction actor metadata, retained history, completion coverage, cancellation safeguards, CSRF, and student scoping. The opt-in PostgreSQL test additionally proves DRAFT/DIAJUKAN exclusion, atomic failed completion, successful finalization, KRS reopen retention, and in-place correction against real constraints.
+The isolated tests cover ADMIN/AKADEMIK meeting ownership, rejected DOSEN metadata mutations, assigned/unassigned DOSEN scope, meeting lifecycle, date/number validation, all four explicit attendance statuses, lazy missing rows, completed-attendance read-only behavior, administrative correction actor metadata, retained history, completion coverage, cancellation safeguards, CSRF, and student scoping. The opt-in PostgreSQL test additionally proves DRAFT/DIAJUKAN exclusion, atomic failed completion, successful finalization, KRS reopen retention, and in-place correction against real constraints.
