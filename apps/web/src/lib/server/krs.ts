@@ -10,6 +10,7 @@ function lecturerAccess(event: RequestEvent) {
   if (event.locals.user.role !== 'DOSEN') error(403, 'Akses khusus dosen.');
 }
 export function krsPeriodState(term: { isActive: boolean; krsMulaiAt: Date | string | null; krsSelesaiAt: Date | string | null }, now = new Date()) {
+  if (!term.isActive) return { code: 'INACTIVE' as const, label: 'Semester tidak aktif', open: false };
   if (!term.krsMulaiAt || !term.krsSelesaiAt) return { code: 'UNSCHEDULED' as const, label: 'Belum dijadwalkan', open: false };
   const start = new Date(term.krsMulaiAt); const end = new Date(term.krsSelesaiAt);
   if (now < start) return { code: 'UPCOMING' as const, label: 'Belum dibuka', open: false };
@@ -78,18 +79,19 @@ export async function saveKrs(event: RequestEvent, admin = false) {
   if (admin) requireMasterAccess(event); else studentAccess(event);
   const form = await event.request.formData();
   const mode = String(form.get('mode') ?? ''); const id = admin ? event.params.id! : String(form.get('id') ?? '');
-  if (['submit', 'approve', 'reject', 'cancel', 'reopen', 'clear'].includes(mode) && form.get('confirmed') !== 'yes') return fail(400, { message: 'Konfirmasikan perubahan status terlebih dahulu.' });
+  const values = { mode };
+  if (['submit', 'approve', 'reject', 'cancel', 'reopen', 'clear'].includes(mode) && form.get('confirmed') !== 'yes') return fail(400, { values, message: 'Konfirmasikan perubahan status terlebih dahulu.' });
   const client = serverApi(event); let result;
   if (!admin && mode === 'create') {
     let creation;
     try { creation = await client.mahasiswa.me.krs({ id }).post({}); }
-    catch { return fail(503, { message: apiMessage(null) }); }
+    catch { return fail(503, { values, message: apiMessage(null) }); }
     if (creation.status === 401) redirect(303, '/login');
-    if (creation.error || !creation.data?.success) return fail(creation.status >= 400 && creation.status < 500 ? creation.status : 503, { message: apiMessage(creation.error?.value) });
+    if (creation.error || !creation.data?.success) return fail(creation.status >= 400 && creation.status < 500 ? creation.status : 503, { values, message: apiMessage(creation.error?.value) });
     const created = creation.data.data;
-    if (created.batasSksSource === 'PREVIOUS_IPS') return { saved: true, message: `KRS dibuat dengan batas ${created.batasSks} SKS berdasarkan IPS ${created.previousIps} dari ${created.previousSemester?.nama ?? 'semester sebelumnya'}.` };
-    if (created.batasSksSource === 'INITIAL_FALLBACK') return { saved: true, message: `KRS dibuat dengan batas awal ${created.batasSks} SKS karena belum tersedia IPS semester sebelumnya yang lengkap.` };
-    return { saved: true, message: 'DRAFT KRS yang sudah ada digunakan kembali dengan batas SKS tersimpan.' };
+    if (created.batasSksSource === 'PREVIOUS_IPS') return { saved: true, values, message: `KRS dibuat dengan batas ${created.batasSks} SKS berdasarkan IPS ${created.previousIps} dari ${created.previousSemester?.nama ?? 'semester sebelumnya'}.` };
+    if (created.batasSksSource === 'INITIAL_FALLBACK') return { saved: true, values, message: `KRS dibuat dengan batas awal ${created.batasSks} SKS karena belum tersedia IPS semester sebelumnya yang lengkap.` };
+    return { saved: true, values, message: 'DRAFT KRS yang sudah ada digunakan kembali dengan batas SKS tersimpan.' };
   }
   try {
     if (admin) {
@@ -98,7 +100,7 @@ export async function saveKrs(event: RequestEvent, admin = false) {
       else if (mode === 'reject') result = await api.reject.post({ alasan: String(form.get('alasan') ?? '') });
       else if (mode === 'cancel') result = await api.cancel.post({ alasan: String(form.get('alasan') ?? '') });
       else if (mode === 'reopen') result = await api.reopen.post({});
-      else return fail(400, { message: 'Tindakan tidak valid.' });
+      else return fail(400, { values, message: 'Tindakan tidak valid.' });
     } else {
       const api = client.mahasiswa.me.krs({ id });
       if (mode === 'add') result = await api.kelas.post({ kelas_kuliah_id: String(form.get('kelas_id') ?? '') });
@@ -106,12 +108,19 @@ export async function saveKrs(event: RequestEvent, admin = false) {
       else if (mode === 'clear') result = await api.clear.post({});
       else if (mode === 'submit') result = await api.submit.post({});
       else if (mode === 'reopen') result = await api.reopen.post({});
-      else return fail(400, { message: 'Tindakan tidak valid.' });
+      else return fail(400, { values, message: 'Tindakan tidak valid.' });
     }
-  } catch { return fail(503, { message: apiMessage(null) }); }
+  } catch { return fail(503, { values, message: apiMessage(null) }); }
   if (result.status === 401) redirect(303, '/login');
-  if (result.error || !result.data?.success) return fail(result.status >= 400 && result.status < 500 ? result.status : 503, { message: apiMessage(result.error?.value) });
-  return { saved: true, message: 'KRS berhasil diperbarui.' };
+  if (result.error || !result.data?.success) return fail(result.status >= 400 && result.status < 500 ? result.status : 503, { values, message: apiMessage(result.error?.value) });
+  const messages: Record<string, string> = {
+    add: 'Mata kuliah berhasil ditambahkan ke KRS.',
+    remove: 'Mata kuliah berhasil dikeluarkan dari KRS.',
+    clear: 'Semua mata kuliah berhasil dikeluarkan dari KRS.',
+    submit: 'KRS berhasil diajukan dan sedang menunggu peninjauan Dosen PA.',
+    reopen: 'KRS kembali ke DRAFT dan siap diperbaiki.',
+  };
+  return { saved: true, values, message: messages[mode] ?? 'KRS berhasil diperbarui.' };
 }
 export async function saveAdviserKrs(event: RequestEvent) {
   lecturerAccess(event); const form = await event.request.formData(); const mode = String(form.get('mode') ?? '');

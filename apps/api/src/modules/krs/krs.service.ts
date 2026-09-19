@@ -164,7 +164,18 @@ export function createKrsService(
     }); },
     adviserGet(user: AuthUser, id: string) { return run(async tx => { await reviewContext(tx, user, id); return detailWithAcademicContext(tx, id); }); },
     mine(user: AuthUser, query: ListQuery) { return run(async tx => { await actor(tx, user, ['MAHASISWA']); const owner = await student(tx, user); return { ...await tx.list(query, owner.id), activeSemester: await tx.activeTerm() }; }); },
-    bySemester(user: AuthUser, id: string) { return run(async tx => { await actor(tx, user, ['MAHASISWA']); const owner = await student(tx, user); const term = await tx.term(id); if (!term) throw new MasterDataError(404, 'Semester tidak ditemukan.'); const plan = await tx.findPlan(owner.id, id); return { semester: term, krs: plan ? await detailWithAcademicContext(tx, plan.id) : null }; }); },
+    bySemester(user: AuthUser, id: string) { return run(async tx => {
+      await actor(tx, user, ['MAHASISWA']);
+      const owner = await student(tx, user);
+      const term = await tx.term(id);
+      if (!term) throw new MasterDataError(404, 'Semester tidak ditemukan.');
+      const [plan, adviser] = await Promise.all([
+        tx.findPlan(owner.id, id),
+        owner.dosenPaId ? tx.adviser(owner.dosenPaId) : null,
+      ]);
+      const dosenPa = adviser ? { id: adviser.id, kodeDosen: adviser.kodeDosen, nama: adviser.nama, isActive: adviser.isActive } : null;
+      return { semester: term, dosenPa, krs: plan ? await detailWithAcademicContext(tx, plan.id) : null };
+    }); },
     async create(user: AuthUser, semesterId: string) {
       const operation = () => run(async tx => {
         await actor(tx, user, ['MAHASISWA']); const owner = await student(tx, user); const targetSemester = await eligible(tx, owner, semesterId);

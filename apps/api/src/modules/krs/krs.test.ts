@@ -103,7 +103,9 @@ test('calculated KRS limit is enforced and later result/policy changes do not re
 test('KRS ownership scopes all student mutations and semester reads', async () => {
   const f = fixture(); const plan = await f.selected(); const stranger = { ...f.user, id: uuid() };
   for (const action of [() => f.service.add(stranger, plan.id, f.classes[1]!.id), () => f.service.remove(stranger, plan.id, f.details[0]!.id), () => f.service.submit(stranger, plan.id), () => f.service.reopen(stranger, plan.id)]) await expect(action()).rejects.toThrow('KRS tidak ditemukan');
-  expect((await f.service.bySemester(stranger, f.term.id)).krs).toBeNull();
+  const context = await f.service.bySemester(stranger, f.term.id);
+  expect(context.krs).toBeNull();
+  expect(context.dosenPa).toMatchObject({ id: f.adviserId, kodeDosen: 'PA', nama: 'Adviser', isActive: true });
 });
 test('KRS valid selection, duplicate class/course prevention and cancelled detail reactivation', async () => {
   const f = fixture(); const plan = await f.selected(); const detail = f.details[0]!;

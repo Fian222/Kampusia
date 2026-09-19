@@ -307,7 +307,7 @@ The selected limit is written once to `krs.batas_sks` in the same retryable SERI
 Student endpoints (authenticated MAHASISWA):
 
 - `GET /mahasiswa/me/krs`: paginated own history plus the explicitly configured active semester.
-- `GET /mahasiswa/me/krs/:semesterId`: semester information and own KRS, or `krs: null` when none exists.
+- `GET /mahasiswa/me/krs/:semesterId`: semester information, compact current Dosen PA context, and own KRS, or `krs: null` when none exists. The adviser context lets the course-selection header remain accurate before the DRAFT is created.
 - `POST /mahasiswa/me/krs/:semesterId`: create/get DRAFT; other existing states require their documented transitions and cannot be recreated.
 - `GET /mahasiswa/me/krs/:semesterId/kelas`: paginated eligible class search, excluding already selected courses.
 - `POST /mahasiswa/me/krs/:krsId/kelas`: add a selection with `{ "kelas_kuliah_id": "UUID" }`.

@@ -2,12 +2,58 @@ import { expect, test } from 'bun:test';
 
 const read = (path: string) => Bun.file(new URL(path, import.meta.url)).text();
 
-test('student KRS UI exposes period-aware workflow controls and rejection context', async () => {
-  const [page, action, summary] = await Promise.all([
-    read('../routes/(app)/mahasiswa/krs/+page.svelte'), read('./components/KrsAction.svelte'), read('./components/KrsSummary.svelte'),
+test('student KRS UI exposes the period-aware course-selection workflow', async () => {
+  const [page, action, courses, server] = await Promise.all([
+    read('../routes/(app)/mahasiswa/krs/+page.svelte'),
+    read('./components/KrsAction.svelte'),
+    read('./components/KrsCourseList.svelte'),
+    read('./server/krs.ts'),
   ]);
-  expect(page).toContain('Kosongkan KRS'); expect(page).toContain('Menunggu persetujuan Dosen PA'); expect(page).toContain('data.period?.open');
-  expect(action).toContain('reasonLabel'); expect(summary).toContain('Alasan penolakan'); expect(summary).toContain('Dosen PA:');
+
+  // DRAFT exposes selection controls, while every mutation remains period-gated.
+  expect(page).toContain("plan?.status === 'DRAFT'");
+  expect(page).toContain('actionsEnabled={editable}');
+  expect(page).toContain("plan?.status === 'DRAFT' && editable");
+  expect(page).toContain('data.period?.open');
+  expect(courses).toContain('name="mode" value="add"');
+  expect(courses).toContain('name="mode" value="remove"');
+
+  // Review states have explicit, read-only workflow messages.
+  expect(page).toContain("plan.status === 'DIAJUKAN'");
+  expect(page).toContain('Menunggu persetujuan Dosen PA');
+  expect(page).toContain("plan.status === 'DITOLAK'");
+  expect(page).toContain('Alasan penolakan');
+  expect(page).toContain('Perbaiki KRS');
+  expect(page).toContain("plan.status === 'DISETUJUI'");
+  expect(page).toContain('bersifat baca-saja');
+  expect(page).toContain("plan.status === 'DIBATALKAN'");
+
+  // Credit values remain derived from the authoritative response.
+  expect(page).toContain('{plan.totalSks}');
+  expect(page).toContain('{plan.batasSks}');
+  expect(page).toContain('{plan.remainingSks}');
+  expect(page).toContain('aria-valuetext={`${plan.totalSks} dari ${plan.batasSks} SKS dipilih`}');
+
+  // Clearing stays distinct from lifecycle cancellation and submission is explicit.
+  expect(page).toContain('label="Kosongkan KRS"');
+  expect(page).toContain('Semua mata kuliah yang dipilih akan dikeluarkan dari KRS.');
+  expect(page).not.toContain('Batalkan KRS');
+  expect(page).toContain('label="Ajukan KRS ke Dosen PA"');
+  expect(server).toContain("submit: 'KRS berhasil diajukan dan sedang menunggu peninjauan Dosen PA.'");
+
+  // URL-backed filtering and enhanced mutations preserve in-page interaction.
+  expect(page).toContain('use:seamlessFilter');
+  expect(page).toContain('<ListPending />');
+  expect(page).not.toContain('Memuat data...');
+  expect(courses).toContain('use:enhance={submit}');
+  expect(courses).toContain('await update({ reset: false, invalidateAll: true })');
+  expect(action).toContain('<Modal bind:open');
+  expect(action).toContain('reasonLabel');
+
+  // Stacked rows retain accessible labels on compact actions.
+  expect(courses).not.toContain('<table');
+  expect(courses).toContain('aria-label={`Ambil ${kelas.mataKuliah.nama}, kelas ${kelas.namaKelas}`}');
+  expect(courses).toContain('aria-label={`Keluarkan ${kelas.mataKuliah.nama}, kelas ${kelas.namaKelas} dari KRS`}');
 });
 
 test('Dosen PA and Semester UI expose scoped review and Jakarta KRS-window controls', async () => {
