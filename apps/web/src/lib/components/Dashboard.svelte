@@ -5,6 +5,7 @@
   import Icon, { type IconName } from './ui/Icon.svelte';
   import PageHeader from './ui/PageHeader.svelte';
   import StatCard from './ui/StatCard.svelte';
+  import { formatAcademicDateRange } from '$lib/date-format';
 
   let { data }: { data: DashboardData } = $props();
   type Shortcut = { title: string; description: string; href: string; icon: IconName };
@@ -69,7 +70,7 @@
     <div class="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
       <div class="flex items-start gap-3">
         <span class="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-white text-brand-700 shadow-sm"><Icon name="calendar" /></span>
-        <div><p class="text-xs font-semibold uppercase tracking-[0.12em] text-brand-700">Semester aktif</p><h2 id="manager-context-title" class="mt-1 text-xl font-bold text-slate-950">{semester?.nama ?? 'Belum ditetapkan'}</h2>{#if semester}<p class="mt-1 text-sm text-slate-600">{semester.tanggalMulai} – {semester.tanggalSelesai}</p>{/if}</div>
+        <div><p class="text-xs font-semibold uppercase tracking-[0.12em] text-brand-700">Semester aktif</p><h2 id="manager-context-title" class="mt-1 text-xl font-bold text-slate-950">{semester?.nama ?? 'Belum ditetapkan'}</h2>{#if semester}<p class="mt-1 text-sm text-slate-600">{formatAcademicDateRange(semester.tanggalMulai, semester.tanggalSelesai)}</p>{/if}</div>
       </div>
       <div class="flex flex-wrap items-center gap-3"><Badge tone={period.tone}>{period.label}</Badge><a href="/akademik/semester" class="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-brand-200 bg-white px-3 text-sm font-semibold text-brand-800 shadow-sm hover:bg-brand-50">Kelola semester <Icon name="arrow-right" size={15} /></a></div>
     </div>

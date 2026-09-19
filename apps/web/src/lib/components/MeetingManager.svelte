@@ -7,6 +7,7 @@
   import Badge from './ui/Badge.svelte';
   import Icon from './ui/Icon.svelte';
   import Modal from './ui/Modal.svelte';
+  import { academicDateIso, formatAcademicDate } from '$lib/date-format';
   type Data = Awaited<ReturnType<typeof loadLecturerClass>>;
   let { meetings, area, form }: { meetings: Data['meetings']; area: 'akademik' | 'dosen'; form?: { message?: string; saved?: boolean; values?: Record<string, string> } | null } = $props();
   let saving = $state(false);
@@ -35,7 +36,7 @@
   </div><button type="button" class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800" onclick={() => { editingId = undefined; meetingOpen = true; }}><Icon name="plus" size={16} /> Buat Pertemuan</button></div><div class="overflow-x-auto border-t border-slate-100"><table class="min-w-[760px] w-full text-left text-sm">
     <thead><tr><th class="p-3">Ke</th><th class="p-3">Tanggal</th><th class="p-3">Waktu</th><th class="p-3">Materi</th><th class="p-3">Status</th><th class="p-3">Tindakan</th></tr></thead>
     <tbody class="divide-y divide-slate-100">{#each meetings.data as row}<tr class="align-top">
-      <td class="p-3">{row.nomorPertemuan}</td><td class="p-3">{row.tanggal}</td><td class="p-3">{row.jamMulai.slice(0, 5)}–{row.jamSelesai.slice(0, 5)}</td><td class="p-3">{row.materi ?? '—'}</td>
+      <td class="p-3">{row.nomorPertemuan}</td><td class="p-3">{formatAcademicDate(row.tanggal)}</td><td class="p-3">{row.jamMulai.slice(0, 5)}–{row.jamSelesai.slice(0, 5)}</td><td class="p-3">{row.materi ?? '—'}</td>
       <td class="p-3"><Badge tone={row.status === 'SELESAI' ? 'success' : row.status === 'TERJADWAL' ? 'info' : 'danger'}>{row.status}</Badge></td>
       <td class="min-w-64 p-3"><a class="inline-flex items-center gap-1 font-semibold text-brand-700" href={`/${area}/pertemuan/${row.id}`}>Buka absensi <Icon name="arrow-right" size={14} /></a>
         {#if row.status !== 'DIBATALKAN'}<button type="button" class="mt-2 block font-medium text-brand-700" aria-label={`${row.status === 'SELESAI' ? 'Koreksi fakta' : 'Edit'} pertemuan ${row.nomorPertemuan}`} onclick={() => { editingId = row.id; meetingOpen = true; }}>{row.status === 'SELESAI' ? 'Koreksi fakta' : 'Edit'}</button>{/if}
@@ -55,7 +56,7 @@
     <input type="hidden" name="mode" value="meeting-save" /><input type="hidden" name="pertemuan_id" value={editing?.id ?? ''} />
     {#if editing?.status === 'SELESAI'}<input type="hidden" name="koreksi" value="yes" />{/if}
     <label class="text-sm">Nomor pertemuan<input class="control-base mt-1.5 disabled:bg-slate-100" name="nomor_pertemuan" type="number" min="1" max="32767" value={field('nomor_pertemuan', editing?.nomorPertemuan)} disabled={editing?.status === 'SELESAI'} required /></label>
-    <label class="text-sm">Tanggal<input class="control-base mt-1.5" name="tanggal" type="date" value={field('tanggal', editing?.tanggal)} required /></label>
+    <label class="text-sm">Tanggal<input class="control-base mt-1.5" name="tanggal" type="date" value={field('tanggal', editing?.tanggal ? academicDateIso(editing.tanggal) : '')} required /></label>
     <label class="text-sm">Jam mulai<input class="control-base mt-1.5" name="jam_mulai" type="time" value={field('jam_mulai', editing?.jamMulai.slice(0, 5))} required /></label>
     <label class="text-sm">Jam selesai<input class="control-base mt-1.5" name="jam_selesai" type="time" value={field('jam_selesai', editing?.jamSelesai.slice(0, 5))} required /></label>
     <label class="text-sm sm:col-span-2">Materi (opsional)<textarea class="control-base mt-1.5" name="materi">{field('materi', editing?.materi)}</textarea></label>

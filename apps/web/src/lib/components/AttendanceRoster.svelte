@@ -1,6 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import type { loadAttendance } from '$lib/server/attendance';
+  import { formatAcademicDate } from '$lib/date-format';
   import PageHeader from './ui/PageHeader.svelte';
   import StatCard from './ui/StatCard.svelte';
   import Badge from './ui/Badge.svelte';
@@ -12,7 +13,7 @@
   function tone(status: string) { return status === 'HADIR' ? 'success' as const : status === 'ALPHA' ? 'danger' as const : status === 'IZIN' || status === 'SAKIT' ? 'info' as const : 'warning' as const; }
 </script>
 <svelte:head><title>Absensi Pertemuan {roster.pertemuan.nomorPertemuan} · Kampusia</title></svelte:head>
-<PageHeader eyebrow={`${roster.pertemuan.kelas.mataKuliah.kode} / Kelas ${roster.pertemuan.kelas.namaKelas}`} title={`Absensi Pertemuan ${roster.pertemuan.nomorPertemuan}`} description={`${roster.pertemuan.kelas.mataKuliah.nama} · ${roster.pertemuan.tanggal} · ${roster.pertemuan.jamMulai.slice(0, 5)}–${roster.pertemuan.jamSelesai.slice(0, 5)}`} />
+<PageHeader eyebrow={`${roster.pertemuan.kelas.mataKuliah.kode} / Kelas ${roster.pertemuan.kelas.namaKelas}`} title={`Absensi Pertemuan ${roster.pertemuan.nomorPertemuan}`} description={`${roster.pertemuan.kelas.mataKuliah.nama} · ${formatAcademicDate(roster.pertemuan.tanggal)} · ${roster.pertemuan.jamMulai.slice(0, 5)}–${roster.pertemuan.jamSelesai.slice(0, 5)}`} />
 <div class="mt-4"><Badge tone={roster.pertemuan.status === 'SELESAI' ? 'success' : roster.pertemuan.status === 'DIBATALKAN' ? 'danger' : 'info'}>{roster.pertemuan.status}</Badge></div>
 {#if form?.message}<p class="mt-5 rounded-xl border border-slate-200 bg-white p-4" role={form.saved ? 'status' : 'alert'}>{form.message}</p>{/if}
 <section class="mt-6 grid gap-3 sm:grid-cols-3">
