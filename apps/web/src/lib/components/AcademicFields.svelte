@@ -5,7 +5,7 @@
 {#each fields as field}
   <label class="text-sm font-semibold text-slate-700">{field.label}<span class="ml-1 text-red-500" aria-hidden="true">*</span>
     {#if field.options}
-      <select class="control-base mt-1.5" name={field.name} required={field.required ?? true} value={values[field.name] ?? field.value ?? ''}>
+      <select class="control-base mt-1.5" name={field.name} required={field.required ?? true} value={String(values[field.name] ?? field.value ?? '')}>
         <option value="" disabled>Pilih {field.label.toLowerCase()}</option>
         {#each field.options as option}<option value={option.value} disabled={option.disabled}>{option.label}</option>{/each}
       </select>

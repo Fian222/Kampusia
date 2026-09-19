@@ -182,7 +182,7 @@
 
 <Modal bind:open={scheduleOpen} title={`${editingSchedule ? 'Edit' : 'Tambah'} Jadwal`} description="Jadwal divalidasi terhadap ruangan, dosen, kelas, dan mahasiswa." closeDisabled={saving} width="lg" onClose={() => { if (form?.values?.mode === 'schedule-save') void goto(page.url, { replaceState: true, noScroll: true, keepFocus: true }); }}>
   {#if form?.message && form.values?.mode === 'schedule-save' && (form.values.jadwal_id ?? '') === (editingScheduleId ?? '')}<p role="alert" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}
-  <ScheduleForm action="?/detail" rooms={data.rooms.data} roomMeta={data.rooms.meta} schedule={editingSchedule} values={form?.values} {saving} submit={scheduleSubmit} />
+  <ScheduleForm action="?/detail" kelas={data.kelas} rooms={data.rooms.data} roomMeta={data.rooms.meta} schedule={editingSchedule} values={form?.values} {saving} submit={scheduleSubmit} />
   <a href="/akademik/ruangan" class="mt-4 inline-block text-sm font-semibold text-brand-700">Kelola ruangan</a>
 </Modal>
 
