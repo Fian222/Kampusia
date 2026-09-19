@@ -29,14 +29,16 @@ test.skipIf(!enabled)('PostgreSQL identity-number authentication schema and fixt
         column_name: string;
         is_nullable: string;
         data_type: string;
-        character_maximum_length: number;
+        character_maximum_length: number | null;
+        column_default: string | null;
       }>`
-        select table_name, column_name, is_nullable, data_type, character_maximum_length
+        select table_name, column_name, is_nullable, data_type, character_maximum_length, column_default
         from information_schema.columns
         where table_schema = 'public'
           and (table_name, column_name) in (
             ('users', 'login_id'),
             ('users', 'email'),
+            ('users', 'must_change_password'),
             ('dosen', 'nik')
           )
         order by table_name, column_name
@@ -47,10 +49,12 @@ test.skipIf(!enabled)('PostgreSQL identity-number authentication schema and fixt
         is_nullable: row.is_nullable,
         data_type: row.data_type,
         character_maximum_length: row.character_maximum_length,
+        column_default: row.column_default,
       }))).toEqual([
-        { table_name: 'dosen', column_name: 'nik', is_nullable: 'YES', data_type: 'character varying', character_maximum_length: 30 },
-        { table_name: 'users', column_name: 'email', is_nullable: 'YES', data_type: 'character varying', character_maximum_length: 254 },
-        { table_name: 'users', column_name: 'login_id', is_nullable: 'YES', data_type: 'character varying', character_maximum_length: 30 },
+        { table_name: 'dosen', column_name: 'nik', is_nullable: 'YES', data_type: 'character varying', character_maximum_length: 30, column_default: null },
+        { table_name: 'users', column_name: 'email', is_nullable: 'YES', data_type: 'character varying', character_maximum_length: 254, column_default: null },
+        { table_name: 'users', column_name: 'login_id', is_nullable: 'YES', data_type: 'character varying', character_maximum_length: 30, column_default: null },
+        { table_name: 'users', column_name: 'must_change_password', is_nullable: 'NO', data_type: 'boolean', character_maximum_length: null, column_default: 'false' },
       ]);
 
       const constraints = await tx.execute(sql<{ conname: string }>`
@@ -73,11 +77,11 @@ test.skipIf(!enabled)('PostgreSQL identity-number authentication schema and fixt
         { loginId: leadingZeroLogin, email: `${emailPrefix}-one@example.test`, passwordHash: 'unused-test-hash', role: 'ADMIN' },
         { loginId: null, email: null, passwordHash: 'unused-test-hash', role: 'AKADEMIK' },
         { loginId: null, email: null, passwordHash: 'unused-test-hash', role: 'MAHASISWA' },
-      ]).returning({ loginId: users.loginId, email: users.email });
+      ]).returning({ loginId: users.loginId, email: users.email, mustChangePassword: users.mustChangePassword });
       expect(insertedUsers).toEqual([
-        { loginId: leadingZeroLogin, email: `${emailPrefix}-one@example.test` },
-        { loginId: null, email: null },
-        { loginId: null, email: null },
+        { loginId: leadingZeroLogin, email: `${emailPrefix}-one@example.test`, mustChangePassword: false },
+        { loginId: null, email: null, mustChangePassword: false },
+        { loginId: null, email: null, mustChangePassword: false },
       ]);
 
       await expectRejected(sql`
@@ -135,14 +139,14 @@ test.skipIf(!enabled)('PostgreSQL identity-number authentication schema and fixt
         '20260000-0000-4000-8000-000100000003',
         '20260000-0000-4000-8000-000100000004',
       ] as const;
-      const fixtureUsers = await tx.select({ id: users.id, loginId: users.loginId, role: users.role })
+      const fixtureUsers = await tx.select({ id: users.id, loginId: users.loginId, role: users.role, mustChangePassword: users.mustChangePassword })
         .from(users).where(inArray(users.id, fixtureUserIds));
       if (fixtureUsers.length > 0) {
         expect(fixtureUsers.sort((a, b) => a.id.localeCompare(b.id))).toEqual([
-          { id: fixtureUserIds[0]!, loginId: '99000002', role: 'AKADEMIK' },
-          { id: fixtureUserIds[1]!, loginId: '99000001', role: 'ADMIN' },
-          { id: fixtureUserIds[2]!, loginId: '99000003', role: 'DOSEN' },
-          { id: fixtureUserIds[3]!, loginId: '99202601', role: 'MAHASISWA' },
+          { id: fixtureUserIds[0]!, loginId: '99000002', role: 'AKADEMIK', mustChangePassword: false },
+          { id: fixtureUserIds[1]!, loginId: '99000001', role: 'ADMIN', mustChangePassword: false },
+          { id: fixtureUserIds[2]!, loginId: '99000003', role: 'DOSEN', mustChangePassword: false },
+          { id: fixtureUserIds[3]!, loginId: '99202601', role: 'MAHASISWA', mustChangePassword: false },
         ]);
         const fixtureStudents = await tx.select({ id: mahasiswa.id, nim: mahasiswa.nim })
           .from(mahasiswa).where(inArray(mahasiswa.id, [

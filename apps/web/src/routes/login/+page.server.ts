@@ -4,7 +4,7 @@ import { saveSession, serverApi } from '$lib/server/api';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = ({ locals }) => {
-  if (locals.user) redirect(303, roleAreas[locals.user.role].path);
+  if (locals.user) redirect(303, locals.user.mustChangePassword ? '/change-password' : roleAreas[locals.user.role].path);
 };
 export const actions: Actions = {
   default: async event => {
@@ -27,6 +27,6 @@ export const actions: Actions = {
       return fail(result.status === 401 ? 401 : result.status === 429 ? 429 : 503, { loginId, message });
     }
     saveSession(event, result.response.headers);
-    redirect(303, roleAreas[result.data.data.role].path);
+    redirect(303, result.data.data.mustChangePassword ? '/change-password' : roleAreas[result.data.data.role].path);
   },
 };

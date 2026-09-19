@@ -10,9 +10,9 @@ const uuid = () => crypto.randomUUID();
 const common = () => ({ id: uuid(), createdAt: new Date(), updatedAt: new Date() });
 function fixture() {
   const now = new Date('2026-09-18T05:00:00.000Z');
-  const user: AuthUser = { id: uuid(), loginId: '1001', email: 'student@test.local', role: 'MAHASISWA' };
-  const admin: AuthUser = { id: uuid(), loginId: '9002', email: 'admin@test.local', role: 'AKADEMIK' };
-  const adviserUser: AuthUser = { id: uuid(), loginId: '9003', email: 'adviser@test.local', role: 'DOSEN' };
+  const user: AuthUser = { id: uuid(), loginId: '1001', email: 'student@test.local', role: 'MAHASISWA', mustChangePassword: false };
+  const admin: AuthUser = { id: uuid(), loginId: '9002', email: 'admin@test.local', role: 'AKADEMIK', mustChangePassword: false };
+  const adviserUser: AuthUser = { id: uuid(), loginId: '9003', email: 'adviser@test.local', role: 'DOSEN', mustChangePassword: false };
   const adviserId = uuid();
   const adviserAccount = { id: adviserUser.id, role: 'DOSEN' as const, isActive: true };
   const adviserProfile = { ...common(), id: adviserId, userId: adviserUser.id as string | null, programStudiId: null as string | null, nik: null as string | null, kodeDosen: 'PA', nidn: null as string | null, nama: 'Adviser', isActive: true };

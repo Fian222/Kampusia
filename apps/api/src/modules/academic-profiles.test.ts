@@ -50,6 +50,18 @@ function setup(role: Role = 'AKADEMIK') {
       if (account) Object.assign(account, { loginId, updatedAt });
       return account ? { id: account.id } : undefined;
     },
+    createUser: async (input: Pick<AuthRecord, 'loginId' | 'passwordHash' | 'role' | 'isActive' | 'mustChangePassword'>) => {
+      const account: AuthRecord = { id: crypto.randomUUID(), email: null, ...input, ...dates() };
+      duplicate(accounts, account, { loginId: 'users_login_id_unique' });
+      accounts.push(account);
+      return { id: account.id, loginId: account.loginId, role: account.role, isActive: account.isActive };
+    },
+    updateAccountPassword: async (id: string, passwordHash: string, updatedAt: Date) => {
+      const account = accounts.find(user => user.id === id);
+      if (!account) return undefined;
+      Object.assign(account, { passwordHash, mustChangePassword: true, updatedAt });
+      return { id: account.id, loginId: account.loginId, role: account.role, isActive: account.isActive };
+    },
     userLinks: async (id: string) => ({ mahasiswa: students.find(row => row.userId === id)?.id, dosen: lecturers.find(row => row.userId === id)?.id }),
   };
   const safeAccount = (userId: string | null) => { const account = accounts.find(item => item.id === userId); return account ? { loginId: account.loginId, email: account.email, isActive: account.isActive } : null; };
@@ -83,6 +95,11 @@ function setup(role: Role = 'AKADEMIK') {
         const row = students.find(row => row.id === id)!;
         duplicate(students, { ...row, ...input }, studentConstraints); return Object.assign(row, input);
       },
+      linkUser: async (id, userId, updatedAt) => {
+        const row = students.find(row => row.id === id);
+        if (!row || row.userId) return undefined;
+        Object.assign(row, { userId, updatedAt }); return { id };
+      },
     }),
   };
   const lecturerRepository: DosenRepository = {
@@ -100,14 +117,25 @@ function setup(role: Role = 'AKADEMIK') {
         const row = lecturers.find(row => row.id === id)!;
         duplicate(lecturers, { ...row, ...input }, lecturerConstraints); return Object.assign(row, input);
       },
+      linkUser: async (id, userId, updatedAt) => {
+        const row = lecturers.find(row => row.id === id);
+        if (!row || row.userId) return undefined;
+        Object.assign(row, { userId, updatedAt }); return { id };
+      },
     }),
   };
-  const user: AuthRecord = { id: crypto.randomUUID(), loginId: '99000002', email: 'test@kampusia.test', passwordHash: 'unused-test-hash', role, isActive: true, ...dates() };
+  const user: AuthRecord = { id: crypto.randomUUID(), loginId: '99000002', email: 'test@kampusia.test', passwordHash: 'unused-test-hash', role, isActive: true, mustChangePassword: false, ...dates() };
   const sessions = createSessionStore();
   const token = sessions.create(user.id, user.passwordHash);
   const auth = createAuthService({
     findByLoginId: async loginId => [user, ...accounts].find(item => item.loginId === loginId),
     findById: async id => [user, ...accounts].find(item => item.id === id),
+    updatePassword: async (id, passwordHash) => {
+      const account = [user, ...accounts].find(item => item.id === id);
+      if (!account) return undefined;
+      Object.assign(account, { passwordHash, mustChangePassword: false, updatedAt: new Date() });
+      return account;
+    },
   }, sessions);
   const app = createApp(auth, { webOrigin: origin, production: false }, { mahasiswa: createMahasiswaService(studentRepository), dosen: createDosenService(lecturerRepository) });
   const request = (path: string, method = 'GET', body?: unknown, cookie = token, source = origin) => app.handle(new Request('http://localhost' + path, {
@@ -360,4 +388,55 @@ test('account linking rejects an existing link in the other profile table', asyn
   const body = { ...ctx.studentBody, nim: '009001' };
   expect((await ctx.request('/mahasiswa', 'POST', body)).status).toBe(409);
   expect(ctx.lecturers.find(item => item.id === row.id)?.userId).toBe(account.id);
+});
+
+for (const role of ['ADMIN', 'AKADEMIK'] as const) for (const kind of ['mahasiswa', 'dosen'] as const) {
+  test(`${role} provisions and resets a ${kind} account without changing its identity`, async () => {
+    const ctx = setup(role);
+    const body = kind === 'mahasiswa' ? ctx.studentBody : ctx.lecturerBody;
+    const createdProfile = await ctx.request('/' + kind, 'POST', body);
+    const profile = kind === 'mahasiswa' ? (await readStudent(createdProfile)).data : (await readLecturer(createdProfile)).data;
+    const provision = await ctx.request(`/${kind}/${profile.id}/account`, 'POST');
+    expect(provision.status).toBe(201);
+    const provisioned = await provision.json() as { data: { account: { loginId: string; role: string; isActive: boolean }; temporaryPassword: string } };
+    const identity = kind === 'mahasiswa' ? '001001' : '009001';
+    expect(provisioned.data.account).toEqual({ loginId: identity, role: kind === 'mahasiswa' ? 'MAHASISWA' : 'DOSEN', isActive: true });
+    expect(provisioned.data.temporaryPassword).toMatch(/^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}$/);
+    const account = ctx.accounts.find(item => item.loginId === identity)!;
+    expect(account.mustChangePassword).toBe(true);
+    expect(account.passwordHash).not.toContain(provisioned.data.temporaryPassword);
+    expect(await Bun.password.verify(provisioned.data.temporaryPassword, account.passwordHash)).toBe(true);
+    const originalId = account.id;
+    const originalHash = account.passwordHash;
+    expect((await ctx.request(`/${kind}/${profile.id}/account`, 'POST')).status).toBe(409);
+    const reset = await ctx.request(`/${kind}/${profile.id}/account/reset`, 'POST');
+    expect(reset.status).toBe(200);
+    const resetData = await reset.json() as { data: { temporaryPassword: string } };
+    expect(account.id).toBe(originalId);
+    expect(account.loginId).toBe(identity);
+    expect(account.passwordHash).not.toBe(originalHash);
+    expect(await Bun.password.verify(provisioned.data.temporaryPassword, account.passwordHash)).toBe(false);
+    expect(await Bun.password.verify(resetData.data.temporaryPassword, account.passwordHash)).toBe(true);
+    expect(account.mustChangePassword).toBe(true);
+  });
+}
+
+test('provisioning reuses an exact compatible account without changing its password', async () => {
+  const ctx = setup();
+  const profile = (await readStudent(await ctx.request('/mahasiswa', 'POST', ctx.studentBody))).data;
+  const account = ctx.account('MAHASISWA');
+  const originalHash = account.passwordHash;
+  const response = await ctx.request(`/mahasiswa/${profile.id}/account`, 'POST');
+  expect(response.status).toBe(201);
+  expect(((await response.json()) as { data: unknown }).data).toMatchObject({ created: false, temporaryPassword: null, account: { loginId: '001001', role: 'MAHASISWA' } });
+  expect(account.passwordHash).toBe(originalHash);
+  expect(ctx.students[0]!.userId).toBe(account.id);
+});
+
+for (const role of ['DOSEN', 'MAHASISWA'] as const) test(`${role} cannot provision or reset academic accounts`, async () => {
+  const ctx = setup();
+  const profile = (await readStudent(await ctx.request('/mahasiswa', 'POST', ctx.studentBody))).data;
+  ctx.user.role = role;
+  expect((await ctx.request(`/mahasiswa/${profile.id}/account`, 'POST')).status).toBe(403);
+  expect((await ctx.request(`/mahasiswa/${profile.id}/account/reset`, 'POST')).status).toBe(403);
 });

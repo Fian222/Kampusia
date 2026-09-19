@@ -16,8 +16,8 @@ test.skipIf(!enabled)('PostgreSQL KHS/IPK queries use finalized snapshots and re
     await expect(db.transaction(async tx => {
       const f = await fixture(tx);
       await tx.update(kelasKuliah).set({ kapasitas: 2 }).where(eq(kelasKuliah.id, f.classes[0]!.id));
-      const student = { id: f.user.id, loginId: f.user.loginId, email: f.user.email, role: f.user.role };
-      const manager = { id: f.admin.id, loginId: f.admin.loginId, email: f.admin.email, role: f.admin.role };
+      const student = { id: f.user.id, loginId: f.user.loginId, email: f.user.email, role: f.user.role, mustChangePassword: false };
+      const manager = { id: f.admin.id, loginId: f.admin.loginId, email: f.admin.email, role: f.admin.role, mustChangePassword: false };
       const krsService = createKrsService(createKrsRepository(tx), 12);
       const plan = await krsService.create(student, f.term.id);
       for (const kelas of f.classes) await krsService.add(student, plan.id, kelas.id);

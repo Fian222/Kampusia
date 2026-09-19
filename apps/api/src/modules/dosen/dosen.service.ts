@@ -2,6 +2,7 @@ import { MasterDataError, normalizeText, requirePatch } from '../../utils/master
 import { normalizeIdentity, resolveUserLink, validateProgram, validateUserLink, withoutUserId, withProfileConstraints } from '../../utils/profile-service';
 import type { DosenInput } from './dosen.model';
 import type { DosenRepository } from './dosen.repository';
+import { provisionAcademicAccount, resetAcademicPassword } from '../../utils/account-provisioning';
 
 export function createDosenService(repository: DosenRepository) {
   function normalize(input: Partial<DosenInput>) {
@@ -58,6 +59,18 @@ export function createDosenService(repository: DosenRepository) {
         }
         return withoutUserId(await tx.update(id, { ...changes, userId, updatedAt: new Date() }));
       }));
+    },
+    provisionAccount(id: string) {
+      return provisionAcademicAccount(repository.transaction, 'dosen', id, value => {
+        const row = value as Awaited<ReturnType<Parameters<Parameters<DosenRepository['transaction']>[0]>[0]['findById']>>;
+        return row && { id: row.id, userId: row.userId, identity: row.nik };
+      });
+    },
+    resetPassword(id: string) {
+      return resetAcademicPassword(repository.transaction, 'dosen', id, value => {
+        const row = value as Awaited<ReturnType<Parameters<Parameters<DosenRepository['transaction']>[0]>[0]['findById']>>;
+        return row && { id: row.id, userId: row.userId, identity: row.nik };
+      });
     },
   };
 }

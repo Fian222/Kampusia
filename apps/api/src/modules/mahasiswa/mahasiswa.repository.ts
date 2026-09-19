@@ -1,5 +1,5 @@
 import { dosen, fakultas, krs, kurikulum, mahasiswa, programStudi, users } from '@kampusia/db/schema';
-import { and, asc, count, eq, getTableColumns, ilike, isNotNull, or } from 'drizzle-orm';
+import { and, asc, count, eq, getTableColumns, ilike, isNotNull, isNull, or } from 'drizzle-orm';
 import { pagination, searchPattern } from '../../utils/master-data';
 import { profileReferences, type Database, type Transaction } from '../../utils/profile-repository';
 import type { KurikulumOptionsQuery, MahasiswaQuery } from './mahasiswa.model';
@@ -41,6 +41,9 @@ function transactionRepository(tx: Transaction) {
     async update(id: string, input: Partial<Write> & { updatedAt: Date }) {
       const [row] = await tx.update(mahasiswa).set(input).where(eq(mahasiswa.id, id)).returning();
       return row!;
+    },
+    async linkUser(id: string, userId: string, updatedAt: Date) {
+      return (await tx.update(mahasiswa).set({ userId, updatedAt }).where(and(eq(mahasiswa.id, id), isNull(mahasiswa.userId))).returning({ id: mahasiswa.id }))[0];
     },
   };
 }

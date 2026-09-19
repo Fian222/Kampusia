@@ -17,7 +17,7 @@ export function developmentData(passwordHash: string, now = new Date()) {
   const krsMulaiAt = new Date(jakartaMidnight - 24 * 60 * 60 * 1000);
   const krsSelesaiAt = new Date(jakartaMidnight + 31 * 24 * 60 * 60 * 1000);
   const users = Object.values(demoUsers).map(user => ({
-    ...user, passwordHash, isActive: true,
+    ...user, passwordHash, isActive: true, mustChangePassword: false,
   })) satisfies (typeof schema.users.$inferInsert)[];
   const fakultas = [{ id: id(2), kode: 'DEV-FT', nama: 'Fakultas Teknik', isActive: true }] satisfies (typeof schema.fakultas.$inferInsert)[];
   const programStudi = [{ id: id(3), fakultasId: id(2), kode: 'DEV-IF', nama: 'Informatika', jenjang: 'S1', isActive: true }] satisfies (typeof schema.programStudi.$inferInsert)[];

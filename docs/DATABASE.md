@@ -4,6 +4,8 @@ This document is the source of truth for the database design. Twenty PostgreSQL 
 
 The academic/staff identity-number authentication extension is implemented through the nullable migration phase in `0004_ordinary_donald_blake.sql` and the application cutover: the Drizzle schema and additive migration contain `users.login_id`, nullable email, `dosen.nik`, row-local checks, uniqueness, and deterministic development-fixture backfill, while the API and frontend authenticate only with `login_id`. The migration was applied and verified on the local Podman development database on 2026-09-19. `users.login_id` remains nullable specifically so unmapped legacy accounts are preserved; the final NOT NULL step is deferred until explicit provisioning and audit are complete. Accounts left null cannot authenticate.
 
+Additive migration `0005_orange_killraven.sql` adds `users.must_change_password boolean NOT NULL DEFAULT false`. Existing and seeded users therefore continue normally, while administrator-provisioned or reset academic accounts explicitly set the value to true until the account owner replaces the temporary password.
+
 The grading tables are implemented only at the database layer; their application APIs, service policies, and frontend remain future work. This document must be updated before any later design change and implemented schema must be checked against it. See [database package notes](../packages/db/README.md) for verification commands and the boundary between database constraints and service rules.
 
 ## Shared conventions
@@ -86,6 +88,7 @@ Authentication accounts, separate from student and lecturer academic profiles. T
 | `password_hash` | `text` | No | — | Secure password hash; never plaintext |
 | `role` | `varchar(16)` | No | — | ADMIN, AKADEMIK, DOSEN, or MAHASISWA |
 | `is_active` | `boolean` | No | true | Whether login is permitted |
+| `must_change_password` | `boolean` | No | false | Whether the authenticated account is restricted to replacing an administrator-issued temporary password |
 | `created_at` | `timestamptz` | No | now() | Creation instant |
 | `updated_at` | `timestamptz` | No | now() | Last mutation instant |
 
@@ -107,6 +110,8 @@ Authentication accounts, separate from student and lecturer academic profiles. T
 - An account may be linked to at most one student or one lecturer, never both. The per-table unique constraints do not enforce the cross-table exclusion; account linking must lock the users row and validate it.
 - For ADMIN and AKADEMIK, `users.login_id` directly owns the internal campus staff NIK. No `pegawai` table is added merely for authentication. A future personnel module may normalize that ownership after a separately documented migration.
 - Disabling a login does not cancel academic records. Never expose password_hash in API responses.
+- Accounts provisioned for an academic profile and accounts whose passwords are administratively reset set `must_change_password = true`. Existing and development-seed accounts default to false. A successful authenticated password change clears the flag atomically with replacing `password_hash`.
+- Temporary passwords are generated with a cryptographically secure random source, are never persisted or logged, and may appear only in the immediate successful provisioning/reset response. The stored password hash is the only durable credential representation.
 
 **CHECK constraints:** digits-only `login_id`; canonical nullable email; nonblank password hash; and the documented role set. The target `login_id` NOT NULL constraint is applied only at the end of the staged migration.
 

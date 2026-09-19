@@ -6,6 +6,9 @@ import { createMahasiswaRepository } from './mahasiswa/mahasiswa.repository';
 import { createMahasiswaService } from './mahasiswa/mahasiswa.service';
 import { createDosenRepository } from './dosen/dosen.repository';
 import { createDosenService } from './dosen/dosen.service';
+import { createAuthRepository } from './auth/auth.repository';
+import { createAuthService } from './auth/auth.service';
+import { createApp } from '../app';
 
 test.skipIf(Bun.env.RUN_PROFILE_DB_TESTS !== '1')('PostgreSQL profile queries, constraints, account links and history (rolled back)', async () => {
   const url = new URL(Bun.env.DATABASE_URL ?? '');
@@ -32,6 +35,45 @@ test.skipIf(Bun.env.RUN_PROFILE_DB_TESTS !== '1')('PostgreSQL profile queries, c
       expect((await students.get(first.id)).account).toEqual({ loginId: digits + '01', email: accounts[0]!.email, isActive: true });
       const second = await students.create({ ...body, nim: digits + '11', status: 'CUTI' });
       await students.create({ ...body, nim: digits + '12', nama: prefix + '_%', angkatan: 2025 });
+      const provisionedProfile = await students.create({ ...body, nim: digits + '13', nama: prefix + ' Provisioned' });
+      const provisioned = await students.provisionAccount(provisionedProfile.id);
+      expect(provisioned.account).toEqual({ loginId: digits + '13', role: 'MAHASISWA', isActive: true });
+      expect(provisioned.temporaryPassword).not.toBeNull();
+      const [storedProvisioned] = await tx.select().from(users).where(eq(users.loginId, digits + '13'));
+      expect(storedProvisioned!.mustChangePassword).toBe(true);
+      expect(storedProvisioned!.passwordHash).not.toContain(provisioned.temporaryPassword!);
+      expect(await Bun.password.verify(provisioned.temporaryPassword!, storedProvisioned!.passwordHash)).toBe(true);
+      expect((await tx.select({ userId: mahasiswa.userId }).from(mahasiswa).where(eq(mahasiswa.id, provisionedProfile.id)))[0]!.userId).toBe(storedProvisioned!.id);
+      const firstHash = storedProvisioned!.passwordHash;
+      const reset = await students.resetPassword(provisionedProfile.id);
+      const [afterReset] = await tx.select().from(users).where(eq(users.id, storedProvisioned!.id));
+      expect(afterReset!.id).toBe(storedProvisioned!.id);
+      expect(afterReset!.loginId).toBe(digits + '13');
+      expect(afterReset!.passwordHash).not.toBe(firstHash);
+      expect(await Bun.password.verify(provisioned.temporaryPassword!, afterReset!.passwordHash)).toBe(false);
+      expect(await Bun.password.verify(reset.temporaryPassword, afterReset!.passwordHash)).toBe(true);
+      expect(afterReset!.mustChangePassword).toBe(true);
+      await expect(students.provisionAccount(provisionedProfile.id)).rejects.toThrow('sudah memiliki akun');
+      const auth = createAuthService(createAuthRepository(tx));
+      const app = createApp(auth, { webOrigin: 'http://localhost:5173', production: false });
+      const request = (path: string, method = 'GET', cookie?: string, requestBody?: unknown) => app.handle(new Request('http://localhost' + path, {
+        method, headers: { origin: 'http://localhost:5173', ...(cookie ? { cookie } : {}), ...(requestBody ? { 'content-type': 'application/json' } : {}) },
+        body: requestBody ? JSON.stringify(requestBody) : undefined,
+      }));
+      const login = await request('/auth/login', 'POST', undefined, { login_id: digits + '13', password: reset.temporaryPassword });
+      expect(login.status).toBe(200);
+      const temporaryCookie = login.headers.get('set-cookie')!.split(';')[0]!;
+      expect((await request('/dashboard/mahasiswa', 'GET', temporaryCookie)).status).toBe(403);
+      const changed = await request('/auth/change-password', 'POST', temporaryCookie, { new_password: 'Integration-New-Password-2026!', confirmation: 'Integration-New-Password-2026!' });
+      expect(changed.status).toBe(200);
+      const changedCookie = changed.headers.get('set-cookie')!.split(';')[0]!;
+      expect((await request('/dashboard/mahasiswa', 'GET', changedCookie)).status).toBe(200);
+      expect((await request('/auth/login', 'POST', undefined, { login_id: digits + '13', password: reset.temporaryPassword })).status).toBe(401);
+      const administrativeReset = await students.resetPassword(provisionedProfile.id);
+      expect((await request('/dashboard/mahasiswa', 'GET', changedCookie)).status).toBe(401);
+      const relogin = await request('/auth/login', 'POST', undefined, { login_id: digits + '13', password: administrativeReset.temporaryPassword });
+      expect(relogin.status).toBe(200);
+      expect(((await relogin.json()) as { data: { mustChangePassword: boolean } }).data.mustChangePassword).toBe(true);
       const page = await students.list({ search: prefix, program_studi_id: program!.id, kurikulum_id: curriculum!.id, angkatan: 2026, status: 'CUTI', limit: 1, page: 2 });
       expect(page.meta).toEqual({ page: 2, limit: 1, total: 2 }); expect(page.data[0]?.id).toBe(second.id);
       expect(page.data[0]?.fakultas.id).toBe(faculty!.id); expect(page.data[0]?.kurikulum.id).toBe(curriculum!.id);
@@ -46,6 +88,9 @@ test.skipIf(Bun.env.RUN_PROFILE_DB_TESTS !== '1')('PostgreSQL profile queries, c
       expect((await students.kurikulumOptions({ program_studi_id: program!.id, page: 2, limit: 1 })).data).toEqual([]);
       const lecturer = await lecturers.create({ nik: digits + '02', kode_dosen: prefix + 'A', nidn: ' ' + prefix.toLowerCase() + 'N ', nama: prefix + ' Dosen', program_studi_id: program!.id });
       const optional = await lecturers.create({ nik: digits + '12', kode_dosen: prefix + 'B', nama: prefix + ' Dosen' });
+      const lecturerProvisioned = await lecturers.provisionAccount(optional.id);
+      expect(lecturerProvisioned.account).toEqual({ loginId: digits + '12', role: 'DOSEN', isActive: true });
+      expect(await Bun.password.verify(lecturerProvisioned.temporaryPassword!, (await tx.select().from(users).where(eq(users.loginId, digits + '12')))[0]!.passwordHash)).toBe(true);
       await expect(lecturers.create({ kode_dosen: lecturer.kodeDosen.toLowerCase(), nama: 'Duplicate' })).rejects.toThrow('Kode dosen sudah digunakan');
       await expect(lecturers.update(optional.id, { nidn: lecturer.nidn!.toLowerCase() })).rejects.toThrow('NIDN sudah digunakan');
       await students.update(first.id, { nim: digits + '21' });

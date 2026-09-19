@@ -10,11 +10,16 @@ beforeAll(async () => { passwordHash = await Bun.password.hash('TestPassword2026
 
 function setup(role: Role = 'AKADEMIK', production = false, loginId = '00123456') {
   const record: AuthRecord = { id: '00000000-0000-4000-8000-000000000001', loginId, email: 'test@kampusia.test',
-    role, passwordHash, isActive: true, createdAt: new Date(), updatedAt: new Date() };
+    role, passwordHash, isActive: true, mustChangePassword: false, createdAt: new Date(), updatedAt: new Date() };
   let now = Date.now();
   const service = createAuthService({
     findByLoginId: async value => value === record.loginId ? record : undefined,
     findById: async id => id === record.id ? record : undefined,
+    updatePassword: async (id, nextHash) => {
+      if (id !== record.id) return undefined;
+      Object.assign(record, { passwordHash: nextHash, mustChangePassword: false, updatedAt: new Date() });
+      return record;
+    },
   }, createSessionStore(() => now));
   const origin = production ? 'https://kampusia.test' : 'http://localhost:5173';
   const app = createApp(service, { webOrigin: origin, production });
@@ -31,7 +36,7 @@ test('valid leading-zero Nomor Induk login returns safe user and sets an HTTP-on
   const ctx = setup();
   const response = await ctx.login();
   expect(response.status).toBe(200);
-  expect(await response.json()).toEqual({ success: true, data: { id: ctx.record.id, loginId: '00123456', email: ctx.record.email, role: 'AKADEMIK' } });
+  expect(await response.json()).toEqual({ success: true, data: { id: ctx.record.id, loginId: '00123456', email: ctx.record.email, role: 'AKADEMIK', mustChangePassword: false } });
   expect(response.headers.get('set-cookie')).toContain('HttpOnly');
   expect(response.headers.get('set-cookie')).toContain('SameSite=Lax');
   expect(response.headers.get('set-cookie')).not.toContain('Secure');
@@ -67,7 +72,7 @@ test('current-user endpoint returns only authenticated public fields', async () 
   const cookie = cookieOf(await ctx.login());
   const response = await ctx.request('/auth/me', 'GET', cookie);
   expect(response.status).toBe(200);
-  expect(await response.json()).toEqual({ success: true, data: { id: ctx.record.id, loginId: ctx.record.loginId, email: ctx.record.email, role: 'AKADEMIK' } });
+  expect(await response.json()).toEqual({ success: true, data: { id: ctx.record.id, loginId: ctx.record.loginId, email: ctx.record.email, role: 'AKADEMIK', mustChangePassword: false } });
 });
 
 for (const status of ['AKTIF', 'CUTI', 'NONAKTIF', 'LULUS', 'KELUAR'] as const) {
@@ -87,7 +92,7 @@ for (const status of ['AKTIF', 'CUTI', 'NONAKTIF', 'LULUS', 'KELUAR'] as const) 
     const current = await ctx.request('/auth/me', 'GET', existingCookie);
     expect(current.status).toBe(200);
     expect(await current.json()).toEqual({
-      success: true, data: { id: ctx.record.id, loginId: ctx.record.loginId, email: ctx.record.email, role: 'MAHASISWA' },
+      success: true, data: { id: ctx.record.id, loginId: ctx.record.loginId, email: ctx.record.email, role: 'MAHASISWA', mustChangePassword: false },
     });
     expect((await ctx.request('/dashboard/mahasiswa', 'GET', existingCookie)).status).toBe(200);
 
@@ -163,4 +168,23 @@ test('production cookies are Secure and malformed input has safe validation erro
   const response = await ctx.request('/auth/login', 'POST', undefined, { login_id: ctx.record.loginId });
   expect(response.status).toBe(400);
   expect(await response.json()).toEqual({ success: false, message: 'Periksa format dan kelengkapan data yang dikirim.' });
+});
+
+test('temporary-password account is restricted until password change rotates its session', async () => {
+  const ctx = setup('MAHASISWA');
+  ctx.record.mustChangePassword = true;
+  const login = await ctx.login();
+  const oldCookie = cookieOf(login);
+  expect(((await login.clone().json()) as { data: { mustChangePassword: boolean } }).data.mustChangePassword).toBe(true);
+  expect((await ctx.request('/auth/me', 'GET', oldCookie)).status).toBe(200);
+  expect((await ctx.request('/dashboard/mahasiswa', 'GET', oldCookie)).status).toBe(403);
+  const changed = await ctx.request('/auth/change-password', 'POST', oldCookie, { new_password: 'A-New-Password-2026!', confirmation: 'A-New-Password-2026!' });
+  expect(changed.status).toBe(200);
+  const newCookie = cookieOf(changed);
+  expect(newCookie).not.toBe(oldCookie);
+  expect(ctx.record.mustChangePassword).toBe(false);
+  expect((await ctx.request('/auth/me', 'GET', oldCookie)).status).toBe(401);
+  expect((await ctx.login()).status).toBe(401);
+  expect((await ctx.request('/auth/login', 'POST', undefined, { login_id: ctx.record.loginId, password: 'A-New-Password-2026!' })).status).toBe(200);
+  expect((await ctx.request('/dashboard/mahasiswa', 'GET', newCookie)).status).toBe(200);
 });

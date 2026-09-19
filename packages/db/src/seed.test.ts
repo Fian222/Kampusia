@@ -35,6 +35,7 @@ test('demo users cover every role with active accounts', () => {
   ]);
   expect(new Set(data.users.map(user => user.id)).size).toBe(4);
   expect(new Set(data.users.map(user => user.email)).size).toBe(4);
+  expect(data.users.every(user => user.mustChangePassword === false)).toBe(true);
 });
 
 test('demo DOSEN and MAHASISWA users have exactly one coherent fixture profile link', () => {
@@ -132,6 +133,7 @@ test.skipIf(process.env.RUN_DB_SEED_TESTS !== '1')('live seed is repeatable and 
       const account = secondAccounts.find(row => row.id === expected.id)!;
       const firstAccount = firstAccounts.find(row => row.id === expected.id)!;
       expect(account).toMatchObject({ loginId: expected.loginId, email: expected.email, role: expected.role, isActive: true });
+      expect(account.mustChangePassword).toBe(false);
       expect(account.passwordHash.startsWith('$argon2id$')).toBe(true);
       expect(await Bun.password.verify(password, account.passwordHash)).toBe(true);
       expect(account.passwordHash).toBe(firstAccount.passwordHash);

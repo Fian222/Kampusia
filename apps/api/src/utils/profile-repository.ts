@@ -24,6 +24,13 @@ export function profileReferences(tx: Transaction) {
     async updateUserLoginId(id: string, loginId: string, updatedAt: Date) {
       return (await tx.update(users).set({ loginId, updatedAt }).where(eq(users.id, id)).returning({ id: users.id }))[0];
     },
+    async createUser(input: Pick<typeof users.$inferInsert, 'loginId' | 'passwordHash' | 'role' | 'isActive' | 'mustChangePassword'>) {
+      return (await tx.insert(users).values(input).returning({ id: users.id, loginId: users.loginId, role: users.role, isActive: users.isActive }))[0]!;
+    },
+    async updateAccountPassword(id: string, passwordHash: string, updatedAt: Date) {
+      return (await tx.update(users).set({ passwordHash, mustChangePassword: true, updatedAt }).where(eq(users.id, id))
+        .returning({ id: users.id, loginId: users.loginId, role: users.role, isActive: users.isActive }))[0];
+    },
     async userLinks(id: string) {
       const [student] = await tx.select({ id: mahasiswa.id }).from(mahasiswa).where(eq(mahasiswa.userId, id));
       const [lecturer] = await tx.select({ id: dosen.id }).from(dosen).where(eq(dosen.userId, id));

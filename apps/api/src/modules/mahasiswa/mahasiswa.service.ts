@@ -3,6 +3,7 @@ import { normalizeIdentity, resolveUserLink, validateProgram, validateUserLink, 
 import { mahasiswaStatusValues } from './mahasiswa.options';
 import type { MahasiswaInput } from './mahasiswa.model';
 import type { MahasiswaRepository } from './mahasiswa.repository';
+import { provisionAcademicAccount, resetAcademicPassword } from '../../utils/account-provisioning';
 
 export function createMahasiswaService(repository: MahasiswaRepository) {
   function normalize(input: Partial<MahasiswaInput>) {
@@ -83,6 +84,18 @@ export function createMahasiswaService(repository: MahasiswaRepository) {
         }
         return withoutUserId(await tx.update(id, { ...changes, userId, updatedAt: new Date() }));
       }));
+    },
+    provisionAccount(id: string) {
+      return provisionAcademicAccount(repository.transaction, 'mahasiswa', id, value => {
+        const row = value as Awaited<ReturnType<Parameters<Parameters<MahasiswaRepository['transaction']>[0]>[0]['findById']>>;
+        return row && { id: row.id, userId: row.userId, identity: row.nim };
+      });
+    },
+    resetPassword(id: string) {
+      return resetAcademicPassword(repository.transaction, 'mahasiswa', id, value => {
+        const row = value as Awaited<ReturnType<Parameters<Parameters<MahasiswaRepository['transaction']>[0]>[0]['findById']>>;
+        return row && { id: row.id, userId: row.userId, identity: row.nim };
+      });
     },
   };
 }

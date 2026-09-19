@@ -17,6 +17,10 @@ export function authorization(auth: AuthService) {
     .resolve({ as: 'scoped' }, async ({ request }) => {
       const user = await auth.current(readSession(request));
       if (!user) throw new AuthError(401, 'Silakan masuk untuk melanjutkan.');
+      const path = new URL(request.url).pathname;
+      if (user.mustChangePassword && !['/auth/me', '/auth/change-password', '/auth/logout'].includes(path)) {
+        throw new AuthError(403, 'Ganti kata sandi sementara sebelum melanjutkan.');
+      }
       return { user };
     });
 }

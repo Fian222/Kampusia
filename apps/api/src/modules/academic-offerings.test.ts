@@ -86,7 +86,7 @@ function setup(role: Role = 'AKADEMIK') {
       update: async (id, isKoordinator) => Object.assign(assignments.find(row => row.id === id)!, { isKoordinator }), remove: async id => { assignments.splice(assignments.findIndex(row => row.id === id), 1); },
     }),
   };
-  const user: AuthRecord = { ...stamps(), loginId: '99000002', email: 'test@kampusia.test', passwordHash: 'test', role, isActive: true };
+  const user: AuthRecord = { ...stamps(), loginId: '99000002', email: 'test@kampusia.test', passwordHash: 'test', role, isActive: true, mustChangePassword: false };
   const sessions = createSessionStore(); const token = sessions.create(user.id, user.passwordHash);
   const services = { semester: createSemesterService(termRepository), kelasKuliah: createKelasKuliahService(classRepository), kelasDosen: createKelasDosenService(assignmentRepository) };
   const app = createApp(createAuthService({ findById: async () => user, findByLoginId: async () => user }, sessions), { webOrigin: origin, production: false }, services);

@@ -56,7 +56,7 @@ function setup(role: Role = 'AKADEMIK') {
     }),
   };
   const services = { jadwal: createJadwalService(repository), ruangan: createRuanganService(roomRepository, () => new Date('2026-09-12T05:00:00Z')) };
-  const user: AuthRecord = { ...stamps(), loginId: '99000002', email: 'test@kampusia.test', passwordHash: 'test', role, isActive: true };
+  const user: AuthRecord = { ...stamps(), loginId: '99000002', email: 'test@kampusia.test', passwordHash: 'test', role, isActive: true, mustChangePassword: false };
   const sessions = createSessionStore(); const token = sessions.create(user.id, user.passwordHash);
   const app = createApp(createAuthService({ findById: async () => user, findByLoginId: async () => user }, sessions), { webOrigin: origin, production: false }, services);
   const request = (path: string, method = 'GET', body?: unknown, cookie = token, source = origin) => app.handle(new Request('http://localhost' + path, { method, headers: { origin: source, cookie: 'kampusia_session=' + cookie, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }));

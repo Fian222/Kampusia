@@ -11,6 +11,7 @@ export const users = pgTable(
     passwordHash: text('password_hash').notNull(),
     role: varchar('role', { length: 16, enum: ['ADMIN', 'AKADEMIK', 'DOSEN', 'MAHASISWA'] }).notNull(),
     isActive: boolean('is_active').notNull().default(true),
+    mustChangePassword: boolean('must_change_password').notNull().default(false),
   },
   (t) => [
     unique('users_login_id_unique').on(t.loginId),

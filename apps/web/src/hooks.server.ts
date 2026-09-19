@@ -16,6 +16,13 @@ export const handle: Handle = async ({ event, resolve }) => {
     else if (result.error || !result.data?.success) error(503, 'Layanan autentikasi tidak tersedia.');
     else event.locals.user = result.data.data;
   }
+  const passwordChangePath = event.url.pathname === '/change-password';
+  if (event.locals.user?.mustChangePassword && !passwordChangePath && event.url.pathname !== '/logout') {
+    redirect(303, '/change-password');
+  }
+  if (event.locals.user && !event.locals.user.mustChangePassword && passwordChangePath) {
+    redirect(303, roleAreas[event.locals.user.role].path);
+  }
   const area = Object.values(roleAreas).find(area =>
     event.url.pathname === area.path || event.url.pathname.startsWith(area.path + '/'));
   if (area) {

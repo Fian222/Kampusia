@@ -12,6 +12,8 @@ export function dosenRoutes(auth: AuthService, origin: string, service?: DosenSe
     .onBeforeHandle(({ user, request }) => requireMasterData(user, request, origin))
     .get('/', async ({ query }) => ({ success: true as const, ...await getService().list(query) }), { query: dosenQuery })
     .get('/:id', async ({ params }) => ({ success: true as const, data: await getService().get(params.id) }), { params: idParams })
+    .post('/:id/account', async ({ params, set }) => { set.status = 201; return { success: true as const, data: await getService().provisionAccount(params.id) }; }, { params: idParams })
+    .post('/:id/account/reset', async ({ params }) => ({ success: true as const, data: await getService().resetPassword(params.id) }), { params: idParams })
     .post('/', async ({ body, set }) => {
       const data = await getService().create(body);
       set.status = 201;

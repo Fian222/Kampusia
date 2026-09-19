@@ -13,6 +13,8 @@ export function mahasiswaRoutes(auth: AuthService, origin: string, service?: Mah
     .get('/', async ({ query }) => ({ success: true as const, ...await getService().list(query) }), { query: mahasiswaQuery })
     .get('/kurikulum-options', async ({ query }) => ({ success: true as const, ...await getService().kurikulumOptions(query) }), { query: kurikulumOptionsQuery })
     .get('/:id', async ({ params }) => ({ success: true as const, data: await getService().get(params.id) }), { params: idParams })
+    .post('/:id/account', async ({ params, set }) => { set.status = 201; return { success: true as const, data: await getService().provisionAccount(params.id) }; }, { params: idParams })
+    .post('/:id/account/reset', async ({ params }) => ({ success: true as const, data: await getService().resetPassword(params.id) }), { params: idParams })
     .post('/', async ({ body, set }) => {
       const data = await getService().create(body);
       set.status = 201;

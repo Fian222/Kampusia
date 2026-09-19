@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia';
 import { authorization, readSession } from '../../middleware/authorization';
-import { AuthError, loginBody, sessionCookie, sessionSeconds } from './auth.model';
+import { AuthError, changePasswordBody, loginBody, sessionCookie, sessionSeconds } from './auth.model';
 import type { AuthService } from './auth.service';
 
 export function authRoutes(auth: AuthService, options: { webOrigin: string; production: boolean }) {
@@ -22,5 +22,12 @@ export function authRoutes(auth: AuthService, options: { webOrigin: string; prod
       return { success: true as const, data: null };
     }, { beforeHandle: ({ request }) => checkOrigin(request) })
     .use(authorization(auth))
+    .post('/change-password', async ({ user, body, request, cookie }) => {
+      checkOrigin(request);
+      if (!auth.changePassword) throw new AuthError(503, 'Layanan perubahan kata sandi tidak tersedia.');
+      const result = await auth.changePassword(user.id, body.new_password, body.confirmation, readSession(request));
+      cookie[sessionCookie]!.set({ ...cookieOptions, value: result.token, maxAge: sessionSeconds });
+      return { success: true as const, data: result.user };
+    }, { body: changePasswordBody })
     .get('/me', ({ user }) => ({ success: true as const, data: user }));
 }

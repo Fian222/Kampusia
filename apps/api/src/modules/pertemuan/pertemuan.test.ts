@@ -9,11 +9,11 @@ import type { PertemuanRepository, PertemuanTransaction } from './pertemuan.repo
 const uuid = () => crypto.randomUUID();
 const common = () => ({ id: uuid(), createdAt: new Date(), updatedAt: new Date() });
 function fixture() {
-  const admin: AuthUser = { id: uuid(), loginId: '9002', email: 'admin@test.local', role: 'AKADEMIK' };
-  const otherAdmin: AuthUser = { id: uuid(), loginId: '9001', email: 'admin2@test.local', role: 'ADMIN' };
-  const lecturerUser: AuthUser = { id: uuid(), loginId: '9003', email: 'dosen@test.local', role: 'DOSEN' };
-  const foreignLecturer: AuthUser = { id: uuid(), loginId: '9004', email: 'other@test.local', role: 'DOSEN' };
-  const studentUser: AuthUser = { id: uuid(), loginId: '1001', email: 'student@test.local', role: 'MAHASISWA' };
+  const admin: AuthUser = { id: uuid(), loginId: '9002', email: 'admin@test.local', role: 'AKADEMIK', mustChangePassword: false };
+  const otherAdmin: AuthUser = { id: uuid(), loginId: '9001', email: 'admin2@test.local', role: 'ADMIN', mustChangePassword: false };
+  const lecturerUser: AuthUser = { id: uuid(), loginId: '9003', email: 'dosen@test.local', role: 'DOSEN', mustChangePassword: false };
+  const foreignLecturer: AuthUser = { id: uuid(), loginId: '9004', email: 'other@test.local', role: 'DOSEN', mustChangePassword: false };
+  const studentUser: AuthUser = { id: uuid(), loginId: '1001', email: 'student@test.local', role: 'MAHASISWA', mustChangePassword: false };
   const users = [admin, otherAdmin, lecturerUser, foreignLecturer, studentUser];
   const term: typeof semester.$inferSelect = { ...common(), kode: '20261', nama: 'Ganjil 2026', tahunMulai: 2026, jenis: 'GANJIL', tanggalMulai: '2026-08-24', tanggalSelesai: '2027-01-15', krsMulaiAt: null, krsSelesaiAt: null, isActive: true };
   const kelas: typeof kelasKuliah.$inferSelect = { ...common(), semesterId: term.id, mataKuliahId: uuid(), programStudiId: uuid(), namaKelas: 'A', kapasitas: 30, status: 'DIBUKA' };

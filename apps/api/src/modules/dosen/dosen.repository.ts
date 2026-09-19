@@ -1,5 +1,5 @@
 import { dosen, programStudi, users } from '@kampusia/db/schema';
-import { and, asc, count, eq, getTableColumns, ilike, or } from 'drizzle-orm';
+import { and, asc, count, eq, getTableColumns, ilike, isNull, or } from 'drizzle-orm';
 import { pagination, searchPattern } from '../../utils/master-data';
 import { profileReferences, type Database, type Transaction } from '../../utils/profile-repository';
 import type { DosenQuery } from './dosen.model';
@@ -29,6 +29,9 @@ function transactionRepository(tx: Transaction) {
     async update(id: string, input: Partial<Write> & { updatedAt: Date }) {
       const [row] = await tx.update(dosen).set(input).where(eq(dosen.id, id)).returning();
       return row!;
+    },
+    async linkUser(id: string, userId: string, updatedAt: Date) {
+      return (await tx.update(dosen).set({ userId, updatedAt }).where(and(eq(dosen.id, id), isNull(dosen.userId))).returning({ id: dosen.id }))[0];
     },
   };
 }

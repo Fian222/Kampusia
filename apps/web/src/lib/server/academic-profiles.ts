@@ -58,12 +58,16 @@ export async function saveProfile(event: RequestEvent, kind: ProfileKind) {
   const values = Object.fromEntries(['mode', 'id', 'program_studi_id', 'kurikulum_id', 'dosen_pa_id', 'nim', 'nik', 'nama', 'angkatan', 'status', 'kode_dosen', 'nidn', 'is_active'].map(key => [key, String(form.get(key) ?? '')]));
   const invalid = (message: string) => fail(400, { values, message });
   const mode = form.get('mode');
-  if (mode !== 'save' && mode !== 'status') return invalid('Tindakan tidak valid.');
+  if (mode !== 'save' && mode !== 'status' && mode !== 'provision-account' && mode !== 'reset-password') return invalid('Tindakan tidak valid.');
   const submitted = mode === 'status' ? {} : { values };
   const client = serverApi(event);
   let result;
   try {
-    if (mode === 'status') {
+    if (mode === 'provision-account' || mode === 'reset-password') {
+      if (!values.id) return invalid('Profil tidak valid.');
+      const endpoint = kind === 'mahasiswa' ? client.mahasiswa({ id: values.id }).account : client.dosen({ id: values.id }).account;
+      result = mode === 'provision-account' ? await endpoint.post() : await endpoint.reset.post();
+    } else if (mode === 'status') {
       if (kind !== 'dosen' || !values.id || !['true', 'false'].includes(values.is_active!)) return invalid('Perubahan status tidak valid.');
       result = await client.dosen({ id: values.id }).patch({ is_active: values.is_active === 'true' });
     } else {
@@ -86,6 +90,7 @@ export async function saveProfile(event: RequestEvent, kind: ProfileKind) {
   } catch { return fail(503, { ...submitted, message: apiMessage(null) }); }
   if (result.status === 401) redirect(303, '/login');
   if (result.error || !result.data?.success) return fail(result.status >= 400 && result.status < 500 ? result.status : 503, { ...submitted, message: apiMessage(result.error?.value) });
+  if (mode === 'provision-account' || mode === 'reset-password') return { accountCredential: result.data.data };
   return { saved: true as const, message: 'Perubahan berhasil disimpan.' };
 }
 export type ProfileData = Awaited<ReturnType<typeof loadProfiles>>;

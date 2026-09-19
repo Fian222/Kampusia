@@ -90,10 +90,13 @@ describe('DATABASE.md schema contract', () => {
     const account = getTableConfig(schema.users);
     const loginId = account.columns.find((column) => column.name === 'login_id');
     const email = account.columns.find((column) => column.name === 'email');
+    const mustChangePassword = account.columns.find((column) => column.name === 'must_change_password');
     expect(loginId?.getSQLType()).toBe('varchar(30)');
     expect(loginId?.notNull).toBe(false);
     expect(email?.getSQLType()).toBe('varchar(254)');
     expect(email?.notNull).toBe(false);
+    expect(mustChangePassword?.notNull).toBe(true);
+    expect(sqlText(mustChangePassword?.default)).toBe(false);
     expect(account.uniqueConstraints.map((key) => ({
       name: key.name,
       columns: key.columns.map((column) => column.name),

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { goto } from '$app/navigation';
+  import { goto, invalidateAll } from '$app/navigation';
   import { page, navigating } from '$app/state';
   import { seamlessFilter } from '$lib/actions/seamless-filter';
   import { isListNavigationPending } from '$lib/navigation/pending';
@@ -17,12 +17,18 @@
   import EmptyState from './ui/EmptyState.svelte';
   import ReferenceCombobox from './ReferenceCombobox.svelte';
 
-  let { data, form }: { data: ProfileData; form: { message: string; saved?: true; values?: Record<string, string> } | null } = $props();
+  let { data, form }: { data: ProfileData; form: { message?: string; saved?: true; values?: Record<string, string>; accountCredential?: unknown } | null } = $props();
   let saving = $state(false);
   let formOpen = $state(false);
   let requestedEditId = $state<string | null>(null);
   let confirmation = $state<{ id: string; nama: string; isActive: boolean } | null>(null);
   let confirmationOpen = $state(false);
+  let accountConfirmation = $state<{ mode: 'provision-account' | 'reset-password'; id: string; nama: string; identifier: string } | null>(null);
+  let accountConfirmationOpen = $state(false);
+  let credential = $state<{ account: { loginId: string; role: string; isActive: boolean }; temporaryPassword: string | null; created?: boolean } | null>(null);
+  let credentialAction = $state<'provision-account' | 'reset-password'>('provision-account');
+  let credentialOpen = $state(false);
+  let copyFeedback = $state('');
   let selectedProgramId = $state('');
   let selectedCurriculumId = $state('');
   let selectedAdviserId = $state('');
@@ -49,6 +55,13 @@
   }
   function value(key: string, fallback = '') { return form?.values?.[key] ?? fallback; }
   function openEdit(id: string) { requestedEditId = id; formOpen = true; }
+  async function copyTemporaryPassword() {
+    if (!credential?.temporaryPassword) return;
+    try {
+      await navigator.clipboard.writeText(credential.temporaryPassword);
+      copyFeedback = 'Password disalin';
+    } catch { copyFeedback = 'Tidak dapat menyalin otomatis. Salin password secara manual.'; }
+  }
   const programs = $derived.by(() => {
     const rows: { id: string; kode: string; nama: string; isActive: boolean }[] = data.programs.data.map(({ id, kode, nama, isActive }) => ({ id, kode, nama, isActive }));
     for (const item of [data.edit?.programStudi, data.selectedProgram]) {
@@ -190,14 +203,61 @@
         {#if data.edit?.account?.loginId}
           <div class="mt-2 flex flex-wrap items-center gap-2"><span class="font-mono text-sm font-semibold text-slate-900">{data.edit.account.loginId}</span><StatusBadge active={data.edit.account.isActive} /></div>
           {#if data.edit.account.email}<p class="mt-1 text-xs text-slate-500">{data.edit.account.email}</p>{/if}
+          <button type="button" class="mt-3 min-h-10 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-100" onclick={() => { accountConfirmation = { mode: 'reset-password', id: data.edit!.id, nama: data.edit!.nama, identifier: data.edit!.account!.loginId! }; accountConfirmationOpen = true; }}>Reset Password</button>
         {:else}
           <p class="mt-2 text-sm font-semibold text-slate-700">Belum memiliki akun login</p>
+          <p class="mt-1 text-sm text-slate-600">Nomor Induk: <span class="font-mono font-semibold">{data.kind === 'mahasiswa' ? student?.nim : lecturer?.nik ?? 'Belum diisi'}</span></p>
+          <button type="button" class="mt-3 min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50" disabled={data.kind === 'dosen' && !lecturer?.nik} onclick={() => { const identifier = data.kind === 'mahasiswa' ? student?.nim : lecturer?.nik; if (data.edit && identifier) { accountConfirmation = { mode: 'provision-account', id: data.edit.id, nama: data.edit.nama, identifier }; accountConfirmationOpen = true; } }}>Buat Akun Login</button>
         {/if}
-        <p class="mt-1 text-xs text-slate-500">Akun yang sudah tersedia dicocokkan otomatis melalui {data.kind === 'mahasiswa' ? 'NIM' : 'NIK'} yang sama persis. Formulir ini tidak membuat akun atau kata sandi.</p>
+        <p class="mt-2 text-xs text-slate-500">Identitas akun ditentukan otomatis dari {data.kind === 'mahasiswa' ? 'NIM' : 'NIK'} yang sama persis; UUID akun tidak pernah perlu dipilih.</p>
       </section>
       <div class="flex justify-end gap-3 sm:col-span-2"><button type="button" class="px-4 py-2 text-sm font-semibold text-slate-600" disabled={saving} onclick={() => formOpen = false}>Batal</button><button class={buttonClass} disabled={saving}>{saving ? 'Menyimpan…' : 'Simpan'}</button></div>
     </form>
   {/key}
+  {/if}
+</Modal>
+
+<Modal bind:open={accountConfirmationOpen} title={accountConfirmation?.mode === 'reset-password' ? 'Reset Password' : 'Buat Akun Login'} description={accountConfirmation?.mode === 'reset-password' ? `Reset password ${accountConfirmation?.nama ?? ''}?` : 'Konfirmasi pembuatan akun login.'} width="sm" closeDisabled={saving} onClose={() => accountConfirmation = null}>
+  {#if accountConfirmation}
+    <div class="space-y-4">
+      <div class="rounded-xl bg-slate-50 p-4"><p class="font-semibold text-slate-900">{accountConfirmation.nama}</p><p class="mt-1 font-mono text-sm text-slate-600">{accountConfirmation.identifier}</p></div>
+      <p class="text-sm leading-6 text-slate-600">{accountConfirmation.mode === 'reset-password' ? 'Password saat ini tidak lagi dapat digunakan dan password sementara baru akan dibuat.' : 'Password sementara akan dibuat. Akun harus menggantinya setelah masuk.'}</p>
+      {#if form?.message && form.values?.mode === accountConfirmation.mode}<p role="alert" class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}
+      <form method="POST" class="flex justify-end gap-3" use:enhance={() => {
+        saving = true;
+        return async ({ result, update }) => {
+          try {
+            if (result.type === 'success' && result.data && 'accountCredential' in result.data) {
+              credential = result.data.accountCredential as typeof credential;
+              credentialAction = accountConfirmation?.mode ?? 'provision-account';
+              copyFeedback = '';
+              accountConfirmationOpen = false;
+              credentialOpen = true;
+              await invalidateAll();
+            } else await update({ reset: false });
+          } finally { saving = false; }
+        };
+      }}>
+        <input type="hidden" name="mode" value={accountConfirmation.mode} /><input type="hidden" name="id" value={accountConfirmation.id} />
+        <button type="button" class="px-4 py-2 text-sm font-semibold text-slate-600" disabled={saving} onclick={() => accountConfirmationOpen = false}>Batal</button>
+        <button class={buttonClass} disabled={saving}>{saving ? 'Memproses…' : accountConfirmation.mode === 'reset-password' ? 'Reset Password' : 'Buat Akun'}</button>
+      </form>
+    </div>
+  {/if}
+</Modal>
+
+<Modal bind:open={credentialOpen} title={credentialAction === 'reset-password' ? 'Password berhasil direset' : credential?.temporaryPassword ? 'Akun login berhasil dibuat' : 'Akun login berhasil dihubungkan'} description="Sampaikan kredensial secara aman kepada pemilik akun." width="sm" closeOnBackdrop={false} onClose={() => { credential = null; copyFeedback = ''; }}>
+  {#if credential}
+    <dl class="space-y-4">
+      <div><dt class="text-xs font-bold uppercase tracking-wide text-slate-500">Nomor Induk</dt><dd class="mt-1 font-mono text-base font-semibold text-slate-950">{credential.account.loginId}</dd></div>
+      {#if credential.temporaryPassword}<div><dt class="text-xs font-bold uppercase tracking-wide text-slate-500">Password sementara</dt><dd class="mt-1 break-all rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-lg font-bold tracking-wide text-slate-950">{credential.temporaryPassword}</dd></div>{/if}
+    </dl>
+    {#if credential.temporaryPassword}
+      <p class="mt-4 text-sm font-semibold text-amber-800">Password ini hanya ditampilkan sekali.</p>
+      <button type="button" class="mt-4 min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800" onclick={copyTemporaryPassword}>Salin Password</button>
+      {#if copyFeedback}<p class="mt-2 text-sm text-slate-600" role="status">{copyFeedback}</p>{/if}
+    {:else}<p class="mt-4 text-sm leading-6 text-slate-600">Akun yang sudah ada dan cocok telah dihubungkan. Password akun tidak diubah.</p>{/if}
+    <div class="mt-6 flex justify-end"><button type="button" class={buttonClass} onclick={() => credentialOpen = false}>Tutup</button></div>
   {/if}
 </Modal>
 

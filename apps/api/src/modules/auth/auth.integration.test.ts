@@ -22,7 +22,7 @@ test.skipIf(Bun.env.RUN_AUTH_DB_TESTS !== '1')('all seeded roles authenticate th
     const auth = createAuthService(createAuthRepository(db));
     for (const account of demoAccounts) {
       const result = await auth.login(account.loginId, password);
-      expect(result.user).toEqual({ id: account.id, loginId: account.loginId, email: account.email, role: account.role });
+      expect(result.user).toEqual({ id: account.id, loginId: account.loginId, email: account.email, role: account.role, mustChangePassword: false });
       auth.logout(result.token);
     }
     await expect(auth.login(demoAccounts[1].email, password)).rejects.toMatchObject({ status: 400 });

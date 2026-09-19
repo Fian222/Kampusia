@@ -16,7 +16,8 @@ export function withoutUserId<T extends { userId: unknown }>(row: T): Omit<T, 'u
 type ProfileKind = 'mahasiswa' | 'dosen';
 type LockedUser = NonNullable<Awaited<ReturnType<ReturnType<typeof profileReferences>['lockUser']>>>;
 
-async function validateLockedUserLink(tx: ReturnType<typeof profileReferences>, user: LockedUser, kind: ProfileKind, expectedLoginId: string, id?: string) {
+type UserLinkReader = Pick<ReturnType<typeof profileReferences>, 'lockUser' | 'userLinks'>;
+async function validateLockedUserLink(tx: UserLinkReader, user: LockedUser, kind: ProfileKind, expectedLoginId: string, id?: string) {
   if (!user) throw new MasterDataError(400, 'Akun pengguna tidak ditemukan.');
   if (user.role !== (kind === 'mahasiswa' ? 'MAHASISWA' : 'DOSEN')) throw new MasterDataError(400, `Akun harus memiliki peran ${kind.toUpperCase()}.`);
   const links = await tx.userLinks(user.id);
@@ -29,7 +30,7 @@ async function validateLockedUserLink(tx: ReturnType<typeof profileReferences>, 
   return user;
 }
 
-export async function validateUserLink(tx: ReturnType<typeof profileReferences>, userId: string, kind: ProfileKind, expectedLoginId: string, id?: string) {
+export async function validateUserLink(tx: UserLinkReader, userId: string, kind: ProfileKind, expectedLoginId: string, id?: string) {
   const user = await tx.lockUser(userId);
   if (!user) throw new MasterDataError(400, 'Akun pengguna tidak ditemukan.');
   return validateLockedUserLink(tx, user, kind, expectedLoginId, id);
