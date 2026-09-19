@@ -2,6 +2,8 @@
 
 This document is the source of truth for the database design. Twenty PostgreSQL tables are implemented in `packages/db/schema/`: the initial 15 tables from `packages/db/migrations/0000_initial.sql`, followed by the `pertemuan` and `absensi` extension and the `komponen_nilai`, `nilai_mahasiswa`, and `hasil_studi` extension. The initial migration was applied and verified on the local Podman development database on 2026-09-05, the attendance extension on 2026-09-14, and the grading extension on 2026-09-15. Migration state is specific to each database.
 
+The academic/staff identity-number authentication redesign in this document is the approved target design but is not implemented yet. In particular, the current Drizzle schema, migrations, API, frontend, and development seed still use email login and do not yet contain `users.login_id` or `dosen.nik`. The target table definitions and migration plan below intentionally precede implementation; a later implementation must update every affected layer together.
+
 The grading tables are implemented only at the database layer; their application APIs, service policies, and frontend remain future work. This document must be updated before any later design change and implemented schema must be checked against it. See [database package notes](../packages/db/README.md) for verification commands and the boundary between database constraints and service rules.
 
 ## Shared conventions
@@ -13,7 +15,7 @@ The grading tables are implemented only at the database layer; their application
 - Foreign keys reference the target table's `id` unless a composite reference is explicitly documented, with `ON DELETE RESTRICT ON UPDATE RESTRICT` in either case. No cascading deletion is planned. Retain academic history; deactivate or cancel referenced records instead of deleting them.
 - Primary keys and unique constraints provide their own indexes. Additional indexes listed below are B-tree unless specified. Do not add duplicate indexes on the same keys. Composite indexes also serve lookups on their leading column.
 - Nullable unique columns allow multiple nulls; any supplied non-null value must be unique.
-- Business codes and identifiers are text, preserving leading zeros. Trim input; normalize codes and identifiers to uppercase and login email to lowercase before persistence. Require nonblank values for required text fields, and reject blank optional text in favor of null. Database checks must enforce canonical storage for unique codes, identifiers, and email.
+- Business codes and identifiers are text, preserving leading zeros. Trim input; normalize ordinary codes to uppercase and email to lowercase before persistence. `users.login_id`, `mahasiswa.nim`, and `dosen.nik` use their more specific digits-only rules below: trim surrounding whitespace, validate ASCII digits, and store the resulting string without numeric parsing or zero removal. Require nonblank values for required text fields, and reject blank optional text in favor of null. Database checks must enforce canonical storage for unique codes, identifiers, and email.
 - Status, role, jenjang, and jenis columns use the documented PostgreSQL varchar type with a CHECK limiting values to the listed set. These are initial product choices, not statutory requirements.
 - Local weekly schedule times use the campus timezone, initially Asia/Jakarta. Instants such as submission timestamps use timestamptz.
 - Database constraints enforce row-local validity, uniqueness, and references, including the documented composite foreign key enforcing student/curriculum program compatibility. Services enforce remaining cross-table rules and authorization inside transactions; single-column foreign keys alone do not enforce semester, program, curriculum, or role compatibility.
@@ -66,18 +68,21 @@ erDiagram
 
 Each student's faculty is derived through program_studi. A student's current academic adviser is the optional dosen referenced by mahasiswa.dosen_pa_id; this current assignment is distinct from the actor snapshots retained on KRS decisions. Course membership and recommended semester belong in kurikulum_matkul. Students select semester-specific offerings through krs and krs_detail. Lecturer assignments use kelas_dosen, including team teaching. Actual class meetings belong to kelas_kuliah, and attendance joins each meeting directly to a student. Semester, course, program, and class are derived through the meeting's class rather than copied into attendance.
 
+The optional users-to-profile relationships use UUID foreign keys, while login identity ownership follows business identifiers: `mahasiswa.nim` owns a linked MAHASISWA `users.login_id`, `dosen.nik` owns a linked DOSEN `users.login_id`, and ADMIN/AKADEMIK own their staff NIK directly in `users.login_id`. Equality and role compatibility are transactional service invariants rather than implied by the diagram or enforced by a row-local CHECK.
+
 Grading configuration belongs to a class offering through komponen_nilai, and each component has student scores through nilai_mahasiswa. Before finalization, an effective approved enrollment is the eligibility source. Finalization writes one hasil_studi snapshot for each eligible student and class. After that point, hasil_studi—not the mutable current KRS status—is the authoritative historical course result from which KHS, IPS, and IPK are derived.
 
 ## Table definitions
 
 ### users
 
-Authentication accounts, separate from student and lecturer academic profiles.
+Authentication accounts, separate from student and lecturer academic profiles. This definition describes the target identity-number design; see the staged migration section below for the temporary nullable transition.
 
 | Column | PostgreSQL type | Nullable | Default | Meaning / reference |
 | --- | --- | --- | --- | --- |
 | `id` | `uuid` | No | gen_random_uuid() | Primary key |
-| `email` | `varchar(254)` | No | — | Canonical lowercase login email |
+| `login_id` | `varchar(30)` | No | — | Globally unique, human-entered academic/staff login identifier; digits only |
+| `email` | `varchar(254)` | Yes | — | Optional canonical lowercase contact/recovery email; not a normal login identifier |
 | `password_hash` | `text` | No | — | Secure password hash; never plaintext |
 | `role` | `varchar(16)` | No | — | ADMIN, AKADEMIK, DOSEN, or MAHASISWA |
 | `is_active` | `boolean` | No | true | Whether login is permitted |
@@ -88,18 +93,26 @@ Authentication accounts, separate from student and lecturer academic profiles.
 
 **Foreign keys:** None.
 
-**Unique constraints:** `UNIQUE (email)`.
+**Unique constraints:** `UNIQUE (login_id)` and `UNIQUE (email)`. PostgreSQL permits multiple null email values while rejecting duplicate supplied emails. During the staged migration, the same login ID uniqueness constraint permits multiple temporary nulls; the target schema makes `login_id` NOT NULL only after provisioning is complete.
 
 **Additional indexes:** None beyond primary/unique indexes.
 
 **Business rules:**
 
+- CHECK `login_id ~ '^[0-9]+$'`. `varchar(30)` matches the existing identifier capacity and is a storage maximum, not an institution-specific fixed-length policy. The service trims surrounding whitespace and then validates one through 30 ASCII digits. It never parses the value as `Number`, `bigint`, or a PostgreSQL arithmetic type, so leading zeroes are significant and retained.
+- CHECK `email IS NULL OR (btrim(email) <> '' AND email = lower(email) AND email = btrim(email))`. A blank submitted email is normalized to null. Email remains unique when present and retained as optional contact or possible future recovery data, but no password-recovery flow is introduced by this design.
+- `login_id` is globally unique across all roles. A student NIM and staff NIK therefore cannot coexist as login identifiers when their strings are equal, even though they originate in different profile domains. Services should preflight this condition for a useful error; the database unique constraint is the final concurrency-safe guard.
 - An account has one role in the initial design. ADMIN and AKADEMIK accounts need no academic profile.
-- A linked mahasiswa account must have role MAHASISWA; a linked dosen account must have role DOSEN. Services prevent incompatible links and role changes.
+- A linked mahasiswa account must have role MAHASISWA and `users.login_id = mahasiswa.nim`; a linked dosen account must have role DOSEN and `users.login_id = dosen.nik`. Services prevent incompatible links, mismatched identifiers, and incompatible role changes.
 - An account may be linked to at most one student or one lecturer, never both. The per-table unique constraints do not enforce the cross-table exclusion; account linking must lock the users row and validate it.
+- For ADMIN and AKADEMIK, `users.login_id` directly owns the internal campus staff NIK. No `pegawai` table is added merely for authentication. A future personnel module may normalize that ownership after a separately documented migration.
 - Disabling a login does not cancel academic records. Never expose password_hash in API responses.
 
+**CHECK constraints:** digits-only `login_id`; canonical nullable email; nonblank password hash; and the documented role set. The target `login_id` NOT NULL constraint is applied only at the end of the staged migration.
+
 **Relationships:** Optional one-to-one links from mahasiswa and dosen; one-to-many latest KRS approval, rejection, reopening, and administrative-cancellation actor references; one-to-many initial and latest attendance-recording references.
+
+**Retention/history behavior:** Keep `login_id`, email, password hash, role, and actor references when an account is deactivated. Do not erase historical email during migration merely because it stops being the login identifier. Clearing an optional email is an explicit authorized account update, not a side effect of login migration or profile changes.
 
 ### fakultas
 
@@ -170,7 +183,7 @@ Student academic identity and assigned curriculum.
 | `program_studi_id` | `uuid` | No | — | FK program_studi.id |
 | `kurikulum_id` | `uuid` | No | — | Part of composite FK (kurikulum_id, program_studi_id) to kurikulum (id, program_studi_id) |
 | `dosen_pa_id` | `uuid` | Yes | — | FK dosen.id; current academic adviser |
-| `nim` | `varchar(30)` | No | — | Student business identifier |
+| `nim` | `varchar(30)` | No | — | Digits-only student academic identifier and login identity source of truth |
 | `nama` | `varchar(150)` | No | — | Student full name |
 | `angkatan` | `smallint` | No | — | Entry year |
 | `status` | `varchar(16)` | No | AKTIF | AKTIF, CUTI, LULUS, KELUAR, or NONAKTIF |
@@ -187,14 +200,19 @@ Student academic identity and assigned curriculum.
 
 **Business rules:**
 
+- CHECK `nim ~ '^[0-9]+$'`. NIM is a one-through-30-digit identifier string, not a numeric quantity; preserve leading zeroes. This replaces the current general uppercase-code semantics when the identity redesign is implemented.
 - CHECK angkatan BETWEEN 1900 AND 9999.
 - An academic record may exist before a login account is provisioned.
+- When `user_id` is present, the linked account must have role MAHASISWA and `users.login_id` must exactly equal `mahasiswa.nim`. The foreign key and the two single-column unique constraints cannot enforce this cross-table role/equality rule; the profile/account service must enforce it in the same transaction used to create or change the link.
+- `mahasiswa.nim` owns student academic identity. Creating a linked account copies the canonical NIM into `users.login_id`; it does not create another student login-number field. Changing a linked student's NIM must atomically update both columns after authorization and uniqueness checks. It must never silently unlink the account or allow a committed mismatch.
 - Assigned curriculum must belong to the student's program. PostgreSQL enforces this on inserts and updates through the composite foreign key to kurikulum; service validation may provide a clearer error but is not the integrity guarantee. The referenced curriculum's program cannot change while student references would become invalid. Only AKTIF students may submit or obtain approval for new KRS.
 - `dosen_pa_id` is nullable because imported, newly created, graduated, or otherwise inactive records may temporarily have no current adviser. Assigning or changing it requires an authorized ADMIN/AKADEMIK action and an active dosen. A student must have a current active Dosen PA with an active linked DOSEN account before submitting a KRS, so a submitted plan cannot be left without a normal reviewer.
 - Dosen homebase does not by itself limit adviser assignment; a cross-program restriction would be an additional institutional policy. Changing `dosen_pa_id` immediately transfers access to pending/current advisee work: the new current adviser gains access and the old adviser loses it. It never rewrites `disetujui_oleh`, `ditolak_oleh`, `dibuka_kembali_oleh`, or other historical KRS actor snapshots.
 - Program or curriculum reassignment requires explicit academic review; do not reinterpret approved KRS history. The initial design does not model transfer history.
 
 **Relationships:** Belongs to one program and one curriculum, optionally one user and one current Dosen PA; has many KRS, one per semester, and many attendance rows across meetings. One dosen may advise many students.
+
+**Retention/history behavior:** A NIM correction changes the current identifier only; UUID foreign keys keep academic history attached to the same student. The old NIM immediately stops working as a login and is not retained as an alias in this milestone. If regulations require identifier-change history, introduce a separately reviewed audit/history design before claiming that history exists.
 
 ### dosen
 
@@ -205,6 +223,7 @@ Lecturer identity, independent of class assignments.
 | `id` | `uuid` | No | gen_random_uuid() | Primary key |
 | `user_id` | `uuid` | Yes | — | FK users.id |
 | `program_studi_id` | `uuid` | Yes | — | FK program_studi.id |
+| `nik` | `varchar(30)` | Yes | — | Internal campus employee/staff number used for DOSEN login; digits only when present |
 | `kode_dosen` | `varchar(30)` | No | — | Institution-issued lecturer identifier |
 | `nidn` | `varchar(30)` | Yes | — | National lecturer identifier when available |
 | `nama` | `varchar(150)` | No | — | Lecturer full name |
@@ -216,17 +235,140 @@ Lecturer identity, independent of class assignments.
 
 **Foreign keys:** `user_id` → users.id; `program_studi_id` → program_studi.id.
 
-**Unique constraints:** `UNIQUE (kode_dosen)`, `UNIQUE (nidn)`, and `UNIQUE (user_id)`. Lecturer identifiers are not primary keys.
+**Unique constraints:** `UNIQUE (nik)`, `UNIQUE (kode_dosen)`, `UNIQUE (nidn)`, and `UNIQUE (user_id)`. Nullable uniqueness permits multiple lecturers without NIK/NIDN while rejecting duplicate supplied values. Lecturer identifiers are not primary keys.
 
 **Additional indexes:** `(program_studi_id)`.
 
 **Business rules:**
 
+- CHECK `nik IS NULL OR nik ~ '^[0-9]+$'`. `varchar(30)` is a maximum compatible with other identity fields, not a fixed institutional length. A supplied NIK is trimmed, must contain one through 30 ASCII digits, remains a string, and preserves leading zeroes.
+- `nik` is the internal employee/staff identifier used for lecturer login. It is distinct from `kode_dosen` and from the optional national lecturer identifier `nidn`; neither existing field is reinterpreted or copied automatically into NIK.
+- NIK remains nullable for imported, historical, visiting, or profile-only lecturers that have no Kampusia login. If `user_id` is present, NIK is required, the linked account must have role DOSEN, and `users.login_id` must exactly equal `dosen.nik`. These cross-table conditions are service-enforced in the linking transaction.
+- `dosen.nik` owns the employee login identity for DOSEN. Changing a linked lecturer's NIK must atomically update `users.login_id` after authorization and uniqueness checks; it must not unlink the account. Clearing NIK is rejected while an account remains linked.
 - kode_dosen identifies every lecturer locally; nidn is optional to accommodate lecturers without that identifier. Each supplied identifier is unique in its own column.
 - Homebase is optional and does not restrict teaching in other programs.
 - Inactive lecturers retain historical assignments and cannot receive new assignments.
 
 **Relationships:** Optional user and homebase program; many-to-many with kelas_kuliah through kelas_dosen; one-to-many current academic-adviser assignments through mahasiswa.dosen_pa_id.
+
+**Retention/history behavior:** Inactivation does not clear NIK, account linkage, or historical assignments. A NIK correction replaces the current identifier; the prior value is not a login alias or revision log. A future employee/personnel or identity-history module is outside this milestone.
+
+### Academic/staff login identity design (cross-table)
+
+#### Identity ownership and invariants
+
+"NIK" in Kampusia means an internal campus employee/staff identification number. It never means the Indonesian national KTP NIK, and national identity data is not introduced by this design.
+
+| Role | Current identity source of truth | Linked-account invariant |
+| --- | --- | --- |
+| MAHASISWA | `mahasiswa.nim` | `users.role = 'MAHASISWA'` and `users.login_id = mahasiswa.nim` |
+| DOSEN | `dosen.nik` | NIK is non-null, `users.role = 'DOSEN'`, and `users.login_id = dosen.nik` |
+| AKADEMIK | `users.login_id` | The value is the staff member's internal campus NIK |
+| ADMIN | `users.login_id` | The value is the staff member's internal campus NIK |
+
+There is one global login namespace because `users.login_id` is unique across every role. A student NIM that equals an ADMIN, AKADEMIK, or DOSEN NIK is a collision and one of the identifiers must be corrected by an authorized operator; role does not disambiguate login.
+
+PostgreSQL enforces row-local digits-only storage, maximum length, nullability, profile-level uniqueness, global account-level uniqueness, and UUID foreign keys. It does not use triggers or a duplicated foreign key to enforce the equality and role conditions above. A row-local CHECK cannot inspect another table, and ordinary foreign keys would not express role compatibility or the optional one-account/one-profile rules cleanly. Transactional service validation therefore remains required even though unique constraints are the final guard against concurrent identifier collisions.
+
+Provisioning or linking a profile account must:
+
+1. Require an authorized ADMIN or AKADEMIK actor; students and lecturers cannot link themselves or change their own login identity through profile forms.
+2. Normalize and validate the profile identifier as a string of ASCII digits without converting it to a numeric type.
+3. Lock and validate the profile and users rows using one consistent account-linking lock order.
+4. Confirm the required role, confirm that the account is not linked to either another profile of the same kind or the other profile table, and confirm the applicable NIM/NIK is available in the global login namespace.
+5. Set the profile `user_id` and matching `users.login_id` in one transaction. Any failed validation or unique constraint rolls back the entire operation.
+
+The account-management UI must not ask an operator to type or compare a raw `users.id` UUID. Search/select controls may submit a UUID internally as the stable foreign key, but visible results use identity and name, for example `20260001 · Andi Saputra` for MAHASISWA and `00123456 · Rina Pratama` for DOSEN. Email is secondary contact text, not the primary account label.
+
+Ordinary profile editing must not silently unlink an account. If explicit unlinking remains available in the later implementation, it is a separate authorized operation and must either deactivate the account or relink it as part of the same transaction; it must not leave an active MAHASISWA/DOSEN account appearing usable while it has no corresponding profile. Removing a link does not erase credentials, email, or identity history implicitly.
+
+#### Login API, UI, and authorization boundary
+
+The future shared request remains `POST /auth/login` but changes its request body to:
+
+```json
+{
+  "login_id": "20260001",
+  "password": "..."
+}
+```
+
+The authentication service trims `login_id`, validates one through 30 ASCII digits, uses the normalized string as the rate-limit key, loads `users` by `login_id`, checks `users.is_active`, verifies the existing password hash, and creates the existing opaque-cookie session. Unknown identifiers, wrong passwords, and inactive accounts continue to use one generic credential error so account existence is not disclosed. Safe user responses and account displays use the login identifier rather than treating email as identity.
+
+The web application keeps one `/login` page for every role, with **Nomor Induk**, **Password**, and **Masuk** controls. It must use a text input with an appropriate numeric input mode—not an HTML numeric value—so leading zeroes survive. The authenticated account's role determines the existing post-login destination. Separate Mahasiswa, Dosen, and administrator authentication systems are not introduced.
+
+Email is not accepted by the normal login endpoint after cutover. The project has only development fixture accounts and no demonstrated compatibility requirement that justifies ambiguous dual lookup, so there is no email fallback period. Existing email values are preserved as nullable, unique contact/recovery data. Password recovery by email is not designed in this milestone.
+
+This redesign does not change password hashing, session token generation/storage, cookie flags, logout, absolute session expiry, origin/CSRF checks, role semantics, or server-side authorization. The opaque token remains in the existing HttpOnly cookie and is never moved to localStorage. `users.is_active` remains the authentication status. Academic state remains independent: for example, `mahasiswa.status = 'CUTI'` does not imply `users.is_active = false`, and deactivating an account does not rewrite academic status or history.
+
+#### Identifier changes
+
+Changing `mahasiswa.nim` or `dosen.nik` on a linked profile is an identity/account operation, not a simple isolated profile update. Only ADMIN or AKADEMIK may perform it. The service must use one transaction to:
+
+1. lock the profile and linked users row according to the common linking lock order;
+2. recheck actor authorization, the link, account role, and current identifier equality;
+3. normalize the proposed digits-only value and preflight both profile and global login uniqueness;
+4. update the source profile identifier and `users.login_id`, including both `updated_at` values; and
+5. commit both changes together, or roll back both when either unique constraint or any validation fails.
+
+The database constraints still matter after application preflight because two concurrent changes can select the same free value. `UNIQUE (mahasiswa.nim)`, `UNIQUE (dosen.nik)`, and global `UNIQUE (users.login_id)` arbitrate that race. Constraint errors must become a clear domain conflict rather than leaking raw PostgreSQL details.
+
+UUID primary/foreign keys mean an authorized correction does not detach KRS, attendance, grading, teaching, or actor history from its person/account. The new identifier takes effect for the next login immediately; existing opaque sessions keep their current expiry and authorization behavior because session architecture is unchanged. This milestone stores only the current NIM/NIK, so an old identifier is neither a login alias nor a complete change history.
+
+#### Staged migration and backfill
+
+The safer migration is staged provisioning, not failure-prone inference. It temporarily permits `users.login_id` to be null for an unmapped legacy account, and authentication by identifier refuses such an account until an authorized mapping is supplied. This can cause an explicit, reported temporary lockout, but it is safer than inventing a staff NIK or silently deriving one from email, lecturer code, NIDN, UUID, or row order.
+
+A later implementation should use this sequence:
+
+1. Inventory every users row, profile link, duplicate/collision candidate, non-digit NIM, and existing email. Produce an explicit mapping list for every ADMIN, AKADEMIK, and linked DOSEN account before cutover.
+2. Add nullable `users.login_id varchar(30)` with its unique constraint and nullable digits-only CHECK. Add nullable `dosen.nik varchar(30)` with its unique constraint and nullable digits-only CHECK. Keep the existing UUID relationships. Do not add a `pegawai` table.
+3. Normalize/validate `mahasiswa.nim` under the new digits-only policy. Known development fixtures receive the deterministic replacements below. Non-fixture alphanumeric NIMs require an institution-approved NIM correction; they are not stripped, hashed, or otherwise guessed.
+4. For each linked MAHASISWA whose canonical NIM is valid and whose user role is MAHASISWA, backfill `users.login_id` directly from `mahasiswa.nim`. A mismatch in role or competing global value blocks that row for review.
+5. Populate `dosen.nik` only from an explicit trusted mapping. For each linked DOSEN, require a mapped numeric NIK and matching DOSEN role, then set `dosen.nik` and `users.login_id` together. Never reinterpret `kode_dosen` or `nidn` as NIK.
+6. Populate ADMIN and AKADEMIK `users.login_id` only from explicit internal-staff mappings. Never derive staff NIK from email. Leave genuinely unmapped legacy accounts null, inactive or operationally blocked, and report them for provisioning.
+7. Deploy the API/frontend cutover so login queries only `login_id`; do not retain email authentication as a fallback. Make `users.email` nullable while preserving every existing non-null value. New blank emails normalize to null, and supplied emails remain canonical and unique.
+8. Audit that every non-null linked profile satisfies its role/equality invariant and that every active user has a login ID. Once all retained accounts are provisioned, set `users.login_id` NOT NULL. If unmapped records must be retained longer, keep this final constraint as an explicitly tracked follow-up rather than fabricate values; the target schema is still NOT NULL.
+
+The data/schema changes, application cutover, and final NOT NULL enforcement must be coordinated in a maintenance/release plan so an old email-only application is not run against a target schema that permits null email. No row, email, password hash, account, or academic record is deleted by this migration. Rollback planning must preserve the explicit mapping artifact and must not re-enable ambiguous dual-identifier login silently.
+
+#### Development seed design
+
+The future development fixture uses deterministic, numeric, visibly reserved demo values:
+
+| Role/profile | Proposed demo `login_id` | Source/profile value |
+| --- | --- | --- |
+| ADMIN | `99000001` | Direct staff fixture NIK in `users.login_id` |
+| AKADEMIK | `99000002` | Direct staff fixture NIK in `users.login_id` |
+| DOSEN | `99000003` | Rina Pratama (Demo) has `dosen.nik = '99000003'` |
+| MAHASISWA | `99202601` | Andi Saputra (Demo) has `mahasiswa.nim = '99202601'` |
+
+The remaining demo students use `99202602` through `99202605` so the complete fixture satisfies the digits-only NIM policy. These values are development-only fixture choices, not institutional length, allocation, or reserved-prefix policy. Existing demo emails may remain as optional contact data but are not credentials.
+
+The seed continues to take the password from `SEED_PASSWORD`; neither schema nor migration contains plaintext credentials. A safe fixture upgrade recognizes the existing fixed fixture UUIDs, changes their legacy `DEV2026...` NIM values only through an explicit one-time known-fixture path, and aligns the linked account values transactionally. It must not apply that transformation to arbitrary non-fixture rows. Reruns remain development-only, conflict-safe, and idempotent, and they preserve stored password hashes rather than rehashing or resetting existing accounts.
+
+#### Future verification plan
+
+Database tests must prove:
+
+- `users.login_id` is globally unique, accepts/preserves leading zeroes as text, and rejects blank, alphabetic, signed, decimal, or whitespace-containing values;
+- `dosen.nik` is nullable for an unlinked/profile-only lecturer, unique when present, digits-only, and preserves leading zeroes;
+- `mahasiswa.nim` remains unique and obeys the digits-only policy; and
+- multiple null emails are allowed, duplicate supplied emails are rejected, and supplied email canonicalization is enforced.
+
+Authentication tests must cover successful login with a student NIM, DOSEN NIK, AKADEMIK NIK, and ADMIN NIK; wrong password; inactive account; unknown Nomor Induk; leading-zero identifiers; and rejection of email at the login endpoint. Existing cookie, logout, expiry, origin, role, and session-revocation tests remain applicable.
+
+Synchronization tests must cover linked MAHASISWA and DOSEN equality/role rules, incompatible and cross-profile links, atomic NIM/NIK changes, global student/staff collisions, concurrent uniqueness races, clear conflict messages, and rollback that leaves both profile and users values unchanged. Selector tests must verify human-readable identity/name labels and no exposed raw-UUID input workflow.
+
+Seed tests must verify all four demo roles authenticate by the numeric values above, the linked DOSEN NIK and student NIM equal their account login IDs, every fixture NIM/NIK is digits-only, reruns are idempotent, and existing password hashes remain byte-for-byte stable.
+
+#### Decisions deferred beyond this redesign
+
+- Institution-assigned production NIM/NIK values and any exact length rules must be supplied by institutional policy; this design deliberately sets only a 30-character storage maximum.
+- Whether verified email will later support password recovery remains open. Email is merely nullable contact/recovery-capable data here.
+- A complete NIM/NIK change ledger and old-identifier aliases are not implemented. Old identifiers stop authenticating immediately after an atomic correction.
+- A normalized employee/personnel model may later own ADMIN, AKADEMIK, and DOSEN identity, but no `pegawai` table is justified in this milestone.
+- SSO, OAuth, LDAP, MFA, username aliases, multiple login identifiers, and national KTP NIK remain outside scope.
 
 ### semester
 
