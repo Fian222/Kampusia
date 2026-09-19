@@ -13,7 +13,7 @@
   import Icon from './ui/Icon.svelte';
   import Modal from './ui/Modal.svelte';
   import ListPending from './ui/ListPending.svelte';
-  import AcademicOptions from './AcademicOptions.svelte';
+  import ReferenceCombobox from './ReferenceCombobox.svelte';
 
   let { data, form }: { data: MasterData; form: { message: string; saved?: true; values?: Record<string, string> } | null } = $props();
   let saving = $state(false);
@@ -34,6 +34,8 @@
   const inputClass = 'control-base mt-1.5';
   const buttonClass = 'min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50';
   const editFaculty = $derived(data.edit?.fakultas ?? null);
+  const facultyOptions = $derived((data.faculties?.data ?? []).map(item => ({ value: item.id, label: item.nama, description: item.kode, disabled: !item.isActive && item.id !== editFaculty?.id })));
+  const selectedFacultyOption = $derived(editFaculty ? { value: editFaculty.id, label: editFaculty.nama, description: editFaculty.kode, disabled: !editFaculty.isActive } : null);
   const queryEditId = $derived(page.url.searchParams.get('edit'));
   const saveFailed = $derived(form?.values?.mode === 'save' && !form.saved);
   const editModal = $derived(resolveEditModalState({
@@ -124,9 +126,6 @@
   {:else}
   {#if data.edit}<p class="mt-2 text-sm text-slate-500">Status: {data.edit.isActive ? 'Aktif' : 'Nonaktif'}. Gunakan tindakan pada tabel untuk mengubah status.</p>{/if}
   {#if form?.message && form.values?.mode === 'save'}<p role="alert" class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}
-  {#if isProgram && data.faculties}
-    <div class="mt-4"><AcademicOptions prefix="faculty_" label="Fakultas" meta={data.faculties.meta} /></div>
-  {/if}
   {#key data.edit?.id + JSON.stringify(form)}
     <form method="POST" class="mt-4 grid gap-4 sm:grid-cols-2" use:enhance={() => {
       saving = true;
@@ -136,10 +135,7 @@
       <label class="text-sm font-medium">Kode<input class={inputClass} name="kode" value={value('kode', data.edit?.kode ?? '')} required maxlength="20" pattern=".*\S.*" /><span class="mt-1 block text-xs font-normal text-slate-500">Unik; disimpan dalam huruf kapital.</span></label>
       <label class="text-sm font-medium">Nama<input class={inputClass} name="nama" value={value('nama', data.edit?.nama ?? '')} required maxlength="150" pattern=".*\S.*" /></label>
       {#if isProgram}
-        <label class="text-sm font-medium">Fakultas<select class={inputClass} name="fakultas_id" required value={value('fakultas_id', editFaculty?.id ?? '')}><option value="" disabled>Pilih fakultas aktif</option>
-          {#if editFaculty && !data.faculties?.data.some(item => item.id === editFaculty.id)}<option value={editFaculty.id}>{editFaculty.kode} — {editFaculty.nama}{editFaculty.isActive ? '' : ' (Nonaktif, penugasan lama)'}</option>{/if}
-          {#each data.faculties?.data ?? [] as item}<option value={item.id} disabled={!item.isActive && item.id !== editFaculty?.id}>{item.kode} — {item.nama}{item.isActive ? '' : ' (Nonaktif)'}</option>{/each}
-        </select></label>
+        <ReferenceCombobox name="fakultas_id" label="Fakultas" value={value('fakultas_id', editFaculty?.id ?? '')} options={facultyOptions} selectedOption={selectedFacultyOption} meta={data.faculties!.meta} searchParam="faculty_search" pageParam="faculty_page" placeholder="Pilih fakultas aktif" searchPlaceholder="Cari fakultas…" required error={saveFailed && !form?.values?.fakultas_id ? 'Fakultas wajib dipilih.' : undefined} />
         <label class="text-sm font-medium">Jenjang<select class={inputClass} name="jenjang" required value={value('jenjang', data.edit?.jenjang ?? '')}><option value="" disabled>Pilih jenjang</option>{#each data.jenjangValues as item}<option value={item}>{item}</option>{/each}</select></label>
         {#if data.edit}<p class="text-sm text-slate-500 sm:col-span-2">Perubahan fakultas merupakan koreksi administratif. Pastikan perubahan sesuai dengan riwayat akademik program studi.</p>{/if}
       {/if}

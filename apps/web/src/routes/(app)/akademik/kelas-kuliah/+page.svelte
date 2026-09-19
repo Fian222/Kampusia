@@ -8,7 +8,7 @@
   import { clearEditQueryHref, editQueryHref, modalNavigationOptions, resolveEditModalState } from '$lib/navigation/edit-modal';
   import Pagination from '$lib/components/Pagination.svelte';
   import AcademicFields from '$lib/components/AcademicFields.svelte';
-  import AcademicOptions from '$lib/components/AcademicOptions.svelte';
+  import ReferenceCombobox from '$lib/components/ReferenceCombobox.svelte';
   import PageHeader from '$lib/components/ui/PageHeader.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
@@ -29,15 +29,14 @@
   const input = 'control-base mt-1.5';
   const button = 'min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-50';
   function href(changes: Record<string, string | number>) { const p = new URLSearchParams(page.url.searchParams); for (const [key, value] of Object.entries(changes)) { if (value === '') p.delete(key); else p.set(key, String(value)); } return '?' + p; }
-  function options(rows: { id: string; kode: string; nama: string; isActive?: boolean }[], current: { id: string; kode: string; nama: string; isActive?: boolean } | undefined, restrict = true) {
-    const all = current && !rows.some(row => row.id === current.id) ? [current, ...rows] : rows;
-    return all.map(row => ({ value: row.id, label: `${row.kode} — ${row.nama}${restrict && !row.isActive ? ' (Nonaktif)' : ''}`, disabled: restrict && !row.isActive && row.id !== current?.id }));
-  }
   const filters = $derived([
     { name: 'semester_id', label: 'Semester', value: data.filters.semester_id, rows: data.semesters.data },
     { name: 'program_studi_id', label: 'Program Studi', value: data.filters.program_studi_id, rows: data.programs.data },
     { name: 'mata_kuliah_id', label: 'Mata Kuliah', value: data.filters.mata_kuliah_id, rows: data.courses.data },
   ]);
+  const semesterOptions = $derived(data.semesters.data.map(row => ({ value: row.id, label: row.nama, description: row.kode })));
+  const programOptions = $derived(data.programs.data.map(row => ({ value: row.id, label: row.nama, description: row.kode, disabled: !row.isActive && row.id !== data.edit?.programStudiId })));
+  const courseOptions = $derived(data.courses.data.map(row => ({ value: row.id, label: row.nama, description: `${row.kode} · ${row.sks} SKS`, disabled: !row.isActive && row.id !== data.edit?.mataKuliahId })));
   function openEdit(id: string) { requestedEditId = id; formOpen = true; }
   $effect(() => { const state = editModal; if (queryEditId && requestedEditId === queryEditId) requestedEditId = null; if (state.open) formOpen = true; else if (requestedEditId === null) formOpen = false; });
 </script>
@@ -66,18 +65,13 @@
   {:else}
   <p class="mt-2 text-sm text-slate-500">Pilihan KRS atau jadwal mengunci identitas akademik. Kapasitas tidak boleh di bawah jumlah mahasiswa pada KRS disetujui atau melebihi ruangan terjadwal. Pembatalan dengan pilihan aktif memerlukan alur KRS.</p>
   {#if form?.message && form.values?.mode === 'save'}<p role="alert" class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}
-  <div class="mt-4 grid gap-3">
-    <AcademicOptions prefix="semester_" label="Semester" meta={data.semesters.meta} />
-    <AcademicOptions prefix="program_" label="Program Studi" meta={data.programs.meta} />
-    <AcademicOptions prefix="course_" label="Mata Kuliah" meta={data.courses.meta} />
-  </div>
   {#key data.edit?.id + JSON.stringify(form)}
   <form method="POST" class="mt-4 grid gap-4 sm:grid-cols-2" use:enhance={() => { saving = true; return async ({ update, result }) => { try { await update({ reset: false }); if (result.type === 'success') formOpen = false; } finally { saving = false; } }; }}>
     <input type="hidden" name="mode" value="save" /><input type="hidden" name="id" value={data.edit?.id ?? ''} />
+    <ReferenceCombobox name="semester_id" label="Semester" value={form?.values?.semester_id ?? data.edit?.semesterId ?? ''} options={semesterOptions} selectedOption={data.edit?.semester ? { value: data.edit.semester.id, label: data.edit.semester.nama, description: data.edit.semester.kode } : null} meta={data.semesters.meta} searchParam="semester_search" pageParam="semester_page" placeholder="Pilih semester" searchPlaceholder="Cari semester…" required />
+    <ReferenceCombobox name="program_studi_id" label="Program Studi" value={form?.values?.program_studi_id ?? data.edit?.programStudiId ?? ''} options={programOptions} selectedOption={data.edit?.programStudi ? { value: data.edit.programStudi.id, label: data.edit.programStudi.nama, description: data.edit.programStudi.kode, disabled: !data.edit.programStudi.isActive } : null} meta={data.programs.meta} searchParam="program_search" pageParam="program_page" placeholder="Pilih program studi" searchPlaceholder="Cari program studi…" required />
+    <ReferenceCombobox name="mata_kuliah_id" label="Mata Kuliah" value={form?.values?.mata_kuliah_id ?? data.edit?.mataKuliahId ?? ''} options={courseOptions} selectedOption={data.edit?.mataKuliah ? { value: data.edit.mataKuliah.id, label: data.edit.mataKuliah.nama, description: `${data.edit.mataKuliah.kode} · ${data.edit.mataKuliah.sks} SKS`, disabled: !data.edit.mataKuliah.isActive } : null} meta={data.courses.meta} searchParam="course_search" pageParam="course_page" placeholder="Pilih mata kuliah" searchPlaceholder="Cari mata kuliah…" required />
     <AcademicFields values={form?.values} fields={[
-      { name: 'semester_id', label: 'Semester', value: data.edit?.semesterId, options: options(data.semesters.data, data.edit?.semester, false) },
-      { name: 'program_studi_id', label: 'Program Studi', value: data.edit?.programStudiId, options: options(data.programs.data, data.edit?.programStudi) },
-      { name: 'mata_kuliah_id', label: 'Mata Kuliah', value: data.edit?.mataKuliahId, options: options(data.courses.data, data.edit?.mataKuliah) },
       { name: 'nama_kelas', label: 'Nama Kelas', value: data.edit?.namaKelas, maxlength: 20 },
       { name: 'kapasitas', label: 'Kapasitas', type: 'number', min: 1, max: 2147483647, value: data.edit?.kapasitas },
       { name: 'status', label: 'Status', value: data.edit?.status ?? 'DRAFT', options: data.statuses.map(value => ({ value, label: value, disabled: value === 'DIBUKA' && data.edit?.status !== 'DIBUKA' })) },

@@ -88,7 +88,7 @@ test('Semester uses a dedicated, prefilled KRS-period modal and named server act
   expect(periodModal).toContain('goto(href({ krs_period: \'\' }), { replaceState: true, ...modalNavigationOptions })');
 });
 
-test('Mahasiswa UI includes a paginated active Dosen PA selector', async () => {
+test('Mahasiswa UI includes a searchable, nullable active Dosen PA selector', async () => {
   const [profile, loader] = await Promise.all([read('./components/ProfilePage.svelte'), read('./server/academic-profiles.ts')]);
-  expect(profile).toContain('Dosen PA (opsional)'); expect(profile).toContain('adviser_page'); expect(loader).toContain("is_active: 'true'");
+  expect(profile).toContain('name="dosen_pa_id" label="Dosen PA"'); expect(profile).toContain('pageParam="adviser_page"'); expect(profile).toContain('nullable help='); expect(loader).toContain("is_active: 'true'");
 });

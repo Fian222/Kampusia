@@ -13,7 +13,7 @@
   import Icon from './ui/Icon.svelte';
   import Modal from './ui/Modal.svelte';
   import ListPending from './ui/ListPending.svelte';
-  import AcademicOptions from './AcademicOptions.svelte';
+  import ReferenceCombobox from './ReferenceCombobox.svelte';
 
   let { data, form }: { data: CatalogData; form: { message: string; saved?: true; values?: Record<string, string> } | null } = $props();
   let saving = $state(false);
@@ -34,6 +34,8 @@
   const inputClass = 'control-base mt-1.5';
   const buttonClass = 'min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50';
   const editProgram = $derived(data.edit?.programStudi ?? null);
+  const programOptions = $derived((data.programs?.data ?? []).map(item => ({ value: item.id, label: item.nama, description: item.kode, disabled: !item.isActive && item.id !== editProgram?.id })));
+  const selectedProgramOption = $derived(editProgram ? { value: editProgram.id, label: editProgram.nama, description: editProgram.kode, disabled: !editProgram.isActive } : null);
   const queryEditId = $derived(page.url.searchParams.get('edit'));
   const saveFailed = $derived(form?.values?.mode === 'save' && !form.saved);
   const editModal = $derived(resolveEditModalState({ queryEditId, requestedEditId, loadedEditId: data.edit?.id ?? null, createRequested: page.url.searchParams.get('modal') === 'create', saveFailed, failedEditId: saveFailed ? form?.values?.id || null : null }));
@@ -113,9 +115,6 @@
   <p class="mt-2 text-sm text-slate-500">{isCurriculum ? 'Kurikulum yang sudah digunakan mahasiswa mempertahankan identitas, mata kuliah, dan persyaratannya. Buat versi baru untuk perubahan akademik.' : 'Kode, nama, dan SKS yang sudah digunakan kurikulum atau kelas tidak dapat diubah. Buat mata kuliah dengan kode baru untuk versi berikutnya.'}</p>
   {#if data.edit}<p class="mt-2 text-sm text-slate-500">Status: {data.edit.isActive ? 'Aktif' : 'Nonaktif'}. Gunakan tindakan pada tabel untuk mengubah status.</p>{/if}
   {#if form?.message && form.values?.mode === 'save'}<p role="alert" class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}
-  {#if isCurriculum && data.programs}
-    <div class="mt-4"><AcademicOptions prefix="program_" label="Program Studi" meta={data.programs.meta} /></div>
-  {/if}
   {#key data.edit?.id + JSON.stringify(form)}
     <form method="POST" class="mt-4 grid gap-4 sm:grid-cols-2" use:enhance={() => {
       saving = true;
@@ -125,10 +124,7 @@
       <label class="text-sm font-medium">Kode<input class={inputClass} name="kode" value={value('kode', data.edit?.kode ?? '')} required maxlength="30" pattern=".*\S.*" /><span class="mt-1 block text-xs font-normal text-slate-500">Unik; disimpan dalam huruf kapital.</span></label>
       <label class="text-sm font-medium">Nama<input class={inputClass} name="nama" value={value('nama', data.edit?.nama ?? '')} required maxlength="150" pattern=".*\S.*" /></label>
       {#if isCurriculum}
-        <label class="text-sm font-medium">Program Studi<select class={inputClass} name="program_studi_id" required value={value('program_studi_id', editProgram?.id ?? '')}><option value="" disabled>Pilih program studi aktif</option>
-          {#if editProgram && !data.programs?.data.some(item => item.id === editProgram.id)}<option value={editProgram.id}>{editProgram.kode} — {editProgram.nama}{editProgram.isActive ? '' : ' (Nonaktif, penugasan lama)'}</option>{/if}
-          {#each data.programs?.data ?? [] as item}<option value={item.id} disabled={!item.isActive && item.id !== editProgram?.id}>{item.kode} — {item.nama}{item.isActive ? '' : ' (Nonaktif)'}</option>{/each}
-        </select></label>
+        <ReferenceCombobox name="program_studi_id" label="Program Studi" value={value('program_studi_id', editProgram?.id ?? '')} options={programOptions} selectedOption={selectedProgramOption} meta={data.programs!.meta} searchParam="program_search" pageParam="program_page" placeholder="Pilih program studi aktif" searchPlaceholder="Cari program studi…" required error={saveFailed && !form?.values?.program_studi_id ? 'Program studi wajib dipilih.' : undefined} />
         <label class="text-sm font-medium">Tahun berlaku<input class={inputClass} name="tahun_berlaku" type="number" min="1900" max="9999" required value={value('tahun_berlaku', String(data.edit?.tahunBerlaku ?? ''))} /></label>
       {:else}
         <label class="text-sm font-medium">SKS<input class={inputClass} name="sks" type="number" min="1" max="32767" required value={value('sks', String(data.edit?.sks ?? ''))} /></label>

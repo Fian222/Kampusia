@@ -15,7 +15,7 @@
   import ListPending from './ui/ListPending.svelte';
   import Badge from './ui/Badge.svelte';
   import EmptyState from './ui/EmptyState.svelte';
-  import AcademicOptions from './AcademicOptions.svelte';
+  import ReferenceCombobox from './ReferenceCombobox.svelte';
 
   let { data, form }: { data: ProfileData; form: { message: string; saved?: true; values?: Record<string, string> } | null } = $props();
   let saving = $state(false);
@@ -23,6 +23,10 @@
   let requestedEditId = $state<string | null>(null);
   let confirmation = $state<{ id: string; nama: string; isActive: boolean } | null>(null);
   let confirmationOpen = $state(false);
+  let selectedProgramId = $state('');
+  let selectedCurriculumId = $state('');
+  let selectedAdviserId = $state('');
+  let selectionKey = $state('');
   const title = $derived(data.kind === 'mahasiswa' ? 'Mahasiswa' : 'Dosen');
   const listPending = $derived(isListNavigationPending(navigating, page.url.pathname));
   const filterKeys = $derived(data.kind === 'mahasiswa' ? ['search', 'program_studi_id', 'kurikulum_id', 'angkatan', 'status'] : ['search', 'program_studi_id', 'is_active']);
@@ -45,7 +49,34 @@
   }
   function value(key: string, fallback = '') { return form?.values?.[key] ?? fallback; }
   function openEdit(id: string) { requestedEditId = id; formOpen = true; }
-  const programs = $derived([...data.programs.data, ...[data.edit?.programStudi, data.selectedProgram].filter(item => item && !data.programs.data.some(row => row.id === item.id))]);
+  const programs = $derived.by(() => {
+    const rows: { id: string; kode: string; nama: string; isActive: boolean }[] = data.programs.data.map(({ id, kode, nama, isActive }) => ({ id, kode, nama, isActive }));
+    for (const item of [data.edit?.programStudi, data.selectedProgram]) {
+      if (item && !rows.some(row => row.id === item.id)) rows.push({ id: item.id, kode: item.kode, nama: item.nama, isActive: item.isActive });
+    }
+    return rows;
+  });
+  const programOptions = $derived(programs.map(item => ({ value: item.id, label: item.nama, description: item.kode, disabled: !item.isActive && item.id !== data.edit?.programStudiId })));
+  const curriculumOptions = $derived((data.curricula?.data ?? []).map(item => ({ value: item.id, label: item.nama, description: item.kode, disabled: !item.isActive && item.id !== student?.kurikulumId })));
+  const adviserOptions = $derived((data.advisers?.data ?? []).map(item => ({ value: item.id, label: item.nama, description: [item.kodeDosen, item.nidn ? `NIDN ${item.nidn}` : ''].filter(Boolean).join(' · ') })));
+  const selectedProgramOption = $derived(data.edit?.programStudi ? { value: data.edit.programStudi.id, label: data.edit.programStudi.nama, description: data.edit.programStudi.kode, disabled: !data.edit.programStudi.isActive } : data.selectedProgram ? { value: data.selectedProgram.id, label: data.selectedProgram.nama, description: data.selectedProgram.kode, disabled: !data.selectedProgram.isActive } : null);
+  const selectedCurriculumOption = $derived(student?.kurikulum ? { value: student.kurikulum.id, label: student.kurikulum.nama, description: student.kurikulum.kode, disabled: !student.kurikulum.isActive } : null);
+  const selectedAdviserOption = $derived(student?.dosenPa ? { value: student.dosenPa.id, label: student.dosenPa.nama, description: student.dosenPa.kodeDosen, disabled: !student.dosenPa.isActive } : null);
+  function updateProgram(programId: string, previousProgramId: string) {
+    if (programId === previousProgramId) return;
+    selectedProgramId = programId;
+    selectedCurriculumId = '';
+    void goto(href({ choice_program: programId || null, curriculum_search: null, curriculum_page: null }), { replaceState: true, noScroll: true, keepFocus: true });
+  }
+  $effect(() => {
+    const key = `${data.kind}:${data.edit?.id ?? 'new'}:${saveFailed ? `${form?.values?.program_studi_id}:${form?.values?.kurikulum_id}:${form?.values?.dosen_pa_id}` : ''}`;
+    if (key !== selectionKey) {
+      selectionKey = key;
+      selectedProgramId = value('program_studi_id', data.edit?.programStudiId ?? '');
+      selectedCurriculumId = value('kurikulum_id', student?.kurikulumId ?? '');
+      selectedAdviserId = value('dosen_pa_id', student?.dosenPaId ?? '');
+    }
+  });
   $effect(() => { const state = editModal; if (queryEditId && requestedEditId === queryEditId) requestedEditId = null; if (state.open) formOpen = true; else if (requestedEditId === null) formOpen = false; });
 </script>
 
@@ -132,22 +163,6 @@
     <div class="space-y-3" role="status" aria-label={`Menyiapkan formulir ${title.toLowerCase()}`}><div class="h-11 animate-pulse rounded-lg bg-slate-100"></div><div class="h-11 animate-pulse rounded-lg bg-slate-100"></div></div>
   {:else}
   {#if form?.message && form.values?.mode === 'save'}<p role="alert" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}
-  <div class="mt-4"><AcademicOptions prefix="program_" label="Program Studi" meta={data.programs.meta} /></div>
-  {#if data.kind === 'mahasiswa' && data.curricula}
-    <section class="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4" aria-label="Cari kurikulum">
-      <h2 class="text-sm font-bold">Cari Kurikulum</h2>
-      <form method="GET" class="mt-3 grid items-end gap-3 sm:grid-cols-3" use:seamlessFilter={{ pageKey: 'curriculum_page' }}>
-        {#each [...page.url.searchParams].filter(([key]) => !['curriculum_search', 'curriculum_page', 'choice_program'].includes(key)) as [key, entry]}<input type="hidden" name={key} value={entry} />{/each}
-        <label class="text-sm">Program Studi<select class={inputClass} name="choice_program" value={data.curriculumQuery.program_studi_id ?? ''}><option value="">Semua program studi</option>{#each programs as item}{#if item}<option value={item.id}>{item.kode} — {item.nama}</option>{/if}{/each}</select></label>
-        <label class="text-sm">Kode atau nama<input class={inputClass} name="curriculum_search" value={data.curriculumQuery.search} maxlength="150" /></label><noscript><button class={buttonClass}>Cari</button></noscript>
-        {#if hasActiveQuery(page.url, ['curriculum_search', 'choice_program'])}<div class="flex items-end"><a class="py-2 text-sm text-slate-600" href={resetQueryHref(page.url, ['curriculum_search', 'choice_program'], 'curriculum_page')} data-sveltekit-noscroll>Reset filter</a></div>{/if}
-      </form>
-      <Pagination {...data.curricula.meta} href={number => href({ curriculum_page: number })} />
-    </section>
-  {/if}
-  {#if data.kind === 'mahasiswa' && data.advisers}
-    <section class="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4" aria-label="Cari Dosen PA"><h2 class="text-sm font-bold">Cari Dosen PA aktif</h2><form method="GET" class="mt-3 flex items-end gap-3" use:seamlessFilter={{ pageKey: 'adviser_page' }}>{#each [...page.url.searchParams].filter(([key]) => !['adviser_search', 'adviser_page'].includes(key)) as [key, entry]}<input type="hidden" name={key} value={entry} />{/each}<label class="flex-1 text-sm">Kode, NIDN, atau nama<input class={inputClass} name="adviser_search" value={data.adviserQuery.search} /></label><noscript><button class={buttonClass}>Cari</button></noscript></form><Pagination {...data.advisers.meta} href={number => href({ adviser_page: number })} /></section>
-  {/if}
   {#key data.edit?.id + JSON.stringify(form)}
     <form method="POST" class="mt-4 grid gap-4 sm:grid-cols-2" use:enhance={() => {
       saving = true;
@@ -161,18 +176,12 @@
         <label class="text-sm font-medium">NIDN (opsional)<input class={inputClass} name="nidn" value={value('nidn', lecturer?.nidn ?? '')} maxlength="30" /></label>
       {/if}
       <label class="text-sm font-medium">Nama<input class={inputClass} name="nama" value={value('nama', data.edit?.nama)} required maxlength="150" pattern=".*\S.*" /></label>
-      <label class="text-sm font-medium">{data.kind === 'mahasiswa' ? 'Program Studi' : 'Homebase Program Studi (opsional)'}<select class={inputClass} name="program_studi_id" required={data.kind === 'mahasiswa'} value={value('program_studi_id', data.edit?.programStudiId ?? '')}>
-        <option value="">{data.kind === 'mahasiswa' ? 'Pilih program studi' : 'Tanpa homebase'}</option>
-        {#each programs as item}{#if item}<option value={item.id} disabled={!item.isActive && item.id !== data.edit?.programStudiId}>{item.kode} — {item.nama}{item.isActive ? '' : ' (Nonaktif)'}</option>{/if}{/each}
-      </select></label>
+      <ReferenceCombobox name="program_studi_id" label={data.kind === 'mahasiswa' ? 'Program Studi' : 'Homebase Program Studi'} bind:value={selectedProgramId} options={programOptions} selectedOption={selectedProgramOption} meta={data.programs.meta} searchParam="program_search" pageParam="program_page" placeholder={data.kind === 'mahasiswa' ? 'Pilih program studi' : 'Tanpa homebase'} searchPlaceholder="Cari program studi…" required={data.kind === 'mahasiswa'} nullable={data.kind === 'dosen'} error={saveFailed && data.kind === 'mahasiswa' && !selectedProgramId ? 'Program studi wajib dipilih.' : undefined} onValueChange={data.kind === 'mahasiswa' ? updateProgram : undefined} />
       {#if data.kind === 'mahasiswa'}
-        <label class="text-sm font-medium">Kurikulum<select class={inputClass} name="kurikulum_id" required value={value('kurikulum_id', student?.kurikulumId)}><option value="" disabled>Pilih kurikulum</option>
-          {#if student && !data.curricula.data.some(item => item.id === student.kurikulumId)}<option value={student.kurikulumId}>{student.kurikulum.kode} — {student.kurikulum.nama}</option>{/if}
-          {#each data.curricula.data as item}<option value={item.id} disabled={!item.isActive && item.id !== student?.kurikulumId}>{item.kode} — {item.nama}{item.isActive ? '' : ' (Nonaktif)'}</option>{/each}
-        </select></label>
+        <ReferenceCombobox name="kurikulum_id" label="Kurikulum" bind:value={selectedCurriculumId} options={curriculumOptions} selectedOption={selectedCurriculumOption} meta={data.curricula.meta} searchParam="curriculum_search" pageParam="curriculum_page" watchParams={['choice_program']} placeholder={selectedProgramId ? 'Pilih kurikulum' : 'Pilih program studi terlebih dahulu'} searchPlaceholder="Cari kurikulum…" required disabled={!selectedProgramId} error={saveFailed && !selectedCurriculumId ? 'Kurikulum wajib dipilih.' : undefined} help={selectedProgramId && !selectedCurriculumId ? 'Pilih kurikulum yang sesuai dengan program studi.' : undefined} />
         <label class="text-sm font-medium">Angkatan<input class={inputClass} name="angkatan" type="number" min="1900" max="9999" step="1" required value={value('angkatan', student ? String(student.angkatan) : '')} /></label>
         <label class="text-sm font-medium">Status<select class={inputClass} name="status" required value={value('status', student?.status ?? 'AKTIF')}>{#each data.statuses as item}<option value={item}>{item}</option>{/each}</select></label>
-        <label class="text-sm font-medium">Dosen PA (opsional)<select class={inputClass} name="dosen_pa_id" value={value('dosen_pa_id', student?.dosenPaId ?? '')}><option value="">Belum ditetapkan</option>{#if student?.dosenPa && !data.advisers?.data.some(item => item.id === student.dosenPaId)}<option value={student.dosenPa.id}>{student.dosenPa.kodeDosen} — {student.dosenPa.nama}</option>{/if}{#each data.advisers?.data ?? [] as item}<option value={item.id}>{item.kodeDosen} — {item.nama}</option>{/each}</select><span class="text-xs font-normal text-slate-500">Wajib sebelum mahasiswa mengajukan KRS.</span></label>
+        <ReferenceCombobox name="dosen_pa_id" label="Dosen PA" bind:value={selectedAdviserId} options={adviserOptions} selectedOption={selectedAdviserOption} meta={data.advisers.meta} searchParam="adviser_search" pageParam="adviser_page" placeholder="Belum ditetapkan" searchPlaceholder="Cari nama, kode dosen, atau NIDN…" nullable help="Wajib sebelum mahasiswa mengajukan KRS." />
         <p class="text-sm text-slate-500 sm:col-span-2">Status akademik tidak menonaktifkan login. Perubahan program studi atau kurikulum memerlukan peninjauan akademik dan ditolak bila ada riwayat KRS disetujui.</p>
       {:else}<p class="text-sm text-slate-500">Homebase tidak membatasi program studi tempat dosen mengajar. Ubah status melalui tindakan pada tabel.</p>{/if}
       <label class="text-sm font-medium sm:col-span-2">ID akun pengguna (opsional)<input class={inputClass} name="user_id" value={value('user_id', data.edit?.userId ?? '')} placeholder="UUID akun pengguna" /><span class="text-xs font-normal text-slate-500">Gunakan akun berperan {data.kind === 'mahasiswa' ? 'MAHASISWA' : 'DOSEN'}. Kosongkan untuk profil tanpa akun login.</span></label>

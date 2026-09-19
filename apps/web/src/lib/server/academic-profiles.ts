@@ -33,7 +33,7 @@ export async function loadProfiles(event: RequestEvent, kind: ProfileKind) {
   const client = serverApi(event);
   const programs = await read(client['program-studi'].get({ query: programQuery }));
   if (!programs.success) error(503, apiMessage(programs));
-  const selectedProgramId = params.get('program_studi_id');
+  const selectedProgramId = params.get('choice_program') || params.get('program_studi_id');
   const selectedProgram = selectedProgramId ? await read(client['program-studi']({ id: selectedProgramId }).get()) : null;
   if (selectedProgram && !selectedProgram.success) error(503, apiMessage(selectedProgram));
   const editId = params.get('edit');
@@ -41,9 +41,10 @@ export async function loadProfiles(event: RequestEvent, kind: ProfileKind) {
   if (kind === 'mahasiswa') {
     const [records, advisers] = await Promise.all([read(client.mahasiswa.get({ query: filters })), read(client.dosen.get({ query: adviserQuery }))]);
     const edit = editId ? await read(client.mahasiswa({ id: editId }).get()) : null;
-    const curricula = await read(client.mahasiswa['kurikulum-options'].get({ query: curriculumQuery }));
+    const effectiveCurriculumQuery = { ...curriculumQuery, program_studi_id: curriculumQuery.program_studi_id ?? edit?.data.programStudiId };
+    const curricula = await read(client.mahasiswa['kurikulum-options'].get({ query: effectiveCurriculumQuery }));
     if (!records.success || (edit && !edit.success) || !curricula.success) error(503, apiMessage(null));
-    return { ...common, kind, records: records.data, meta: records.meta, edit: edit?.data ?? null, curricula, advisers, adviserQuery };
+    return { ...common, curriculumQuery: effectiveCurriculumQuery, kind, records: records.data, meta: records.meta, edit: edit?.data ?? null, curricula, advisers, adviserQuery };
   }
   const records = await read(client.dosen.get({ query: filters }));
   const edit = editId ? await read(client.dosen({ id: editId }).get()) : null;

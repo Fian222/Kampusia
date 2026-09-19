@@ -11,6 +11,7 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import ListPending from '$lib/components/ui/ListPending.svelte';
+  import ReferenceCombobox from '$lib/components/ReferenceCombobox.svelte';
   import type { PageProps } from './$types';
   let { data, form }: PageProps = $props();
   let saving = $state(false);
@@ -38,6 +39,7 @@
     };
   };
   const editingMembership = $derived(data.memberships.data.find(row => row.id === editingMembershipId));
+  const courseOptions = $derived(data.courses.data.map(row => ({ value: row.id, label: row.nama, description: `${row.kode} · ${row.sks} SKS` })));
   $effect(() => {
     if (form?.values?.mode === 'add' && !form.saved) { editingMembershipId = undefined; membershipOpen = true; }
     if (form?.values?.mode === 'update' && !form.saved) { editingMembershipId = form.values.membership_id; membershipOpen = true; }
@@ -76,21 +78,10 @@
 <Modal bind:open={membershipOpen} title={`${editingMembership ? 'Edit' : 'Tambah'} Mata Kuliah Kurikulum`} description="Atur semester rekomendasi dan sifat wajib atau pilihan." closeDisabled={saving} width="lg" onClose={() => { if (['add', 'update'].includes(form?.values?.mode ?? '')) void goto(page.url, { replaceState: true, noScroll: true, keepFocus: true }); }}>
   {#if form?.message && ['add', 'update'].includes(form.values?.mode ?? '')}<p role="alert" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}
   {#if !editingMembership && !data.curriculum.isActive}<p class="mb-4 text-sm text-amber-800">Aktifkan kurikulum sebelum menambahkan mata kuliah.</p>{/if}
-  {#if !editingMembership}
-    <section class="mb-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4" aria-label="Cari pilihan mata kuliah">
-      <h2 class="text-sm font-bold">Cari Mata Kuliah Aktif</h2>
-      <form method="GET" class="mt-3 flex items-end gap-3" use:seamlessFilter={{ pageKey: 'course_page' }}>
-        {#each [...page.url.searchParams].filter(([key]) => !['course_search', 'course_page'].includes(key)) as [key, entry]}<input type="hidden" name={key} value={entry} />{/each}
-        <label class="grow text-sm">Kode atau nama<input class={inputClass} name="course_search" value={data.courseQuery.search} maxlength="150" /></label><noscript><button class={buttonClass}>Cari</button></noscript>
-        {#if hasActiveQuery(page.url, ['course_search'])}<a class="py-2 text-sm text-slate-600" href={resetQueryHref(page.url, ['course_search'], 'course_page')} data-sveltekit-noscroll>Reset filter</a>{/if}
-      </form>
-      <Pagination {...data.courses.meta} href={number => href({ course_page: number })} />
-    </section>
-  {/if}
   {#key editingMembershipId + JSON.stringify(form)}
   <form method="POST" class="grid gap-4 sm:grid-cols-2" use:enhance={() => { saving = true; return async ({ update, result }) => { try { await update({ reset: false }); if (result.type === 'success') membershipOpen = false; } finally { saving = false; } }; }}>
     <input type="hidden" name="mode" value={editingMembership ? 'update' : 'add'} /><input type="hidden" name="membership_id" value={editingMembership?.id ?? ''} />
-    {#if editingMembership}<p class="rounded-lg bg-slate-50 p-3 text-sm font-semibold sm:col-span-2">{editingMembership.mataKuliah.kode} — {editingMembership.mataKuliah.nama}</p>{:else}<label class="text-sm sm:col-span-2">Mata kuliah<select class={inputClass} name="mata_kuliah_id" required value={value('add', '', 'mata_kuliah_id', '')}><option value="" disabled>Pilih mata kuliah aktif</option>{#each data.courses.data as row}<option value={row.id}>{row.kode} — {row.nama} ({row.sks} SKS)</option>{/each}</select></label>{/if}
+    {#if editingMembership}<p class="rounded-lg bg-slate-50 p-3 text-sm font-semibold sm:col-span-2">{editingMembership.mataKuliah.kode} — {editingMembership.mataKuliah.nama}</p>{:else}<div class="sm:col-span-2"><ReferenceCombobox name="mata_kuliah_id" label="Mata Kuliah" value={value('add', '', 'mata_kuliah_id', '')} options={courseOptions} meta={data.courses.meta} searchParam="course_search" pageParam="course_page" placeholder="Pilih mata kuliah aktif" searchPlaceholder="Cari mata kuliah…" required disabled={!data.curriculum.isActive} /></div>{/if}
     <label class="text-sm">Semester rekomendasi<input class={inputClass} name="semester_rekomendasi" type="number" min="1" max="32767" placeholder="Belum ditentukan" value={value(editingMembership ? 'update' : 'add', editingMembership?.id ?? '', 'semester_rekomendasi', String(editingMembership?.semesterRekomendasi ?? ''))} /></label>
     <label class="text-sm">Wajib/Pilihan<select class={inputClass} name="is_wajib" value={value(editingMembership ? 'update' : 'add', editingMembership?.id ?? '', 'is_wajib', String(editingMembership?.isWajib ?? true))}><option value="true">Wajib</option><option value="false">Pilihan</option></select></label>
     <div class="flex justify-end gap-3 sm:col-span-2"><button type="button" class="px-4 py-2 text-sm font-semibold text-slate-600" disabled={saving} onclick={() => membershipOpen = false}>Batal</button><button class={buttonClass} disabled={saving || (!editingMembership && !data.curriculum.isActive)}>{saving ? 'Menyimpan…' : 'Simpan'}</button></div>

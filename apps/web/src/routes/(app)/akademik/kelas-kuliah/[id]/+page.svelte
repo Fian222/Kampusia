@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import Pagination from '$lib/components/Pagination.svelte';
-  import AcademicOptions from '$lib/components/AcademicOptions.svelte';
+  import ReferenceCombobox from '$lib/components/ReferenceCombobox.svelte';
   import ScheduleForm from '$lib/components/ScheduleForm.svelte';
   import AcademicFields from '$lib/components/AcademicFields.svelte';
   import MeetingManager from '$lib/components/MeetingManager.svelte';
@@ -26,6 +26,7 @@
   function scheduleHref(number: number) { const p = new URLSearchParams(page.url.searchParams); p.set('schedule_page', String(number)); return '?' + p; }
   function href(number: number) { const p = new URLSearchParams(page.url.searchParams); p.set('page', String(number)); return '?' + p; }
   const editingSchedule = $derived(data.schedules.data.find(row => row.id === editingScheduleId));
+  const lecturerOptions = $derived(data.lecturers.data.map(row => ({ value: row.id, label: row.nama, description: [row.kodeDosen, row.nidn ? `NIDN ${row.nidn}` : ''].filter(Boolean).join(' · ') })));
   $effect(() => {
     if (form?.values?.mode === 'add' && !form.saved) lecturerOpen = true;
     if (form?.values?.mode === 'schedule-save' && !form.saved) {
@@ -62,13 +63,12 @@
     </td></tr>{:else}<tr><td colspan="4" class="p-8 text-center text-slate-500">Belum ada dosen pengajar.</td></tr>{/each}</tbody>
   </table></div><Pagination {...data.assignments.meta} {href} />
 </section>
-<AcademicOptions prefix="lecturer_" label="Dosen Aktif" meta={data.lecturers.meta} />
 <Modal bind:open={lecturerOpen} title="Tambah Dosen Pengajar" description="Pilih dosen aktif dan tentukan apakah menjadi koordinator." closeDisabled={saving} width="md" onClose={() => { if (form?.values?.mode === 'add') void goto(page.url, { replaceState: true, noScroll: true, keepFocus: true }); }}>
   {#if form?.message && form.values?.mode === 'add'}<p role="alert" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}
   {#key JSON.stringify(form)}<form method="POST" action="?/detail" class="grid gap-4 sm:grid-cols-2" use:enhance={lecturerSubmit}>
     <input type="hidden" name="mode" value="add" />
+    <ReferenceCombobox name="dosen_id" label="Dosen" value={form?.values?.mode === 'add' ? form.values.dosen_id ?? '' : ''} options={lecturerOptions} meta={data.lecturers.meta} searchParam="lecturer_search" pageParam="lecturer_page" placeholder="Pilih dosen aktif" searchPlaceholder="Cari nama, kode dosen, atau NIDN…" required />
     <AcademicFields values={form?.values?.mode === 'add' ? form.values : {}} fields={[
-      { name: 'dosen_id', label: 'Dosen', options: data.lecturers.data.map(row => ({ value: row.id, label: row.kodeDosen + ' — ' + row.nama })) },
       { name: 'is_koordinator', label: 'Koordinator', value: 'false', options: [{ value: 'false', label: 'Tidak' }, { value: 'true', label: 'Ya' }] },
     ]} />
     <div class="flex justify-end gap-3 sm:col-span-2"><button type="button" class="px-4 py-2 text-sm font-semibold text-slate-600" disabled={saving} onclick={() => lecturerOpen = false}>Batal</button><button class={button} disabled={saving}>Tambah dosen</button></div>
@@ -97,10 +97,9 @@
     </tr>{:else}<tr><td colspan="6" class="p-8 text-center text-slate-500">Belum ada jadwal kuliah.</td></tr>{/each}</tbody>
   </table></div><Pagination {...data.schedules.meta} href={scheduleHref} />
 </section>
-<AcademicOptions prefix="room_" label="Ruangan Aktif" meta={data.rooms.meta} />
 <Modal bind:open={scheduleOpen} title={`${editingSchedule ? 'Edit' : 'Tambah'} Jadwal`} description="Jadwal divalidasi terhadap ruangan, dosen, kelas, dan mahasiswa." closeDisabled={saving} width="lg" onClose={() => { if (form?.values?.mode === 'schedule-save') void goto(page.url, { replaceState: true, noScroll: true, keepFocus: true }); }}>
   {#if form?.message && form.values?.mode === 'schedule-save' && (form.values.jadwal_id ?? '') === (editingScheduleId ?? '')}<p role="alert" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}
-  <ScheduleForm action="?/detail" rooms={data.rooms.data} schedule={editingSchedule} values={form?.values} {saving} submit={scheduleSubmit} />
+  <ScheduleForm action="?/detail" rooms={data.rooms.data} roomMeta={data.rooms.meta} schedule={editingSchedule} values={form?.values} {saving} submit={scheduleSubmit} />
   <a href="/akademik/ruangan" class="mt-4 inline-block text-sm text-teal-800">Kelola ruangan</a>
 </Modal>
 <div id="pertemuan" class="scroll-mt-24"><MeetingManager meetings={data.meetings} area="akademik" {form} /></div>
