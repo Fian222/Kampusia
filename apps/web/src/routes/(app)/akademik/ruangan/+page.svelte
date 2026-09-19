@@ -35,7 +35,7 @@
 <svelte:head><title>Ruangan · Kampusia</title></svelte:head>
 <PageHeader eyebrow="Akademik / Fasilitas" title="Ruangan" description="Kelola ruang kuliah dan kapasitasnya tanpa menghilangkan riwayat jadwal.">{#snippet actions()}<a class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm" href={href({ edit: '', modal: 'create' })} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => { requestedEditId = null; formOpen = true; }}><Icon name="plus" size={16} /> Tambah Ruangan</a>{/snippet}</PageHeader>
 {#if form?.message}<p class={box} role={form.saved ? 'status' : 'alert'}>{form.message}</p>{/if}
-<form method="GET" class={box + ' grid gap-4 sm:grid-cols-3'} use:seamlessFilter>
+<form method="GET" class="filter-panel mt-6 grid gap-4 sm:grid-cols-3" use:seamlessFilter>
   <label class="text-sm">Cari kode atau nama<input class={input} name="search" value={data.filters.search} maxlength="150" /></label>
   <label class="text-sm">Status<select class={input} name="is_active" value={data.filters.is_active ?? ''}><option value="">Semua</option><option value="true">Aktif</option><option value="false">Nonaktif</option></select></label>
   <noscript><button class={button}>Terapkan filter</button></noscript>
@@ -48,14 +48,14 @@
     <thead class="border-b text-slate-500"><tr>{#each ['Kode', 'Nama', 'Gedung', 'Kapasitas', 'Status', 'Tindakan'] as label}<th class="p-3">{label}</th>{/each}</tr></thead>
     <tbody>{#each data.records.data as row}<tr class="border-b border-slate-100">
       <td class="p-3">{row.kode}</td><td class="p-3">{row.nama}</td><td class="p-3">{row.gedung ?? '—'}</td><td class="p-3">{row.kapasitas}</td><td class="p-3"><StatusBadge active={row.isActive} /></td>
-      <td class="p-3"><a class="text-teal-800" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a>
+      <td class="p-3"><a class="action-secondary" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a>
         <details class="mt-2"><summary class="cursor-pointer text-teal-800">{row.isActive ? 'Nonaktifkan' : 'Aktifkan'}</summary><p class="my-2">Ubah status ruangan {row.nama}?</p><form method="POST" use:enhance={submit}><input type="hidden" name="mode" value="status" /><input type="hidden" name="id" value={row.id} /><input type="hidden" name="is_active" value={String(!row.isActive)} /><input type="hidden" name="confirm" value="yes" /><button class={button} disabled={saving}>Ya, ubah status</button></form></details>
       </td></tr>{:else}<tr><td colspan="6" class="p-8 text-center text-slate-500">Tidak ada ruangan yang cocok.</td></tr>{/each}</tbody>
   </table></div><Pagination {...data.records.meta} href={number => href({ page: number })} />
 </section>
 <Modal bind:open={formOpen} title={`${editModal.editing ? 'Edit' : 'Tambah'} Ruangan`} description={editModal.loading ? 'Menyiapkan data untuk disunting.' : 'Kapasitas harus mendukung seluruh kelas yang menggunakan ruangan.'} closeDisabled={saving} width="lg" onClose={() => { const shouldClear = requestedEditId !== null || queryEditId || page.url.searchParams.has('modal') || form?.values?.mode === 'save'; requestedEditId = null; if (shouldClear) void goto(clearEditQueryHref(page.url), { replaceState: true, ...modalNavigationOptions }); }}>
   {#if editModal.loading}
-    <div class="rounded-xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600" role="status">Memuat data ruangan…</div>
+    <div class="space-y-3" role="status" aria-label="Menyiapkan formulir ruangan"><div class="h-11 animate-pulse rounded-lg bg-slate-100"></div><div class="h-11 animate-pulse rounded-lg bg-slate-100"></div></div>
   {:else}
   {#if form?.message && form.values?.mode === 'save'}<p role="alert" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}
   {#key data.edit?.id + JSON.stringify(form)}

@@ -13,6 +13,8 @@
   import Icon from './ui/Icon.svelte';
   import Modal from './ui/Modal.svelte';
   import ListPending from './ui/ListPending.svelte';
+  import Badge from './ui/Badge.svelte';
+  import EmptyState from './ui/EmptyState.svelte';
   import AcademicOptions from './AcademicOptions.svelte';
 
   let { data, form }: { data: ProfileData; form: { message: string; saved?: true; values?: Record<string, string> } | null } = $props();
@@ -20,11 +22,7 @@
   let formOpen = $state(false);
   let requestedEditId = $state<string | null>(null);
   let confirmation = $state<{ id: string; nama: string; isActive: boolean } | null>(null);
-  let dialog: HTMLDialogElement;
-  $effect(() => {
-    if (confirmation && !dialog.open) dialog.showModal();
-    else if (!confirmation && dialog.open) dialog.close();
-  });
+  let confirmationOpen = $state(false);
   const title = $derived(data.kind === 'mahasiswa' ? 'Mahasiswa' : 'Dosen');
   const listPending = $derived(isListNavigationPending(navigating, page.url.pathname));
   const filterKeys = $derived(data.kind === 'mahasiswa' ? ['search', 'program_studi_id', 'kurikulum_id', 'angkatan', 'status'] : ['search', 'program_studi_id', 'is_active']);
@@ -79,32 +77,59 @@
   </form>
 </section>
 
-<section class={`${panelClass} relative`} aria-label="Daftar profil" aria-busy={listPending}>
+<section class="surface-panel relative mt-6 overflow-hidden" aria-label="Daftar profil" aria-busy={listPending}>
   <ListPending />
-  <div class="overflow-x-auto transition-opacity" class:opacity-80={listPending}><table class="w-full whitespace-nowrap text-left text-sm">
-    <thead class="border-b border-slate-200 text-slate-500"><tr>
-      {#each data.kind === 'mahasiswa' ? ['NIM', 'Nama', 'Program Studi', 'Kurikulum', 'Dosen PA', 'Angkatan', 'Status', 'Tindakan'] : ['Kode Dosen', 'NIDN', 'Nama', 'Homebase Program Studi', 'Status', 'Tindakan'] as column}<th class="px-3 py-3 font-medium">{column}</th>{/each}
-    </tr></thead>
+  <div class="hidden overflow-x-auto transition-opacity md:block" class:opacity-80={listPending}><table class="w-full text-left text-sm">
+    <thead><tr>{#each data.kind === 'mahasiswa' ? ['Mahasiswa', 'Program Studi', 'Informasi Akademik', 'Dosen PA', 'Status', 'Tindakan'] : ['Dosen', 'Homebase', 'Status', 'Tindakan'] as column}<th class="px-5 py-3.5">{column}</th>{/each}</tr></thead>
     <tbody class="divide-y divide-slate-100">
       {#if data.kind === 'mahasiswa'}
         {#each data.records as row}<tr>
-          <td class="px-3 py-4 font-medium">{row.nim}</td><td class="px-3 py-4">{row.nama}</td><td class="px-3 py-4">{row.programStudi.nama}<span class="block text-xs text-slate-500">{row.fakultas.nama}</span></td><td class="px-3 py-4">{row.kurikulum.nama}</td><td class="px-3 py-4">{row.dosenPa?.nama ?? 'Belum ditetapkan'}</td><td class="px-3 py-4">{row.angkatan}</td><td class="px-3 py-4"><span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium">{row.status}</span></td><td class="px-3 py-4"><a class="mr-4 font-semibold text-brand-700" href={`/akademik/mahasiswa/${row.id}/hasil-studi`}>Hasil studi</a><a class="font-semibold text-brand-700" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a></td>
+          <td class="px-5 py-4"><p class="font-semibold text-slate-950">{row.nama}</p><p class="mt-1 font-mono text-xs font-semibold text-slate-500">{row.nim}</p></td>
+          <td class="px-5 py-4"><p class="font-medium text-slate-800">{row.programStudi.nama}</p><p class="mt-1 text-xs text-slate-500">{row.programStudi.kode} · {row.fakultas.nama}</p></td>
+          <td class="px-5 py-4"><p class="font-medium text-slate-800">Angkatan {row.angkatan}</p><p class="mt-1 text-xs text-slate-500">{row.kurikulum.nama}</p></td>
+          <td class="px-5 py-4"><p class="font-medium text-slate-800">{row.dosenPa?.nama ?? 'Belum ditetapkan'}</p>{#if row.dosenPa}<p class="mt-1 text-xs text-slate-500">{row.dosenPa.kodeDosen}</p>{/if}</td>
+          <td class="px-5 py-4"><Badge tone={row.status === 'AKTIF' ? 'success' : row.status === 'LULUS' ? 'info' : 'neutral'}>{row.status}</Badge></td>
+          <td class="px-5 py-4"><div class="flex flex-wrap gap-2"><a class="inline-flex min-h-8 items-center rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50" href={`/akademik/mahasiswa/${row.id}/hasil-studi`}>Hasil Studi</a><a class="inline-flex min-h-8 items-center rounded-lg px-2.5 text-xs font-semibold text-brand-700 hover:bg-brand-50" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a></div></td>
         </tr>{/each}
       {:else}
         {#each data.records as row}<tr>
-          <td class="px-3 py-4 font-medium">{row.kodeDosen}</td><td class="px-3 py-4">{row.nidn ?? '—'}</td><td class="px-3 py-4">{row.nama}</td><td class="px-3 py-4">{row.programStudi?.nama ?? 'Tanpa homebase'}</td><td class="px-3 py-4"><StatusBadge active={row.isActive} /></td>
-          <td class="px-3 py-4"><a class="mr-4 font-semibold text-brand-700" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a><button class="text-slate-600" onclick={() => confirmation = row}>{row.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button></td>
+          <td class="px-5 py-4"><p class="font-semibold text-slate-950">{row.nama}</p><p class="mt-1 text-xs text-slate-500"><span class="font-mono font-semibold">{row.kodeDosen}</span>{row.nidn ? ` · NIDN ${row.nidn}` : ''}</p></td>
+          <td class="px-5 py-4"><p class="font-medium text-slate-800">{row.programStudi?.nama ?? 'Tanpa homebase'}</p>{#if row.programStudi}<p class="mt-1 text-xs text-slate-500">{row.programStudi.kode}</p>{/if}</td><td class="px-5 py-4"><StatusBadge active={row.isActive} /></td>
+          <td class="px-5 py-4"><div class="flex flex-wrap gap-2"><a class="inline-flex min-h-8 items-center rounded-lg px-2.5 text-xs font-semibold text-brand-700 hover:bg-brand-50" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a><button class="inline-flex min-h-8 items-center rounded-lg px-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100" onclick={() => { confirmation = row; confirmationOpen = true; }}>{row.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button></div></td>
         </tr>{/each}
       {/if}
     </tbody>
   </table></div>
-  {#if !data.records.length}<p class="py-6 text-center text-sm text-slate-500">Data tidak ditemukan. Ubah filter atau tambahkan profil.</p>{/if}
-  <Pagination {...data.meta} href={number => href({ page: number })} />
+  <ul class="divide-y divide-slate-100 md:hidden">
+    {#if data.kind === 'mahasiswa'}
+    {#each data.records as row}
+      <li class="p-4">
+        <div class="flex items-start justify-between gap-3"><div><p class="font-semibold text-slate-950">{row.nama}</p><p class="mt-1 font-mono text-xs font-semibold text-slate-500">{row.nim}</p></div><Badge tone={row.status === 'AKTIF' ? 'success' : 'neutral'}>{row.status}</Badge></div>
+        <div class="mt-3 text-sm text-slate-600"><p>{row.programStudi.nama}</p><p class="mt-1 text-xs text-slate-500">Angkatan {row.angkatan} · PA: {row.dosenPa?.nama ?? 'Belum ditetapkan'}</p></div>
+        <div class="mt-4 flex gap-2"><a class="inline-flex min-h-9 items-center rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700" href={`/akademik/mahasiswa/${row.id}/hasil-studi`}>Hasil Studi</a><a class="inline-flex min-h-9 items-center rounded-lg px-3 text-xs font-semibold text-brand-700" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a></div>
+      </li>
+    {:else}
+      <li><EmptyState title={`Belum ada data ${title.toLowerCase()}`} description="Ubah filter atau tambahkan profil baru." icon={data.kind === 'mahasiswa' ? 'users' : 'user'} compact /></li>
+    {/each}
+    {:else}
+    {#each data.records as row}
+      <li class="p-4">
+        <div class="flex items-start justify-between gap-3"><div><p class="font-semibold text-slate-950">{row.nama}</p><p class="mt-1 font-mono text-xs font-semibold text-slate-500">{row.kodeDosen}</p></div><StatusBadge active={row.isActive} /></div>
+        <div class="mt-3 text-sm text-slate-600"><p>{row.programStudi?.nama ?? 'Tanpa homebase'}</p>{#if row.nidn}<p class="mt-1 text-xs text-slate-500">NIDN {row.nidn}</p>{/if}</div>
+        <div class="mt-4 flex gap-2"><a class="inline-flex min-h-9 items-center rounded-lg px-3 text-xs font-semibold text-brand-700" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a><button class="inline-flex min-h-9 items-center rounded-lg px-3 text-xs font-semibold text-slate-600" onclick={() => { confirmation = row; confirmationOpen = true; }}>{row.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button></div>
+      </li>
+    {:else}
+      <li><EmptyState title={`Belum ada data ${title.toLowerCase()}`} description="Ubah filter atau tambahkan profil baru." icon="user" compact /></li>
+    {/each}
+    {/if}
+  </ul>
+  {#if !data.records.length}<div class="hidden md:block"><EmptyState title={`Belum ada data ${title.toLowerCase()}`} description="Ubah filter atau tambahkan profil baru." icon={data.kind === 'mahasiswa' ? 'users' : 'user'} compact /></div>{/if}
+  <div class="px-5 pb-4"><Pagination {...data.meta} href={number => href({ page: number })} /></div>
 </section>
 
 <Modal bind:open={formOpen} title={`${editModal.editing ? 'Edit' : 'Tambah'} ${title}`} description={editModal.loading ? 'Menyiapkan data untuk disunting.' : 'Data profil akademik dapat disimpan tanpa akun login.'} closeDisabled={saving} width="lg" onClose={() => { const shouldClear = requestedEditId !== null || queryEditId || page.url.searchParams.has('modal') || form?.values?.mode === 'save'; requestedEditId = null; if (shouldClear) void goto(clearEditQueryHref(page.url), { replaceState: true, ...modalNavigationOptions }); }}>
   {#if editModal.loading}
-    <div class="rounded-xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600" role="status">Memuat data {title.toLowerCase()}…</div>
+    <div class="space-y-3" role="status" aria-label={`Menyiapkan formulir ${title.toLowerCase()}`}><div class="h-11 animate-pulse rounded-lg bg-slate-100"></div><div class="h-11 animate-pulse rounded-lg bg-slate-100"></div></div>
   {:else}
   {#if form?.message && form.values?.mode === 'save'}<p role="alert" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}
   <div class="mt-4"><AcademicOptions prefix="program_" label="Program Studi" meta={data.programs.meta} /></div>
@@ -157,15 +182,14 @@
   {/if}
 </Modal>
 
-<dialog bind:this={dialog} onclose={() => confirmation = null} class="m-auto w-full max-w-md rounded-xl p-6 backdrop:bg-slate-900/40">
+<Modal bind:open={confirmationOpen} title={`${confirmation?.isActive ? 'Nonaktifkan' : 'Aktifkan'} dosen`} description={confirmation ? `${confirmation.nama}. Riwayat penugasan tetap tersimpan.` : undefined} width="sm" closeDisabled={saving} onClose={() => confirmation = null}>
   {#if confirmation}
-    <h2 class="text-lg font-semibold">{confirmation.isActive ? 'Nonaktifkan' : 'Aktifkan'} dosen?</h2><p class="mt-3 text-sm text-slate-600">{confirmation.nama}. Riwayat penugasan tetap tersimpan.</p>
-    <form method="POST" class="mt-5 flex gap-3" use:enhance={() => {
+    <form method="POST" class="flex justify-end gap-3" use:enhance={() => {
       saving = true;
-      return async ({ update }) => { try { await update(); } finally { saving = false; confirmation = null; } };
+      return async ({ update }) => { try { await update(); confirmationOpen = false; } finally { saving = false; } };
     }}>
       <input type="hidden" name="mode" value="status" /><input type="hidden" name="id" value={confirmation.id} /><input type="hidden" name="is_active" value={String(!confirmation.isActive)} />
-      <button class={buttonClass} disabled={saving}>Ya, simpan</button><button type="button" class="px-4 py-2 text-sm" onclick={() => confirmation = null}>Batal</button>
+      <button type="button" class="px-4 py-2 text-sm font-semibold text-slate-600" disabled={saving} onclick={() => confirmationOpen = false}>Batal</button><button class={buttonClass} disabled={saving}>Ya, simpan</button>
     </form>
   {/if}
-</dialog>
+</Modal>

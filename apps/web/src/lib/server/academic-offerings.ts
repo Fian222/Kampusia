@@ -28,10 +28,13 @@ export async function loadSemester(event: RequestEvent) {
   requireMasterAccess(event);
   const client = serverApi(event); const p = event.url.searchParams;
   const filters = { ...query(event), jenis: enumFilter(p.get('jenis'), ['GANJIL', 'GENAP'] as const), tahun_mulai: p.get('tahun_mulai') ? integer(p.get('tahun_mulai'), 1900, 9998) : undefined, is_active: active(p.get('is_active')) };
-  const records = await read(client.semester.get({ query: filters }));
+  const [records, activeSemesters] = await Promise.all([
+    read(client.semester.get({ query: filters })),
+    read(client.semester.get({ query: { page: 1, limit: 1, search: '', is_active: 'true' } })),
+  ]);
   const edit = p.get('edit') ? (await read(client.semester({ id: p.get('edit')! }).get())).data : null;
   const krsPeriod = p.get('krs_period') ? (await read(client.semester({ id: p.get('krs_period')! }).get())).data : null;
-  return { records, filters, edit, krsPeriod };
+  return { records, filters, edit, krsPeriod, activeSemester: activeSemesters.data[0] ?? null };
 }
 export async function loadKelas(event: RequestEvent) {
   requireMasterAccess(event);

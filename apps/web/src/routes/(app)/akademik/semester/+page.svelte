@@ -45,8 +45,17 @@
 </script>
 <svelte:head><title>Semester · Kampusia</title></svelte:head>
 <PageHeader eyebrow="Akademik / Perkuliahan" title="Semester" description="Pilih periode akademik aktif secara eksplisit dan pertahankan seluruh riwayat semester.">{#snippet actions()}<a class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm" href={href({ edit: '', modal: 'create' })} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => { requestedEditId = null; formOpen = true; }}><Icon name="plus" size={16} /> Tambah Semester</a>{/snippet}</PageHeader>
+{#if data.activeSemester}
+  <section class="mt-6 overflow-hidden rounded-2xl bg-brand-950 px-5 py-5 text-white shadow-sm sm:px-6">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div><p class="eyebrow text-brand-200">Semester aktif</p><h2 class="mt-2 text-xl font-semibold">{data.activeSemester.nama}</h2><p class="mt-1 text-sm text-brand-100">{data.activeSemester.kode} · {data.activeSemester.tahunMulai}/{data.activeSemester.tahunMulai + 1} · {data.activeSemester.jenis}</p></div>
+      <Badge tone={periodState(data.activeSemester) === 'Sedang dibuka' ? 'success' : periodState(data.activeSemester) === 'Sudah ditutup' ? 'danger' : 'neutral'}>{periodState(data.activeSemester)}</Badge>
+    </div>
+    <p class="mt-4 text-sm text-brand-100">Periode KRS: {data.activeSemester.krsMulaiAt && data.activeSemester.krsSelesaiAt ? `${jakartaLabel(data.activeSemester.krsMulaiAt)} – ${jakartaLabel(data.activeSemester.krsSelesaiAt)} WIB` : 'belum dijadwalkan'}</p>
+  </section>
+{/if}
 {#if form?.message}<p class={box} role={form.saved ? 'status' : 'alert'}>{form.message}</p>{/if}
-<form method="GET" class={box + ' grid gap-4 sm:grid-cols-4'} use:seamlessFilter>
+<form method="GET" class="filter-panel mt-6 grid gap-4 sm:grid-cols-4" use:seamlessFilter>
   <label class="text-sm">Cari kode atau nama<input class={input} name="search" value={data.filters.search} maxlength="150" /></label>
   <label class="text-sm">Jenis<select class={input} name="jenis" value={data.filters.jenis ?? ''}><option value="">Semua</option><option>GANJIL</option><option>GENAP</option></select></label>
   <label class="text-sm">Tahun mulai<input class={input} type="number" min="1900" max="9998" name="tahun_mulai" value={data.filters.tahun_mulai ?? ''} /></label>
@@ -58,20 +67,21 @@
   <ListPending />
   <div class="flex justify-between"><h2 class="font-semibold">Daftar Semester</h2></div>
   <div class="mt-4 overflow-x-auto transition-opacity" class:opacity-80={listPending}><table class="w-full text-left text-sm">
-    <thead class="border-b text-slate-500"><tr>{#each ['Kode', 'Nama', 'Tahun Akademik', 'Jenis', 'Tanggal Mulai', 'Tanggal Selesai', 'Periode KRS', 'Status Aktif', 'Tindakan'] as label}<th class="p-3">{label}</th>{/each}</tr></thead>
+    <thead class="border-b text-slate-500"><tr>{#each ['Semester', 'Rentang akademik', 'Periode KRS', 'Status', 'Tindakan'] as label}<th class="p-3">{label}</th>{/each}</tr></thead>
     <tbody>{#each data.records.data as row}<tr class="border-b border-slate-100">
-      <td class="p-3">{row.kode}</td><td class="p-3">{row.nama}</td><td class="p-3">{row.tahunMulai}/{row.tahunMulai + 1}</td><td class="p-3">{row.jenis}</td><td class="p-3 whitespace-nowrap">{row.tanggalMulai}</td><td class="p-3 whitespace-nowrap">{row.tanggalSelesai}</td>
-      <td class="p-3"><span class="block text-xs font-medium text-slate-500">Periode KRS:</span><Badge tone={periodState(row) === 'Sedang dibuka' ? 'success' : periodState(row) === 'Sudah ditutup' ? 'danger' : 'neutral'}>{periodState(row)}</Badge><span class="mt-1 block whitespace-nowrap text-xs text-slate-500">{row.krsMulaiAt && row.krsSelesaiAt ? `${jakartaLabel(row.krsMulaiAt)} – ${jakartaLabel(row.krsSelesaiAt)} WIB` : 'Belum diatur'}</span></td>
+      <td class="p-3"><p class="font-semibold text-slate-900">{row.nama}</p><p class="mt-1 text-xs text-slate-500">{row.kode} · {row.jenis} · {row.tahunMulai}/{row.tahunMulai + 1}</p></td>
+      <td class="p-3 whitespace-nowrap"><p>{row.tanggalMulai} – {row.tanggalSelesai}</p></td>
+      <td class="p-3"><Badge tone={periodState(row) === 'Sedang dibuka' ? 'success' : periodState(row) === 'Sudah ditutup' ? 'danger' : 'neutral'}>{periodState(row)}</Badge><span class="mt-1 block whitespace-nowrap text-xs text-slate-500">{row.krsMulaiAt && row.krsSelesaiAt ? `${jakartaLabel(row.krsMulaiAt)} – ${jakartaLabel(row.krsSelesaiAt)} WIB` : 'Belum diatur'}</span></td>
       <td class="p-3"><Badge tone={row.isActive ? 'success' : 'neutral'}>{row.isActive ? 'Semester aktif' : 'Tidak dipilih'}</Badge></td>
-      <td class="p-3"><div class="flex flex-col items-start gap-2"><a class="text-teal-800" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit Semester</a><a class="text-teal-800" aria-label={`Atur periode KRS ${row.nama}`} href={href({ edit: '', modal: '', krs_period: row.id })} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openKrsPeriod(row.id)}>Atur Periode KRS</a></div>
+      <td class="p-3"><div class="flex flex-wrap items-center gap-2"><a class="action-secondary" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a><a class="action-secondary" aria-label={`Atur periode KRS ${row.nama}`} href={href({ edit: '', modal: '', krs_period: row.id })} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openKrsPeriod(row.id)}>Atur Periode KRS</a></div>
         {#if !row.isActive}<details class="mt-2"><summary class="cursor-pointer text-teal-800">Aktifkan</summary><p class="my-2">Ganti semester aktif menjadi {row.nama}?</p><form method="POST" action="?/semester" use:enhance={submit}><input type="hidden" name="mode" value="activate" /><input type="hidden" name="id" value={row.id} /><input type="hidden" name="confirm" value="yes" /><button class={button} disabled={saving}>Ya, aktifkan semester</button></form></details>{/if}
-      </td></tr>{:else}<tr><td colspan="9" class="p-8 text-center text-slate-500">Tidak ada semester yang cocok.</td></tr>{/each}</tbody>
+      </td></tr>{:else}<tr><td colspan="5" class="p-8 text-center text-slate-500">Tidak ada semester yang cocok.</td></tr>{/each}</tbody>
   </table></div>
   <Pagination {...data.records.meta} href={number => href({ page: number })} />
 </section>
 <Modal bind:open={formOpen} title={`${editModal.editing ? 'Edit' : 'Tambah'} Semester`} description={editModal.loading ? 'Menyiapkan data untuk disunting.' : undefined} closeDisabled={saving} width="lg" onClose={() => { const shouldClear = requestedEditId !== null || queryEditId || page.url.searchParams.has('modal') || form?.values?.mode === 'save'; requestedEditId = null; if (shouldClear) void goto(clearEditQueryHref(page.url), { replaceState: true, ...modalNavigationOptions }); }}>
   {#if editModal.loading}
-    <div class="rounded-xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600" role="status">Memuat data semester…</div>
+    <div class="space-y-3" role="status" aria-label="Menyiapkan formulir semester"><div class="h-11 animate-pulse rounded-lg bg-slate-100"></div><div class="h-11 animate-pulse rounded-lg bg-slate-100"></div></div>
   {:else}
   <p class="mt-2 text-sm text-slate-500">Kode: tahun mulai diikuti 1 untuk Ganjil atau 2 untuk Genap. Identitas dan tanggal dengan riwayat KRS disetujui atau jadwal dipertahankan.</p>
   {#if form?.message && form.values?.mode === 'save'}<p role="alert" class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}
@@ -90,7 +100,7 @@
 </Modal>
 <Modal bind:open={periodOpen} title="Atur Periode KRS" description={periodModal.loading ? 'Menyiapkan periode KRS.' : 'Waktu ditampilkan dan disimpan berdasarkan zona Asia/Jakarta (WIB).'} closeDisabled={saving} width="md" onClose={() => { const shouldClear = requestedPeriodId !== null || queryPeriodId || form?.values?.mode === 'krs-period'; requestedPeriodId = null; if (shouldClear) void goto(href({ krs_period: '' }), { replaceState: true, ...modalNavigationOptions }); }}>
   {#if periodModal.loading}
-    <div class="rounded-xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600" role="status">Memuat periode KRS…</div>
+    <div class="space-y-3" role="status" aria-label="Menyiapkan periode KRS"><div class="h-11 animate-pulse rounded-lg bg-slate-100"></div><div class="h-11 animate-pulse rounded-lg bg-slate-100"></div></div>
   {:else}
     <p class="mt-2 text-sm text-slate-500">Isi kedua waktu, atau kosongkan keduanya jika periode KRS belum dijadwalkan.</p>
     {#if form?.message && form.values?.mode === 'krs-period'}<p role="alert" class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}

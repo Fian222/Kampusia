@@ -45,12 +45,15 @@
   <StatCard label="Jadwal" value={data.kelas.jumlahJadwal} icon="calendar" />
   <StatCard label="Koordinator" value={data.kelas.dosen.find(row => row.isKoordinator)?.dosen.nama ?? '—'} icon="user" />
 </section>
-<p class="mt-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900"><Icon name="info" size={18} class="mt-0.5 shrink-0" /> Pembukaan kelas memerlukan prodi dan mata kuliah aktif, mata kuliah pada kurikulum prodi, dosen aktif, serta jadwal valid tanpa bentrok.</p>
-<MeetingManager meetings={data.meetings} area="akademik" {form} />
-<GradingManager grading={data.grading} area="akademik" {form} />
+<nav class="sticky top-3 z-20 mt-5 flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white/95 p-1.5 shadow-sm backdrop-blur" aria-label="Bagian ruang kerja kelas">
+  {#each [['#ringkasan', 'Ringkasan'], ['#dosen', 'Dosen'], ['#jadwal', 'Jadwal'], ['#pertemuan', 'Pertemuan'], ['#nilai', 'Nilai'], ['#status', 'Status']] as item}
+    <a class="whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900" href={item[0]}>{item[1]}</a>
+  {/each}
+</nav>
+<div id="ringkasan" class="scroll-mt-24"><p class="mt-4 flex items-start gap-2 text-sm leading-6 text-slate-600"><Icon name="info" size={18} class="mt-0.5 shrink-0 text-amber-600" /> Kelas dapat dibuka setelah dosen, kurikulum, dan jadwalnya siap tanpa konflik.</p></div>
 {#if form?.message}<p class={box} role={form.saved ? 'status' : 'alert'}>{form.message}</p>{/if}
-{#if saving}<p role="status" class="mt-3">Menyimpan…</p>{/if}
-<section class={box}>
+{#if saving}<span role="status" class="sr-only">Menyimpan perubahan</span>{/if}
+<section id="dosen" class={`${box} scroll-mt-24`}>
   <div class="flex flex-wrap items-start justify-between gap-3"><div><h2 class="font-semibold">Dosen Pengajar</h2><p class="mt-2 text-sm text-slate-500">Koordinator opsional, maksimal satu. Lepaskan koordinator lama sebelum menunjuk dosen lain. Homebase tidak membatasi penugasan.</p></div><button type="button" class={button} onclick={() => lecturerOpen = true}><span class="inline-flex items-center gap-1.5"><Icon name="plus" size={15} /> Tambah Dosen</span></button></div>
   <div class="mt-4 overflow-x-auto"><table class="w-full text-left text-sm"><thead class="border-b text-slate-500"><tr><th class="p-3">Kode Dosen</th><th class="p-3">Nama</th><th class="p-3">Koordinator</th><th class="p-3">Tindakan</th></tr></thead>
     <tbody>{#each data.assignments.data as row}<tr class="border-b border-slate-100"><td class="p-3">{row.dosen.kodeDosen}</td><td class="p-3">{row.dosen.nama}{row.dosen.isActive ? '' : ' (Nonaktif)'}</td><td class="p-3">{row.isKoordinator ? 'Ya' : 'Tidak'}</td><td class="p-3">
@@ -72,7 +75,7 @@
   </form>{/key}
 </Modal>
 
-<section class={box}>
+<section id="status" class={`${box} scroll-mt-24`}>
   <h2 class="font-semibold">Status Kelas</h2>
   <form method="POST" action="?/detail" class="mt-4 flex flex-wrap items-end gap-3" use:enhance={submit}>
     <input type="hidden" name="mode" value="status" />
@@ -81,7 +84,7 @@
     <button class={button} disabled={saving}>Simpan status</button>
   </form>
 </section>
-<section class={box}>
+<section id="jadwal" class={`${box} scroll-mt-24`}>
   <div class="flex flex-wrap items-start justify-between gap-3"><div><h2 class="font-semibold">Jadwal Kuliah</h2><p class="mt-2 text-sm text-slate-500">Waktu Asia/Jakarta. Jadwal berulang pada rentang tanggal semester. Jam bersebelahan diperbolehkan.</p></div><button type="button" class={button} onclick={() => { editingScheduleId = undefined; scheduleOpen = true; }}><span class="inline-flex items-center gap-1.5"><Icon name="plus" size={15} /> Tambah Jadwal</span></button></div>
   <div class="mt-4 overflow-x-auto"><table class="w-full text-left text-sm">
     <thead class="border-b text-slate-500"><tr>{#each ['Hari', 'Jam Mulai', 'Jam Selesai', 'Ruangan', 'Gedung', 'Tindakan'] as label}<th class="p-3">{label}</th>{/each}</tr></thead>
@@ -100,3 +103,5 @@
   <ScheduleForm action="?/detail" rooms={data.rooms.data} schedule={editingSchedule} values={form?.values} {saving} submit={scheduleSubmit} />
   <a href="/akademik/ruangan" class="mt-4 inline-block text-sm text-teal-800">Kelola ruangan</a>
 </Modal>
+<div id="pertemuan" class="scroll-mt-24"><MeetingManager meetings={data.meetings} area="akademik" {form} /></div>
+<div id="nilai" class="scroll-mt-24"><GradingManager grading={data.grading} area="akademik" {form} /></div>

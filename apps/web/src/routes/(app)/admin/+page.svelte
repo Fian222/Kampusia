@@ -3,4 +3,4 @@
   let { data } = $props();
 </script>
 
-<Dashboard user={data.user} />
+<Dashboard {data} />

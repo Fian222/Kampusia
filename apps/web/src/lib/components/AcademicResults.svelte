@@ -57,9 +57,9 @@
   {/if}
 </section>
 
-<section class="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">
-  <h2 class="font-semibold text-slate-900">Kebijakan perhitungan saat ini</h2>
+<details class="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">
+  <summary class="cursor-pointer font-semibold text-slate-900">Cara IPS dan IPK dihitung</summary>
   <p class="mt-2">IPS dan IPK dihitung dengan aritmetika desimal eksak, lalu hasil akhirnya ditampilkan dua desimal dengan pembulatan half-up. Nilai indeks nol tetap menghitung SKS.</p>
   <p class="mt-2">Semua percobaan mata kuliah yang telah difinalisasi dihitung, termasuk pengulangan lintas semester. Kebijakan penggantian nilai mata kuliah berulang belum ditetapkan.</p>
   {#if data.ipk.hasRepeatedCourses}<p class="mt-2 font-medium text-amber-800">Data ini memuat mata kuliah berulang; IPK memakai model hitung-semua saat ini.</p>{/if}
-</section>
+</details>

@@ -55,7 +55,7 @@
 </PageHeader>
 {#if form?.message}<p role={form.saved ? 'status' : 'alert'} class="mt-4 rounded-lg border border-slate-200 bg-white p-4 text-sm">{form.message}</p>{/if}
 
-<section class="surface-panel mt-6 p-5 sm:p-6" aria-label="Filter data">
+<section class="filter-panel mt-6" aria-label="Filter data">
   <form method="GET" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" use:seamlessFilter>
     <label class="text-sm font-medium">Cari kode atau nama<input class={inputClass} name="search" value={data.filters.search} maxlength="150" placeholder="Kode atau nama" /></label>
     <label class="text-sm font-medium">Status<select class={inputClass} name="is_active" value={data.filters.is_active ?? ''}><option value="">Semua status</option><option value="true">Aktif</option><option value="false">Nonaktif</option></select></label>
@@ -83,7 +83,7 @@
           <tr class="border-b border-slate-100"><td class="p-3 font-medium">{row.kode}</td><td class="p-3">{row.nama}</td>
             {#if isCurriculum && row.programStudi}<td class="p-3">{row.programStudi.nama}{#if !row.programStudi.isActive}<span class="block text-xs text-slate-500">Program Studi nonaktif</span>{/if}</td><td class="p-3">{row.tahunBerlaku}</td>{:else}<td class="p-3">{row.sks}</td>{/if}
             <td class="p-3"><StatusBadge active={row.isActive} /></td>
-            <td class="p-3"><div class="flex gap-4">{#if isCurriculum}<a class="font-semibold text-brand-700" href={`/akademik/kurikulum/${row.id}`}>Mata Kuliah</a>{/if}<a class="font-semibold text-brand-700" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a><button class="text-slate-600 disabled:opacity-50" disabled={saving} onclick={() => confirmation = row}>{row.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button></div></td>
+            <td class="p-3"><div class="flex gap-2">{#if isCurriculum}<a class="action-primary" href={`/akademik/kurikulum/${row.id}`}>Mata Kuliah</a>{/if}<a class="action-secondary" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a><button class="action-ghost" disabled={saving} onclick={() => confirmation = row}>{row.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button></div></td>
           </tr>
         {:else}<tr><td colspan={isCurriculum ? 6 : 5} class="p-8 text-center text-slate-500">Tidak ada data yang cocok. Ubah filter atau tambahkan {title.toLowerCase()}.</td></tr>{/each}
       </tbody>
@@ -108,7 +108,7 @@
 
 <Modal bind:open={formOpen} title={`${editModal.editing ? 'Edit' : 'Tambah'} ${title}`} description={editModal.loading ? 'Menyiapkan data untuk disunting.' : undefined} closeDisabled={saving} width="lg" onClose={() => { const shouldClear = requestedEditId !== null || queryEditId || page.url.searchParams.has('modal') || form?.values?.mode === 'save'; requestedEditId = null; if (shouldClear) void goto(clearEditQueryHref(page.url), { replaceState: true, ...modalNavigationOptions }); }}>
   {#if editModal.loading}
-    <div class="rounded-xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600" role="status">Memuat data {title.toLowerCase()}…</div>
+    <div class="space-y-3" role="status" aria-label={`Menyiapkan formulir ${title.toLowerCase()}`}><div class="h-11 animate-pulse rounded-lg bg-slate-100"></div><div class="h-11 animate-pulse rounded-lg bg-slate-100"></div></div>
   {:else}
   <p class="mt-2 text-sm text-slate-500">{isCurriculum ? 'Kurikulum yang sudah digunakan mahasiswa mempertahankan identitas, mata kuliah, dan persyaratannya. Buat versi baru untuk perubahan akademik.' : 'Kode, nama, dan SKS yang sudah digunakan kurikulum atau kelas tidak dapat diubah. Buat mata kuliah dengan kode baru untuk versi berikutnya.'}</p>
   {#if data.edit}<p class="mt-2 text-sm text-slate-500">Status: {data.edit.isActive ? 'Aktif' : 'Nonaktif'}. Gunakan tindakan pada tabel untuk mengubah status.</p>{/if}

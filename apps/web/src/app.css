@@ -42,15 +42,20 @@ dialog::backdrop { background: rgb(15 23 42 / 0.48); backdrop-filter: blur(2px);
   .app-content textarea { @apply min-h-24 resize-y; }
   .app-content :where(label) { @apply leading-5 text-slate-700; }
   .app-content :where(table) { @apply border-separate border-spacing-0; }
-  .app-content :where(thead th) { @apply bg-slate-50/90 text-xs font-semibold uppercase tracking-[0.055em] text-slate-500; }
+  .app-content :where(thead th) { @apply bg-slate-50/90 text-xs font-semibold tracking-wide text-slate-500; }
   .app-content :where(tbody tr) { @apply transition-colors duration-150; }
   .app-content :where(tbody tr:hover) { @apply bg-slate-50/75; }
   .app-content :where(tbody td) { @apply text-slate-700; }
   .app-content :where(a) { @apply transition-colors duration-150; }
   .surface-panel { @apply rounded-xl border border-slate-200/90 bg-white shadow-panel; }
+  .filter-panel { @apply rounded-xl border border-slate-200/90 bg-slate-50/70 p-4; }
   .control-base { @apply min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none placeholder:text-slate-400; }
   .table-shell { @apply overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-panel; }
   .eyebrow { @apply text-xs font-semibold uppercase tracking-[0.12em] text-brand-700; }
+  .action-primary { @apply inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg bg-brand-700 px-3 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50; }
+  .action-secondary { @apply inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50; }
+  .action-ghost { @apply inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-50; }
+  .action-danger { @apply inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50; }
 }
 
 @media (prefers-reduced-motion: reduce) {
