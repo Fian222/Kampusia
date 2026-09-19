@@ -15,7 +15,7 @@ function fixture() {
   const adviserUser: AuthUser = { id: uuid(), email: 'adviser@test.local', role: 'DOSEN' };
   const adviserId = uuid();
   const adviserAccount = { id: adviserUser.id, role: 'DOSEN' as const, isActive: true };
-  const adviserProfile = { ...common(), id: adviserId, userId: adviserUser.id as string | null, programStudiId: null as string | null, kodeDosen: 'PA', nidn: null as string | null, nama: 'Adviser', isActive: true };
+  const adviserProfile = { ...common(), id: adviserId, userId: adviserUser.id as string | null, programStudiId: null as string | null, nik: null as string | null, kodeDosen: 'PA', nidn: null as string | null, nama: 'Adviser', isActive: true };
   const owner: typeof mahasiswa.$inferSelect = { ...common(), userId: user.id, programStudiId: uuid(), kurikulumId: uuid(), dosenPaId: adviserId, nim: '001', nama: 'Student', angkatan: 2026, status: 'AKTIF' };
   const term: typeof semester.$inferSelect = { ...common(), kode: '20261', nama: 'Ganjil', tahunMulai: 2026, jenis: 'GANJIL', tanggalMulai: '2026-08-24', tanggalSelesai: '2027-01-15', krsMulaiAt: new Date('2026-09-01T00:00:00Z'), krsSelesaiAt: new Date('2026-10-01T00:00:00Z'), isActive: true };
   const terms: (typeof semester.$inferSelect)[] = [term];

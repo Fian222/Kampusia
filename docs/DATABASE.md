@@ -2,7 +2,7 @@
 
 This document is the source of truth for the database design. Twenty PostgreSQL tables are implemented in `packages/db/schema/`: the initial 15 tables from `packages/db/migrations/0000_initial.sql`, followed by the `pertemuan` and `absensi` extension and the `komponen_nilai`, `nilai_mahasiswa`, and `hasil_studi` extension. The initial migration was applied and verified on the local Podman development database on 2026-09-05, the attendance extension on 2026-09-14, and the grading extension on 2026-09-15. Migration state is specific to each database.
 
-The academic/staff identity-number authentication redesign in this document is the approved target design but is not implemented yet. In particular, the current Drizzle schema, migrations, API, frontend, and development seed still use email login and do not yet contain `users.login_id` or `dosen.nik`. The target table definitions and migration plan below intentionally precede implementation; a later implementation must update every affected layer together.
+The academic/staff identity-number authentication database extension is implemented through the nullable migration phase in `0004_ordinary_donald_blake.sql`: the Drizzle schema and additive migration contain `users.login_id`, nullable email, `dosen.nik`, row-local checks, uniqueness, and deterministic development-fixture backfill. The migration was applied and verified on the local Podman development database on 2026-09-19. The authentication API and frontend still use email until the next application milestone. `users.login_id` remains nullable specifically so unmapped legacy accounts are preserved; the final NOT NULL step is deferred until application cutover and explicit provisioning are complete.
 
 The grading tables are implemented only at the database layer; their application APIs, service policies, and frontend remain future work. This document must be updated before any later design change and implemented schema must be checked against it. See [database package notes](../packages/db/README.md) for verification commands and the boundary between database constraints and service rules.
 
@@ -76,12 +76,12 @@ Grading configuration belongs to a class offering through komponen_nilai, and ea
 
 ### users
 
-Authentication accounts, separate from student and lecturer academic profiles. This definition describes the target identity-number design; see the staged migration section below for the temporary nullable transition.
+Authentication accounts, separate from student and lecturer academic profiles. This definition describes the currently implemented nullable migration phase; the staged migration section identifies the later final NOT NULL step.
 
 | Column | PostgreSQL type | Nullable | Default | Meaning / reference |
 | --- | --- | --- | --- | --- |
 | `id` | `uuid` | No | gen_random_uuid() | Primary key |
-| `login_id` | `varchar(30)` | No | — | Globally unique, human-entered academic/staff login identifier; digits only |
+| `login_id` | `varchar(30)` | Yes | — | Globally unique, human-entered academic/staff login identifier when provisioned; digits only |
 | `email` | `varchar(254)` | Yes | — | Optional canonical lowercase contact/recovery email; not a normal login identifier |
 | `password_hash` | `text` | No | — | Secure password hash; never plaintext |
 | `role` | `varchar(16)` | No | — | ADMIN, AKADEMIK, DOSEN, or MAHASISWA |
@@ -200,7 +200,7 @@ Student academic identity and assigned curriculum.
 
 **Business rules:**
 
-- CHECK `nim ~ '^[0-9]+$'`. NIM is a one-through-30-digit identifier string, not a numeric quantity; preserve leading zeroes. This replaces the current general uppercase-code semantics when the identity redesign is implemented.
+- Target CHECK `nim ~ '^[0-9]+$'`. NIM is a one-through-30-digit identifier string, not a numeric quantity; preserve leading zeroes. The nullable identity migration converts only the known development fixtures and does not add this CHECK yet because non-fixture alphanumeric NIMs require institution-approved correction first; the current general canonical-code CHECK remains during this transition.
 - CHECK angkatan BETWEEN 1900 AND 9999.
 - An academic record may exist before a login account is provisioned.
 - When `user_id` is present, the linked account must have role MAHASISWA and `users.login_id` must exactly equal `mahasiswa.nim`. The foreign key and the two single-column unique constraints cannot enforce this cross-table role/equality rule; the profile/account service must enforce it in the same transaction used to create or change the link.
@@ -317,13 +317,13 @@ UUID primary/foreign keys mean an authorized correction does not detach KRS, att
 
 #### Staged migration and backfill
 
-The safer migration is staged provisioning, not failure-prone inference. It temporarily permits `users.login_id` to be null for an unmapped legacy account, and authentication by identifier refuses such an account until an authorized mapping is supplied. This can cause an explicit, reported temporary lockout, but it is safer than inventing a staff NIK or silently deriving one from email, lecturer code, NIDN, UUID, or row order.
+The implemented database migration uses staged provisioning, not failure-prone inference. It permits `users.login_id` to be null for an unmapped legacy account. The next application milestone must refuse identifier authentication for such an account until an authorized mapping is supplied. This can cause an explicit, reported temporary lockout after application cutover, but it is safer than inventing a staff NIK or silently deriving one from email, lecturer code, NIDN, UUID, or row order.
 
-A later implementation should use this sequence:
+The database portion implements the additive columns/constraints and safe backfills in this sequence; application cutover and final NOT NULL enforcement remain later steps:
 
 1. Inventory every users row, profile link, duplicate/collision candidate, non-digit NIM, and existing email. Produce an explicit mapping list for every ADMIN, AKADEMIK, and linked DOSEN account before cutover.
 2. Add nullable `users.login_id varchar(30)` with its unique constraint and nullable digits-only CHECK. Add nullable `dosen.nik varchar(30)` with its unique constraint and nullable digits-only CHECK. Keep the existing UUID relationships. Do not add a `pegawai` table.
-3. Normalize/validate `mahasiswa.nim` under the new digits-only policy. Known development fixtures receive the deterministic replacements below. Non-fixture alphanumeric NIMs require an institution-approved NIM correction; they are not stripped, hashed, or otherwise guessed.
+3. Convert the known development-fixture NIMs to the deterministic replacements below. Non-fixture alphanumeric NIMs require an institution-approved correction; they are not stripped, hashed, or otherwise guessed. Add and validate the target digits-only NIM CHECK only after that inventory is resolved.
 4. For each linked MAHASISWA whose canonical NIM is valid and whose user role is MAHASISWA, backfill `users.login_id` directly from `mahasiswa.nim`. A mismatch in role or competing global value blocks that row for review.
 5. Populate `dosen.nik` only from an explicit trusted mapping. For each linked DOSEN, require a mapped numeric NIK and matching DOSEN role, then set `dosen.nik` and `users.login_id` together. Never reinterpret `kode_dosen` or `nidn` as NIK.
 6. Populate ADMIN and AKADEMIK `users.login_id` only from explicit internal-staff mappings. Never derive staff NIK from email. Leave genuinely unmapped legacy accounts null, inactive or operationally blocked, and report them for provisioning.

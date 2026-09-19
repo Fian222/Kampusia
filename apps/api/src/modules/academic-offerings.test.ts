@@ -26,7 +26,7 @@ function setup(role: Role = 'AKADEMIK') {
   const terms: Term[] = []; const classes: Class[] = []; const assignments: Assignment[] = [];
   const programs: (typeof programStudi.$inferSelect)[] = [{ ...stamps(), fakultasId: missing, kode: 'IF', nama: 'Informatika', jenjang: 'S1', isActive: true }];
   const courses: (typeof mataKuliah.$inferSelect)[] = [{ ...stamps(), kode: 'IF101', nama: 'Basis Data', sks: 3, isActive: true }];
-  const lecturers: (typeof dosen.$inferSelect)[] = ['A', 'B'].map(kodeDosen => ({ ...stamps(), kodeDosen, nama: kodeDosen, nidn: null, userId: null, programStudiId: null, isActive: true }));
+  const lecturers: (typeof dosen.$inferSelect)[] = ['A', 'B'].map(kodeDosen => ({ ...stamps(), nik: null, kodeDosen, nama: kodeDosen, nidn: null, userId: null, programStudiId: null, isActive: true }));
   const history = new Set<string>(); const selections = new Set<string>(); const scheduled = new Set<string>(); const finalized = new Set<string>(); const enrollments = new Map<string, number>();
   const eligible = new Set<string>();
   const relatedAssignments = (id: string) => assignments.filter(row => row.kelasKuliahId === id).map(row => ({ ...row, dosen: lecturers.find(item => item.id === row.dosenId)! }));
@@ -86,7 +86,7 @@ function setup(role: Role = 'AKADEMIK') {
       update: async (id, isKoordinator) => Object.assign(assignments.find(row => row.id === id)!, { isKoordinator }), remove: async id => { assignments.splice(assignments.findIndex(row => row.id === id), 1); },
     }),
   };
-  const user: AuthRecord = { ...stamps(), email: 'test@kampusia.test', passwordHash: 'test', role, isActive: true };
+  const user: AuthRecord = { ...stamps(), loginId: null, email: 'test@kampusia.test', passwordHash: 'test', role, isActive: true };
   const sessions = createSessionStore(); const token = sessions.create(user.id, user.passwordHash);
   const services = { semester: createSemesterService(termRepository), kelasKuliah: createKelasKuliahService(classRepository), kelasDosen: createKelasDosenService(assignmentRepository) };
   const app = createApp(createAuthService({ findById: async () => user, findByEmail: async () => user }, sessions), { webOrigin: origin, production: false }, services);

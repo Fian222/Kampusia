@@ -4,10 +4,10 @@ import type * as schema from '../schema';
 const id = (group: number, item = 1) => `20260000-0000-4000-8000-${String(group).padStart(4, '0')}${String(item).padStart(8, '0')}`;
 export const demoUsers = {
   // Keep AKADEMIK first: its original UUID remains the seed-completeness anchor.
-  AKADEMIK: { id: id(1), email: 'akademik@kampusia.test', role: 'AKADEMIK' as const },
-  ADMIN: { id: id(1, 2), email: 'admin@kampusia.test', role: 'ADMIN' as const },
-  DOSEN: { id: id(1, 3), email: 'dosen@kampusia.test', role: 'DOSEN' as const },
-  MAHASISWA: { id: id(1, 4), email: 'mahasiswa@kampusia.test', role: 'MAHASISWA' as const },
+  AKADEMIK: { id: id(1), loginId: '99000002', email: 'akademik@kampusia.test', role: 'AKADEMIK' as const },
+  ADMIN: { id: id(1, 2), loginId: '99000001', email: 'admin@kampusia.test', role: 'ADMIN' as const },
+  DOSEN: { id: id(1, 3), loginId: '99000003', email: 'dosen@kampusia.test', role: 'DOSEN' as const },
+  MAHASISWA: { id: id(1, 4), loginId: '99202601', email: 'mahasiswa@kampusia.test', role: 'MAHASISWA' as const },
 };
 export const demoEmail = demoUsers.AKADEMIK.email;
 
@@ -35,11 +35,13 @@ export function developmentData(passwordHash: string, now = new Date()) {
   const semester = [{ id: id(7), kode: '20261', nama: 'Ganjil 2026/2027', tahunMulai: 2026, jenis: 'GANJIL', tanggalMulai: '2026-08-24', tanggalSelesai: '2027-01-15', krsMulaiAt, krsSelesaiAt, isActive: true }] satisfies (typeof schema.semester.$inferInsert)[];
   const dosen = ['Rina Pratama (Demo)', 'Budi Santoso (Demo)'].map((nama, index) => ({
     id: id(8, index + 1), userId: index === 0 ? demoUsers.DOSEN.id : null,
-    programStudiId: id(3), kodeDosen: `DEV-DOS-${index + 1}`, nidn: null, nama, isActive: true,
+    programStudiId: id(3), nik: index === 0 ? demoUsers.DOSEN.loginId : null,
+    kodeDosen: `DEV-DOS-${index + 1}`, nidn: null, nama, isActive: true,
   })) satisfies (typeof schema.dosen.$inferInsert)[];
   const mahasiswa = ['Andi Saputra', 'Siti Rahma', 'Dewi Lestari', 'Rizky Pratama', 'Nadia Putri'].map((nama, index) => ({
     id: id(9, index + 1), userId: index === 0 ? demoUsers.MAHASISWA.id : null,
-    programStudiId: id(3), kurikulumId: id(4), dosenPaId: index === 0 ? id(8, 1) : null, nim: `DEV2026${String(index + 1).padStart(4, '0')}`,
+    programStudiId: id(3), kurikulumId: id(4), dosenPaId: index === 0 ? id(8, 1) : null,
+    nim: `992026${String(index + 1).padStart(2, '0')}`,
     nama: `${nama} (Demo)`, angkatan: 2026, status: 'AKTIF' as const,
   })) satisfies (typeof schema.mahasiswa.$inferInsert)[];
   const ruangan = [

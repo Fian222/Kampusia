@@ -9,7 +9,7 @@ let passwordHash: string;
 beforeAll(async () => { passwordHash = await Bun.password.hash('TestPassword2026!', { algorithm: 'argon2id' }); });
 
 function setup(role: Role = 'AKADEMIK', production = false) {
-  const record: AuthRecord = { id: '00000000-0000-4000-8000-000000000001', email: 'test@kampusia.test',
+  const record: AuthRecord = { id: '00000000-0000-4000-8000-000000000001', loginId: null, email: 'test@kampusia.test',
     role, passwordHash, isActive: true, createdAt: new Date(), updatedAt: new Date() };
   let now = Date.now();
   const service = createAuthService({

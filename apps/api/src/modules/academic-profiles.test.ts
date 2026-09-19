@@ -74,7 +74,7 @@ function setup(role: Role = 'AKADEMIK') {
       ...references,
       findById: async id => lecturers.find(row => row.id === id),
       create: async input => {
-        const row: Lecturer = { ...input, id: crypto.randomUUID(), userId: input.userId ?? null, programStudiId: input.programStudiId ?? null, nidn: input.nidn ?? null, isActive: input.isActive ?? true, ...dates() };
+        const row: Lecturer = { ...input, id: crypto.randomUUID(), userId: input.userId ?? null, programStudiId: input.programStudiId ?? null, nik: null, nidn: input.nidn ?? null, isActive: input.isActive ?? true, ...dates() };
         duplicate(lecturers, row, lecturerConstraints); lecturers.push(row); return row;
       },
       update: async (id, input) => {
@@ -83,7 +83,7 @@ function setup(role: Role = 'AKADEMIK') {
       },
     }),
   };
-  const user: AuthRecord = { id: crypto.randomUUID(), email: 'test@kampusia.test', passwordHash: 'unused-test-hash', role, isActive: true, ...dates() };
+  const user: AuthRecord = { id: crypto.randomUUID(), loginId: null, email: 'test@kampusia.test', passwordHash: 'unused-test-hash', role, isActive: true, ...dates() };
   const sessions = createSessionStore();
   const token = sessions.create(user.id, user.passwordHash);
   const auth = createAuthService({

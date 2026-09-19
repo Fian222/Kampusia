@@ -90,7 +90,7 @@ function setup(role: Role = 'AKADEMIK') {
       remove: async id => { memberships.splice(memberships.findIndex(row => row.id === id), 1); },
     }),
   };
-  const user: AuthRecord = { ...stamps(), email: 'test@kampusia.test', passwordHash: 'unused-test-hash', role, isActive: true };
+  const user: AuthRecord = { ...stamps(), loginId: null, email: 'test@kampusia.test', passwordHash: 'unused-test-hash', role, isActive: true };
   const sessions = createSessionStore(); const token = sessions.create(user.id, user.passwordHash);
   const auth = createAuthService({ findById: async () => user, findByEmail: async () => user }, sessions);
   const app = createApp(auth, { webOrigin: origin, production: false }, { mataKuliah: createMataKuliahService(courseRepository), kurikulum: createKurikulumService(curriculumRepository), kurikulumMatkul: createKurikulumMatkulService(membershipRepository) });

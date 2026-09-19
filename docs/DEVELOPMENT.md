@@ -26,16 +26,16 @@ The seed requires `NODE_ENV=development`, a loopback PostgreSQL URL for database
 
 ## Demo credentials
 
-| Role | Email | Password source |
-| --- | --- | --- |
-| ADMIN | admin@kampusia.test | value of `SEED_PASSWORD` |
-| AKADEMIK | akademik@kampusia.test | value of `SEED_PASSWORD` |
-| DOSEN | dosen@kampusia.test | value of `SEED_PASSWORD` |
-| MAHASISWA | mahasiswa@kampusia.test | value of `SEED_PASSWORD` |
+| Role | Current email login | Database `login_id` | Password source |
+| --- | --- | --- | --- |
+| ADMIN | admin@kampusia.test | `99000001` | value of `SEED_PASSWORD` |
+| AKADEMIK | akademik@kampusia.test | `99000002` | value of `SEED_PASSWORD` |
+| DOSEN | dosen@kampusia.test | `99000003` | value of `SEED_PASSWORD` |
+| MAHASISWA | mahasiswa@kampusia.test | `99202601` | value of `SEED_PASSWORD` |
 
-Use these credentials only for development. All roles sign in through `/login`; successful login routes ADMIN to `/admin`, AKADEMIK to `/akademik`, DOSEN to `/dosen`, and MAHASISWA to `/mahasiswa`. The database stores a separate salted Argon2id hash produced by Bun for each account, never the plaintext password. A different `SEED_PASSWORD` can be chosen for the first run. Reruns preserve existing hashes and do not reset credentials, even if the environment value later changes.
+Use these credentials only for development. The database identity-number extension is present, but the current application milestone still authenticates with the email column; `login_id` becomes the request identifier in the next application milestone. All roles sign in through `/login`; successful login routes ADMIN to `/admin`, AKADEMIK to `/akademik`, DOSEN to `/dosen`, and MAHASISWA to `/mahasiswa`. The database stores a separate salted Argon2id hash produced by Bun for each account, never the plaintext password. A different `SEED_PASSWORD` can be chosen for the first run. Reruns preserve existing hashes and do not reset credentials, even if the environment value later changes.
 
-The DOSEN account is linked only to Rina Pratama (Demo), code `DEV-DOS-1`, who is already assigned to seeded classes. The MAHASISWA account is linked only to Andi Saputra (Demo), NIM `DEV20260001`, whose approved 9-SKS KRS includes Basis Data, Pemrograman Web, and Struktur Data. The current fixture does not create meetings, attendance rows, grading components, scores, or finalized study results, so attendance and KHS/IPS/IPK remain empty until those workflows are exercised.
+The DOSEN account is linked only to Rina Pratama (Demo), NIK `99000003` and code `DEV-DOS-1`, who is already assigned to seeded classes. The MAHASISWA account is linked only to Andi Saputra (Demo), NIM `99202601`, whose approved 9-SKS KRS includes Basis Data, Pemrograman Web, and Struktur Data. The current fixture does not create meetings, attendance rows, grading components, scores, or finalized study results, so attendance and KHS/IPS/IPK remain empty until those workflows are exercised.
 
 ## Authentication verification
 
@@ -115,7 +115,7 @@ The E2E test defaults to `http://localhost:5173`; `PROFILE_WEB_ORIGIN` can point
 
 ## Sample academic data
 
-The fixture includes Fakultas Teknik (`DEV-FT`), Informatika S1 (`DEV-IF`), Kurikulum Informatika 2026, five 3-SKS courses, two demo lecturers, five AKTIF students (`DEV20260001` through `DEV20260005`), and three rooms. NIDNs are left null. Curriculum semester recommendations are 1 for Algoritma dan Pemrograman, 3 for Basis Data and Struktur Data, and 5 for Pemrograman Web and Sistem Operasi. Recommendations do not restrict KRS eligibility in the initial design.
+The fixture includes Fakultas Teknik (`DEV-FT`), Informatika S1 (`DEV-IF`), Kurikulum Informatika 2026, five 3-SKS courses, two demo lecturers, five AKTIF students (`99202601` through `99202605`), and three rooms. NIDNs are left null. Curriculum semester recommendations are 1 for Algoritma dan Pemrograman, 3 for Basis Data and Struktur Data, and 5 for Pemrograman Web and Sistem Operasi. Recommendations do not restrict KRS eligibility in the initial design.
 
 Semester `20261` is explicitly activated with dates 2026-08-24 through 2027-01-15. Any other active semester is deactivated in the same transaction. All five classes are opened with capacity 30. Each has a coordinator; Basis Data has both lecturers assigned. Local weekly times are Asia/Jakarta:
 
@@ -282,7 +282,7 @@ The initial advising workflow currently uses the same Semester KRS interval for 
 
 Semester `datetime-local` values are always interpreted as Asia/Jakarta academic time and converted explicitly to absolute `timestamptz` instants; they never depend on the API host timezone. The development seed assigns the demo MAHASISWA to the linked demo DOSEN and refreshes the active demo Semester to a rolling, currently usable KRS window on every safe idempotent seed run. This rolling window is development-only fixture behavior, not production scheduling policy.
 
-Students use `/mahasiswa/krs`; ADMIN and AKADEMIK share `/akademik/krs` and `/akademik/krs/:id`. The sidebar links to the appropriate area. Student accounts must be linked to their academic profiles; the development seed provisions the documented MAHASISWA demo account and links it to `DEV20260001`.
+Students use `/mahasiswa/krs`; ADMIN and AKADEMIK share `/akademik/krs` and `/akademik/krs/:id`. The sidebar links to the appropriate area. Student accounts must be linked to their academic profiles; the development seed provisions the documented MAHASISWA demo account and links it to `99202601`.
 
 Set `KRS_INITIAL_BATAS_SKS` in `apps/api/.env` to the authorized fallback credit limit, for example `18` for development. The service validates it as a positive PostgreSQL smallint whenever a new plan needs the fallback. Existing plans retain `krs.batas_sks`, and neither student request bodies nor subsequent configuration changes overwrite it. Missing/invalid fallback configuration returns a clear service-unavailable message only when a new plan cannot use a complete previous-semester IPS. There is no credit-limit edit endpoint.
 

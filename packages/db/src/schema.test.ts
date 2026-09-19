@@ -6,6 +6,7 @@ import * as schema from '../schema';
 import { createDatabase } from './index';
 
 const design = readFileSync(new URL('../../../docs/DATABASE.md', import.meta.url), 'utf8');
+const identityMigration = readFileSync(new URL('../migrations/0004_ordinary_donald_blake.sql', import.meta.url), 'utf8');
 const dialect = new PgDialect();
 const tables = Object.values(schema).filter((value) => is(value, PgTable));
 const sections = [...design.matchAll(/^### ([a-z_]+)\r?\n([\s\S]*?)(?=^### |^## |$(?![\s\S]))/gm)];
@@ -16,6 +17,20 @@ const normalizeType = (value: string) => value
   .replace(/,\s+/g, ',');
 
 describe('DATABASE.md schema contract', () => {
+  test('identity migration uses only documented fixture mappings and safe student backfill', () => {
+    for (const value of ['99000001', '99000002', '99000003', '99202601']) {
+      expect(identityMigration).toContain(value);
+    }
+    for (const value of ['DEV20260001', 'DEV20260005', '99202605']) {
+      expect(identityMigration).toContain(value);
+    }
+    expect(identityMigration).toContain('"m"."user_id" = "u"."id"');
+    expect(identityMigration).toContain('"m"."nim" ~ \'^[0-9]+$\'');
+    expect(identityMigration).toContain('"u"."login_id" IS NULL');
+    expect(identityMigration).not.toMatch(/SET\s+"login_id"\s*=\s*[^;]*"email"/i);
+    expect(identityMigration).not.toContain('ALTER COLUMN "login_id" SET NOT NULL');
+  });
+
   test('exports exactly the documented tables', () => {
     expect(sections).toHaveLength(20);
     expect(tables.map((table) => getTableConfig(table).name).sort())
@@ -69,6 +84,35 @@ describe('DATABASE.md schema contract', () => {
       expect(key.onDelete).toBe('restrict');
       expect(key.onUpdate).toBe('restrict');
     }
+  });
+
+  test('identity-number authentication columns match the nullable migration phase', () => {
+    const account = getTableConfig(schema.users);
+    const loginId = account.columns.find((column) => column.name === 'login_id');
+    const email = account.columns.find((column) => column.name === 'email');
+    expect(loginId?.getSQLType()).toBe('varchar(30)');
+    expect(loginId?.notNull).toBe(false);
+    expect(email?.getSQLType()).toBe('varchar(254)');
+    expect(email?.notNull).toBe(false);
+    expect(account.uniqueConstraints.map((key) => ({
+      name: key.name,
+      columns: key.columns.map((column) => column.name),
+    }))).toContainEqual({ name: 'users_login_id_unique', columns: ['login_id'] });
+    const loginCheck = account.checks.find((entry) => entry.name === 'users_login_id_digits_check');
+    expect(loginCheck).toBeDefined();
+    expect(sqlText(loginCheck?.value)).toBe('"users"."login_id" IS NULL OR "users"."login_id" ~ \'^[0-9]+$\'');
+
+    const lecturer = getTableConfig(schema.dosen);
+    const nik = lecturer.columns.find((column) => column.name === 'nik');
+    expect(nik?.getSQLType()).toBe('varchar(30)');
+    expect(nik?.notNull).toBe(false);
+    expect(lecturer.uniqueConstraints.map((key) => ({
+      name: key.name,
+      columns: key.columns.map((column) => column.name),
+    }))).toContainEqual({ name: 'dosen_nik_unique', columns: ['nik'] });
+    const nikCheck = lecturer.checks.find((entry) => entry.name === 'dosen_nik_digits_check');
+    expect(nikCheck).toBeDefined();
+    expect(sqlText(nikCheck?.value)).toBe('"dosen"."nik" IS NULL OR "dosen"."nik" ~ \'^[0-9]+$\'');
   });
 
   test('student curriculum and program are enforced by one non-null composite reference', () => {

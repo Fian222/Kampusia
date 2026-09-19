@@ -69,7 +69,7 @@ function setup(role: Role = 'AKADEMIK') {
       },
     }),
   };
-  const user: AuthRecord = { id: crypto.randomUUID(), email: 'test@kampusia.test', passwordHash: 'unused-test-hash', role, isActive: true, createdAt: new Date(), updatedAt: new Date() };
+  const user: AuthRecord = { id: crypto.randomUUID(), loginId: null, email: 'test@kampusia.test', passwordHash: 'unused-test-hash', role, isActive: true, createdAt: new Date(), updatedAt: new Date() };
   const sessions = createSessionStore();
   const token = sessions.create(user.id, user.passwordHash);
   const auth = createAuthService({ findByEmail: async () => user, findById: async () => user }, sessions);

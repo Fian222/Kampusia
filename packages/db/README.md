@@ -2,9 +2,9 @@
 
 The schema implements the 20 tables in [DATABASE.md](../../docs/DATABASE.md). Each table has its own file under `schema/`; `schema/index.ts` exports the tables and Drizzle query relations. PostgreSQL names use snake_case; TypeScript properties use camelCase.
 
-The initial migration is `migrations/0000_initial.sql`; additive migrations create the attendance and grading extensions. Their Drizzle snapshots and journal metadata are in `migrations/meta/`. The initial migration was applied and verified against the local Podman `kampusia` development database on 2026-09-05, the attendance migration on 2026-09-14, and the grading migration on 2026-09-15. Other databases must run their own migration command.
+The initial migration is `migrations/0000_initial.sql`; additive migrations create the attendance, grading, KRS-advising, and identity-number authentication extensions. Their Drizzle snapshots and journal metadata are in `migrations/meta/`. Identity migration `0004_ordinary_donald_blake.sql` was applied and verified against the local Podman `kampusia` development database on 2026-09-19. Other databases must run their own migration command.
 
-Local migration verification confirms 20 application tables, 35 foreign keys, 24 ordinary unique constraints, 68 CHECK constraints, and 65 indexes including three partial unique indexes. The grading integration fixtures always roll back.
+Local migration verification confirms 20 application tables, 39 foreign keys, 26 ordinary unique constraints, 75 explicit CHECK constraints, and 68 indexes including three partial unique indexes. Database integration fixtures always roll back.
 
 Use `bun run db:seed` for repeatable development data. See [development setup](../../docs/DEVELOPMENT.md) for fixture contents, credentials, environment settings, and the opt-in live seed test.
 
@@ -21,6 +21,7 @@ bun run db:generate
 bun run db:check
 RUN_ATTENDANCE_DB_TESTS=1 bun --env-file=packages/db/.env test packages/db/src/attendance-schema.integration.test.ts
 RUN_GRADING_DB_TESTS=1 bun --env-file=packages/db/.env test packages/db/src/grading-schema.integration.test.ts
+RUN_IDENTITY_AUTH_DB_TESTS=1 bun --env-file=packages/db/.env test packages/db/src/identity-auth-schema.integration.test.ts
 ```
 
 Generation and migration-history checks do not need a database connection. `db:check` validates Drizzle migration metadata; it does not execute the SQL or compare a live database. The tests compare schema metadata with DATABASE.md and compile relational queries without connecting to PostgreSQL.
@@ -42,6 +43,7 @@ All documented column definitions, row-local CHECK constraints, foreign keys, un
 The following documented rules require future service logic and transactions rather than ordinary declarative Drizzle constraints. They are not implemented by this schema or by Drizzle query relations:
 
 - Account role compatibility, exclusion of simultaneous student/lecturer links, secure password hashing, active-account checks, and authorization.
+- Login through `users.login_id`, removal of email login, linked MAHASISWA/DOSEN identifier equality, atomic NIM/NIK synchronization, and denial of authentication for an unmapped legacy account.
 - Class-opening requirements: a course in at least one curriculum of the offering program, active resources, lecturer assignments, and valid schedules.
 - KRS/class semester compatibility, student program and curriculum eligibility, duplicate course selections across different classes, total SKS limits, and at least one selection at submission/approval.
 - Room, class, lecturer, and student schedule conflicts; room capacity versus class capacity; class capacity versus derived approved active enrollment counts; occurrence of weekly slots within semester dates.

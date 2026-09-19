@@ -27,11 +27,11 @@ test('repeat fixture validation preserves passwords but rejects changed academic
 });
 
 test('demo users cover every role with active accounts', () => {
-  expect(data.users.map(user => ({ email: user.email, role: user.role, isActive: user.isActive }))).toEqual([
-    { email: 'akademik@kampusia.test', role: 'AKADEMIK', isActive: true },
-    { email: 'admin@kampusia.test', role: 'ADMIN', isActive: true },
-    { email: 'dosen@kampusia.test', role: 'DOSEN', isActive: true },
-    { email: 'mahasiswa@kampusia.test', role: 'MAHASISWA', isActive: true },
+  expect(data.users.map(user => ({ loginId: user.loginId, email: user.email, role: user.role, isActive: user.isActive }))).toEqual([
+    { loginId: '99000002', email: 'akademik@kampusia.test', role: 'AKADEMIK', isActive: true },
+    { loginId: '99000001', email: 'admin@kampusia.test', role: 'ADMIN', isActive: true },
+    { loginId: '99000003', email: 'dosen@kampusia.test', role: 'DOSEN', isActive: true },
+    { loginId: '99202601', email: 'mahasiswa@kampusia.test', role: 'MAHASISWA', isActive: true },
   ]);
   expect(new Set(data.users.map(user => user.id)).size).toBe(4);
   expect(new Set(data.users.map(user => user.email)).size).toBe(4);
@@ -42,13 +42,13 @@ test('demo DOSEN and MAHASISWA users have exactly one coherent fixture profile l
   const student = data.mahasiswa.filter(row => row.userId !== null);
   expect(lecturer).toHaveLength(1);
   expect(lecturer[0]).toMatchObject({
-    kodeDosen: 'DEV-DOS-1', nama: 'Rina Pratama (Demo)', isActive: true,
+    nik: '99000003', kodeDosen: 'DEV-DOS-1', nama: 'Rina Pratama (Demo)', isActive: true,
     userId: data.users.find(user => user.role === 'DOSEN')!.id,
   });
   expect(data.kelasDosen.some(row => row.dosenId === lecturer[0]!.id)).toBe(true);
   expect(student).toHaveLength(1);
   expect(student[0]).toMatchObject({
-    nim: 'DEV20260001', nama: 'Andi Saputra (Demo)', status: 'AKTIF',
+    nim: '99202601', nama: 'Andi Saputra (Demo)', status: 'AKTIF',
     userId: data.users.find(user => user.role === 'MAHASISWA')!.id, dosenPaId: lecturer[0]!.id,
   });
   expect(data.semester[0]!.krsMulaiAt!.getTime()).toBeLessThan(Date.now());
@@ -131,7 +131,7 @@ test.skipIf(process.env.RUN_DB_SEED_TESTS !== '1')('live seed is repeatable and 
     for (const expected of data.users) {
       const account = secondAccounts.find(row => row.id === expected.id)!;
       const firstAccount = firstAccounts.find(row => row.id === expected.id)!;
-      expect(account).toMatchObject({ email: expected.email, role: expected.role, isActive: true });
+      expect(account).toMatchObject({ loginId: expected.loginId, email: expected.email, role: expected.role, isActive: true });
       expect(account.passwordHash.startsWith('$argon2id$')).toBe(true);
       expect(await Bun.password.verify(password, account.passwordHash)).toBe(true);
       expect(account.passwordHash).toBe(firstAccount.passwordHash);
@@ -139,10 +139,12 @@ test.skipIf(process.env.RUN_DB_SEED_TESTS !== '1')('live seed is repeatable and 
     const lecturer = data.dosen.find(row => row.userId !== null)!;
     const lecturerProfile = await db.query.dosen.findFirst({ where: (row, { eq }) => eq(row.id, lecturer.id) });
     expect(lecturerProfile!.userId).toBe(data.users.find(row => row.role === 'DOSEN')!.id);
+    expect(lecturerProfile!.nik).toBe(data.users.find(row => row.role === 'DOSEN')!.loginId);
     const student = data.mahasiswa.find(row => row.userId !== null)!;
     const studentProfile = await db.query.mahasiswa.findFirst({ where: (row, { eq }) => eq(row.id, student.id) });
     expect(studentProfile!.userId).toBe(data.users.find(row => row.role === 'MAHASISWA')!.id);
     expect(studentProfile!.dosenPaId).toBe(lecturer.id);
+    expect(studentProfile!.nim).toBe(data.users.find(row => row.role === 'MAHASISWA')!.loginId);
     const invalid = await db.execute(sql`
       select m.id from mahasiswa m left join kurikulum k
         on k.id = m.kurikulum_id and k.program_studi_id = m.program_studi_id
