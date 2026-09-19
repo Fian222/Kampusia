@@ -21,6 +21,8 @@
   const correctionComponent = $derived(grading.components.find((item: { id: string }) => item.id === correctionComponentId));
   const componentValues = $derived(form?.values && ['component-create', 'component-update'].includes(form.values.mode ?? '') && (form.values.component_id ?? '') === (editingComponentId ?? '') ? form.values : undefined);
   const correctionValues = $derived(form?.values?.mode === 'correct' && form.values.mahasiswa_id === correctionStudentId && form.values.component_id === correctionComponentId ? form.values : undefined);
+  const gradingModes = ['component-create', 'component-update', 'component-delete', 'score-save', 'finalize', 'correct'];
+  const gradingFeedback = $derived(form?.values?.mode && gradingModes.includes(form.values.mode) ? form : undefined);
   const modalSubmit = (kind: 'component' | 'correction') => { saving = true; return async ({ update, result }: { update: (options: { reset: boolean; invalidateAll: boolean }) => Promise<void>; result: { type: string } }) => { try { await update({ reset: false, invalidateAll: true }); if (result.type === 'success') { if (kind === 'component') componentOpen = false; else correctionOpen = false; } } finally { saving = false; } }; };
   $effect(() => {
     if (form?.values?.mode === 'component-create' && !form.saved) { editingComponentId = undefined; componentOpen = true; }
@@ -35,7 +37,7 @@
     <div><p class="eyebrow">Evaluasi pembelajaran</p><h2 class="mt-2 text-xl font-bold">Penilaian</h2><p class="mt-1 text-sm leading-6 text-slate-500">Nilai kosong berarti belum dinilai; <strong class="font-semibold text-slate-700">0.00 tetap merupakan nilai sah</strong>.</p></div>
     <div class="flex flex-wrap gap-2"><div class="rounded-xl bg-slate-100 px-4 py-2.5 text-sm"><span class="block text-xs text-slate-500">Bobot aktif</span><strong class="text-slate-900">{grading.summary.activeWeight}%</strong></div><div class="rounded-xl bg-brand-50 px-4 py-2.5 text-sm"><span class="block text-xs text-brand-700">Nilai lengkap</span><strong class="text-brand-900">{grading.summary.completeStudents}/{grading.summary.totalStudents}</strong></div></div>
   </div>
-  {#if form?.message}<p class="mt-4 rounded-lg border p-3 text-sm" class:border-brand-200={form.saved} class:bg-brand-50={form.saved} class:border-red-200={!form.saved} class:bg-red-50={!form.saved} role={form.saved ? 'status' : 'alert'}>{form.message}</p>{/if}
+  {#if gradingFeedback?.message}<p class="mt-4 rounded-lg border p-3 text-sm" class:border-brand-200={gradingFeedback.saved} class:bg-brand-50={gradingFeedback.saved} class:border-red-200={!gradingFeedback.saved} class:bg-red-50={!gradingFeedback.saved} role={gradingFeedback.saved ? 'status' : 'alert'}>{gradingFeedback.message}</p>{/if}
   {#if saving}<p class="mt-3 text-sm" role="status">Menyimpan…</p>{/if}
   {#if grading.summary.finalized}<div class="mt-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-sm leading-6 text-amber-900"><Icon name="alert" size={18} class="mt-0.5 shrink-0" /><p><strong>Nilai telah difinalisasi.</strong> Konfigurasi dan penyuntingan biasa dibekukan; hasil resmi hanya dapat diubah lewat koreksi terkontrol ADMIN/AKADEMIK.</p></div>{/if}
 

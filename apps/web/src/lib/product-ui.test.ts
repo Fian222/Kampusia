@@ -31,8 +31,9 @@ test('core academic workspaces expose clear hierarchy and focused actions', asyn
   expect(semester).toContain('Periode KRS');
   expect(classes).toContain('Buka kelas');
   expect(classes).toContain('row.dosen?.map');
-  expect(classDetail).toContain('aria-label="Bagian ruang kerja kelas"');
-  expect(classDetail).toContain("['#pertemuan', 'Pertemuan']");
+  expect(classDetail).toContain('aria-label="Ruang kerja kelas"');
+  expect(classDetail).toContain('classWorkspaceTabs');
+  expect(classDetail).toContain("activeTab === 'meetings'");
   expect(lecturerDetail).toContain('Pertemuan & absensi');
   expect(profiles).toContain('Hasil Studi');
   expect(profiles).toContain('md:hidden');
