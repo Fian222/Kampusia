@@ -43,6 +43,7 @@
   <ul class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-panel">
     {#each items as item (item.kelas.id)}
       {@const kelas = item.kelas}
+      {@const slot = kelas.jadwal[0]}
       <li class="border-b border-slate-100 last:border-b-0">
         <article class="grid gap-4 p-4 sm:p-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(14rem,0.85fr)_auto] lg:items-center">
           <div class="min-w-0">
@@ -67,7 +68,7 @@
           </div>
 
           <div class="rounded-lg bg-slate-50 px-3.5 py-3 text-sm text-slate-700">
-            {#each kelas.jadwal as slot}
+            {#if slot}
               <div class="mb-2 flex items-start gap-2 last:mb-0">
                 <Icon name="clock" size={15} class="mt-0.5 shrink-0 text-slate-400" />
                 <p>
@@ -77,7 +78,7 @@
               </div>
             {:else}
               <p class="text-slate-500">Jadwal belum tersedia</p>
-            {/each}
+            {/if}
             {#if mode === 'available'}
               <p class="mt-2 border-t border-slate-200 pt-2 text-xs text-slate-500">
                 <strong class="font-semibold text-slate-700">{kelas.jumlahMahasiswa}/{kelas.kapasitas}</strong> kursi terisi

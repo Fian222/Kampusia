@@ -48,6 +48,13 @@ test('Akademik class detail renders one focused workspace section with seamless 
   expect(page).toContain('Dosen Pengajar');
   expect(page).toContain('name="assignment_id"');
   expect(page).toContain('Jadwal Kuliah');
+  expect(page).toContain('const regularSchedule = $derived(data.schedules.data[0])');
+  expect(page).toContain('Atur Jadwal');
+  expect(page).toContain('Edit Jadwal');
+  expect(page).toContain('Belum ada jadwal untuk kelas ini.');
+  expect(page).not.toContain('Tambah Jadwal');
+  expect(page).not.toContain('scheduleHref');
+  expect(page).not.toContain('<Pagination {...data.schedules.meta}');
   expect(page).toContain('name="jadwal_id"');
   expect(page).toContain('area="akademik"');
   expect(page).toContain('<GradingManager');

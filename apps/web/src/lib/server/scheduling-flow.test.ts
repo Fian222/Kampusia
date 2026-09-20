@@ -27,7 +27,7 @@ test.skipIf(Bun.env.RUN_SCHEDULING_E2E !== '1')('SvelteKit room and schedule for
     const path = '/akademik/kelas-kuliah/' + classId;
     const detail = await request(path, { headers: { cookie } }); expect(detail.status).toBe(200);
     const html = await detail.text();
-    for (const label of ['Jadwal Kuliah', 'Jam Mulai', 'Jam Selesai', 'Ruangan', 'Gedung', 'Tambah Jadwal', 'Edit jadwal', 'Simpan status']) expect(html).toContain(label);
+    for (const label of ['Jadwal Kuliah', 'Jam Mulai', 'Jam Selesai', 'Ruangan', 'Gedung', 'Atur Jadwal', 'Edit Jadwal', 'Simpan status']) expect(html).toContain(label);
     expect(html).not.toContain('menunggu validasi');
     const scheduleId = /name="jadwal_id" value="([0-9a-f-]{36})"/.exec(html)?.[1]; expect(scheduleId).toBeDefined();
     const detailAction = path + '?/detail';
@@ -35,7 +35,7 @@ test.skipIf(Bun.env.RUN_SCHEDULING_E2E !== '1')('SvelteKit room and schedule for
     const invalidHtml = await invalid.text(); expect(invalidHtml).toContain('Jam mulai harus lebih awal'); expect(invalidHtml).toContain('value="12:00"');
     const removal = await post(detailAction, { mode: 'schedule-remove', jadwal_id: scheduleId! }); expect(removal.status).toBe(400); expect(await removal.text()).toContain('Konfirmasikan');
     const status = await post(detailAction, { mode: 'status', status: 'DIBUKA' }); expect(status.status).toBe(400); expect(await status.text()).toContain('Konfirmasikan');
-    const selector = await request(path + '?room_search=NO-MATCH-' + crypto.randomUUID(), { headers: { cookie } }); expect(selector.status).toBe(200); expect(await selector.text()).toContain('Edit jadwal');
+    const selector = await request(path + '?room_search=NO-MATCH-' + crypto.randomUUID(), { headers: { cookie } }); expect(selector.status).toBe(200); expect(await selector.text()).toContain('Edit Jadwal');
     for (const target of ['/akademik/ruangan', detailAction]) expect((await request(target, { method: 'POST', headers: { cookie, origin: 'https://evil.test' }, body: new URLSearchParams({ mode: 'save' }) })).status).toBe(403);
   } finally { await request('/logout', { method: 'POST', headers: { cookie, origin } }); }
 }, 60000);

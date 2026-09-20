@@ -10,6 +10,7 @@ import { createKelasKuliahRepository } from './kelas-kuliah/kelas-kuliah.reposit
 import { createKelasKuliahService } from './kelas-kuliah/kelas-kuliah.service';
 import { createKelasDosenRepository } from './kelas-dosen/kelas-dosen.repository';
 import { createKelasDosenService } from './kelas-dosen/kelas-dosen.service';
+import { postgresError } from '../utils/academic-write';
 type Database = ReturnType<typeof createDatabase>['db'];
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
 function connect() {
@@ -49,11 +50,23 @@ test.skipIf(Bun.env.RUN_SCHEDULING_DB_TESTS !== '1')('PostgreSQL schedule confli
       await expect(classes.update(a!.id, { status: 'DIBUKA' })).rejects.toThrow('jadwal');
       const slot = await schedules.add(a!.id, body);
       expect((await schedules.list(a!.id, { limit: 1 })).meta.total).toBe(1);
+      let duplicateError: unknown;
+      try {
+        await tx.transaction(nested => nested.insert(jadwalKuliah).values({
+          kelasKuliahId: a!.id,
+          ruanganId: otherRoom!.id,
+          hari: 2,
+          jamMulai: '10:00',
+          jamSelesai: '12:00',
+        }));
+      } catch (error) { duplicateError = error; }
+      expect(postgresError(duplicateError)).toEqual({ code: '23505', constraint: 'jadwal_kuliah_kelas_kuliah_id_unique' });
       await tx.update(ruangan).set({ isActive: false }).where(eq(ruangan.id, room!.id));
       await expect(classes.update(a!.id, { status: 'DIBUKA' })).rejects.toThrow('nonaktif');
       await tx.update(ruangan).set({ isActive: true }).where(eq(ruangan.id, room!.id));
       expect((await classes.update(a!.id, { status: 'DIBUKA' })).status).toBe('DIBUKA');
-      await expect(schedules.add(a!.id, { ...body, ruangan_id: otherRoom!.id, jam_mulai: '09:00' })).rejects.toThrow('kelas yang sama');
+      await expect(schedules.add(a!.id, { ...body, ruangan_id: otherRoom!.id, jam_mulai: '09:00' }))
+        .rejects.toThrow('Jadwal kelas sudah tersedia. Edit jadwal yang ada.');
       await expect(schedules.add(b!.id, body)).rejects.toThrow('ruangan'); // Different semester, same effective dates.
       const other = await schedules.add(b!.id, { ...body, ruangan_id: otherRoom!.id });
       await expect(lecturers.add(b!.id, { dosen_id: f.lecturers[0]!.id })).rejects.toThrow('dosen');
@@ -88,11 +101,9 @@ test.skipIf(Bun.env.RUN_SCHEDULING_DB_TESTS !== '1')('PostgreSQL schedule confli
       // Across-semester disjoint dates are permitted, despite equal room/time.
       await schedules.remove(b!.id, (await schedules.list(b!.id, {})).data[0]!.id);
       await tx.update(semester).set({ tanggalMulai: '2091-01-01', tanggalSelesai: '2091-06-30' }).where(eq(semester.id, b!.semesterId));
-      await schedules.add(b!.id, body);
-      const overlapping = await schedules.add(b!.id, { ...body, ruangan_id: otherRoom!.id, jam_mulai: '09:00' });
-      await expect(classes.update(b!.id, { status: 'DRAFT' })).rejects.toThrow('kelas yang sama');
-      await schedules.remove(b!.id, overlapping.id);
+      const recreated = await schedules.add(b!.id, body);
       await classes.update(b!.id, { status: 'DRAFT' });
+      expect((await schedules.list(b!.id, {})).data[0]!.id).toBe(recreated.id);
       expect((await schedules.list(a!.id, {})).data[0]!.id).toBe(slot.id);
       throw rollback;
     }, { isolationLevel: 'serializable' })).rejects.toBe(rollback);

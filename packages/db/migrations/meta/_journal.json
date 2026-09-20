@@ -43,6 +43,13 @@
       "when": 1789822114619,
       "tag": "0005_orange_killraven",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789861650321,
+      "tag": "0006_zippy_mojo",
+      "breakpoints": true
     }
   ]
 }

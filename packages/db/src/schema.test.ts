@@ -170,6 +170,21 @@ describe('DATABASE.md schema contract', () => {
     expect(sqlText(coordinator.config.where)).toBe('"kelas_dosen"."is_koordinator" = true');
   });
 
+  test('classes have at most one regular schedule while meetings remain repeatable', () => {
+    const schedules = getTableConfig(schema.jadwalKuliah);
+    expect(schedules.uniqueConstraints.map((key) => ({
+      name: key.name,
+      columns: key.columns.map((column) => column.name),
+    }))).toContainEqual({
+      name: 'jadwal_kuliah_kelas_kuliah_id_unique',
+      columns: ['kelas_kuliah_id'],
+    });
+
+    const meetings = getTableConfig(schema.pertemuan);
+    expect(meetings.uniqueConstraints.map((key) => key.columns.map((column) => column.name)))
+      .toContainEqual(['kelas_kuliah_id', 'nomor_pertemuan']);
+  });
+
   test('attendance constraints and actor references match the documented contract', () => {
     const meeting = getTableConfig(schema.pertemuan);
     expect(meeting.uniqueConstraints.map((key) => key.columns.map((column) => column.name)))

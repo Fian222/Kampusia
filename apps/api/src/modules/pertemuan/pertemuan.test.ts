@@ -62,7 +62,7 @@ function fixture() {
     setEffective: (rows: typeof students) => { effective = rows; }, setAssigned: (value: boolean) => { assigned = value; }, deactivate: () => { inactive = true; } };
 }
 
-test('AKADEMIK and ADMIN create Pertemuan while validation and attendance progress stay intact', async () => {
+test('one class retains many Pertemuan while validation and attendance progress stay intact', async () => {
   const f = fixture(); const row = await f.create();
   const listed = await f.service.list(f.admin, f.kelas.id, {});
   expect(listed.data[0]!.id).toBe(row.id); expect(listed.data[0]!.attendanceProgress).toEqual({ total: 2, recorded: 0 });

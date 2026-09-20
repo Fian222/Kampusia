@@ -131,7 +131,7 @@ export const kelasKuliahRelations = relations(kelasKuliah, ({ one, many }) => ({
     references: [programStudi.id],
   }),
   kelasDosen: many(kelasDosen),
-  jadwalKuliah: many(jadwalKuliah),
+  jadwalKuliah: one(jadwalKuliah),
   krsDetail: many(krsDetail),
   pertemuan: many(pertemuan),
   komponenNilai: many(komponenNilai),

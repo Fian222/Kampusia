@@ -1,0 +1,2 @@
+ALTER TABLE "jadwal_kuliah" DROP CONSTRAINT "jadwal_kuliah_kelas_kuliah_id_hari_jam_mulai_jam_selesai_unique";--> statement-breakpoint
+ALTER TABLE "jadwal_kuliah" ADD CONSTRAINT "jadwal_kuliah_kelas_kuliah_id_unique" UNIQUE("kelas_kuliah_id");

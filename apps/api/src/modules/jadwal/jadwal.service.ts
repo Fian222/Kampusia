@@ -67,6 +67,7 @@ export function createJadwalService(repository: JadwalRepository) {
       return academicWrite(() => repository.transaction(async tx => {
         const kelas = await tx.lockClass(id);
         if (!kelas) throw new MasterDataError(404, 'Kelas kuliah tidak ditemukan.');
+        if ((await tx.slots(id)).length) throw new MasterDataError(409, 'Jadwal kelas sudah tersedia. Edit jadwal yang ada.');
         await validateSchedule(tx, kelas, slot);
         return tx.create({ ...slot, kelasKuliahId: id });
       }));

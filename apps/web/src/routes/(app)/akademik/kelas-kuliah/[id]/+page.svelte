@@ -29,7 +29,8 @@
   const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 
   const activeTab = $derived(resolveClassWorkspaceTab(page.url.searchParams.get('tab')));
-  const editingSchedule = $derived(data.schedules.data.find(row => row.id === editingScheduleId));
+  const regularSchedule = $derived(data.schedules.data[0]);
+  const editingSchedule = $derived(regularSchedule?.id === editingScheduleId ? regularSchedule : undefined);
   const coordinator = $derived(data.kelas.dosen.find(row => row.isKoordinator)?.dosen);
   const activeComponents = $derived(data.grading.components.filter((item: { isActive: boolean }) => item.isActive).length);
   const lecturerOptions = $derived(data.lecturers.data.map(row => ({ value: row.id, label: row.nama, description: [row.kodeDosen, row.nidn ? `NIDN ${row.nidn}` : ''].filter(Boolean).join(' · ') })));
@@ -37,7 +38,6 @@
   const scheduleError = $derived(!form?.saved && form?.values?.mode === 'schedule-remove' ? form?.message : undefined);
 
   function tabHref(tab: ClassWorkspaceTab) { return classWorkspaceTabHref(page.url, tab); }
-  function scheduleHref(number: number) { const params = new URLSearchParams(page.url.searchParams); params.set('schedule_page', String(number)); return `?${params}`; }
   function lecturerHref(number: number) { const params = new URLSearchParams(page.url.searchParams); params.set('page', String(number)); return `?${params}`; }
   function formatTime(value: string) { return value.slice(0, 5).replace(':', '.'); }
 
@@ -72,7 +72,7 @@
 <section class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Ringkasan metrik kelas">
   <StatCard compact label="Kapasitas" value={data.kelas.kapasitas} icon="users" />
   <StatCard compact label="Mahasiswa aktif" value={data.kelas.jumlahMahasiswa} icon="graduation" accent />
-  <StatCard compact label="Jadwal" value={data.kelas.jumlahJadwal} icon="calendar" />
+  <StatCard compact label="Jadwal" value={regularSchedule ? 'Tersedia' : 'Belum diatur'} icon="calendar" />
   <StatCard compact label="Koordinator" value={coordinator?.nama ?? '—'} detail={coordinator?.kodeDosen} icon="user" />
 </section>
 
@@ -111,11 +111,11 @@
       </article>
 
       <article class="surface-panel p-5 sm:p-6">
-        <div class="flex items-start justify-between gap-3"><div><p class="eyebrow">Jadwal</p><h3 class="mt-2 font-bold text-slate-950">Waktu & Ruangan</h3></div><span class="text-sm font-semibold text-slate-500">{data.kelas.jumlahJadwal} jadwal</span></div>
-        <div class="mt-4 space-y-3">
-          {#each data.schedules.data.slice(0, 2) as row}
-            <div class="flex items-start justify-between gap-4 rounded-xl border border-slate-100 p-3.5"><div><p class="font-semibold text-slate-900">{days[row.hari - 1]} · {formatTime(row.jamMulai)}–{formatTime(row.jamSelesai)}</p><p class="mt-1 text-sm text-slate-500">{row.ruangan.nama}{row.ruangan.gedung ? ` · ${row.ruangan.gedung}` : ''}</p></div><Icon name="clock" size={18} class="mt-0.5 shrink-0 text-slate-400" /></div>
-          {:else}<p class="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">Jadwal belum ditentukan.</p>{/each}
+        <div class="flex items-start justify-between gap-3"><div><p class="eyebrow">Jadwal</p><h3 class="mt-2 font-bold text-slate-950">Waktu & Ruangan</h3></div><span class="text-sm font-semibold text-slate-500">{regularSchedule ? 'Tersedia' : 'Belum diatur'}</span></div>
+        <div class="mt-4">
+          {#if regularSchedule}
+            <div class="flex items-start justify-between gap-4 rounded-xl border border-slate-100 p-3.5"><div><p class="font-semibold text-slate-900">{days[regularSchedule.hari - 1]} · {formatTime(regularSchedule.jamMulai)}–{formatTime(regularSchedule.jamSelesai)}</p><p class="mt-1 text-sm text-slate-500">{regularSchedule.ruangan.nama}{regularSchedule.ruangan.gedung ? ` · ${regularSchedule.ruangan.gedung}` : ''}</p></div><Icon name="clock" size={18} class="mt-0.5 shrink-0 text-slate-400" /></div>
+          {:else}<p class="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">Belum ada jadwal kuliah.</p>{/if}
         </div>
         <a class="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:text-brand-800" href={tabHref('schedule')} data-sveltekit-noscroll>Kelola jadwal <Icon name="arrow-right" size={15} /></a>
       </article>
@@ -146,18 +146,17 @@
   </section>
 {:else if activeTab === 'schedule'}
   <section class="surface-panel mt-6 p-5 sm:p-6" aria-labelledby="schedule-heading">
-    <div class="flex flex-wrap items-start justify-between gap-3"><div><p class="eyebrow">Operasional kelas</p><h2 id="schedule-heading" class="mt-2 text-xl font-bold">Jadwal Kuliah</h2><p class="mt-1 text-sm text-slate-500">Waktu lokal Asia/Jakarta.</p></div><button type="button" class={button} onclick={() => { editingScheduleId = undefined; scheduleOpen = true; }}><Icon name="plus" size={15} /> Tambah Jadwal</button></div>
+    <div class="flex flex-wrap items-start justify-between gap-3"><div><p class="eyebrow">Operasional kelas</p><h2 id="schedule-heading" class="mt-2 text-xl font-bold">Jadwal Kuliah</h2><p class="mt-1 text-sm text-slate-500">Satu jadwal reguler dalam waktu lokal Asia/Jakarta.</p></div>{#if !regularSchedule}<button type="button" class={button} onclick={() => { editingScheduleId = undefined; scheduleOpen = true; }}><Icon name="plus" size={15} /> Atur Jadwal</button>{/if}</div>
     {#if scheduleError}<p role="alert" class="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{scheduleError}</p>{/if}
-    <div class="mt-5 grid gap-3 lg:grid-cols-2">
-      {#each data.schedules.data as row}
+    <div class="mt-5">
+      {#if regularSchedule}
         <article class="rounded-xl border border-slate-200 p-4">
-          <div class="flex items-start justify-between gap-4"><div><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">{days[row.hari - 1]}</p><h3 class="mt-1 text-xl font-bold text-slate-950">{formatTime(row.jamMulai)}–{formatTime(row.jamSelesai)}</h3></div><span class="inline-flex size-9 items-center justify-center rounded-lg bg-brand-50 text-brand-700"><Icon name="clock" size={17} /></span></div>
-          <div class="mt-4 border-t border-slate-100 pt-3"><p class="font-semibold text-slate-900">{row.ruangan.nama}</p><p class="mt-1 text-sm text-slate-500">{row.ruangan.kode}{row.ruangan.gedung ? ` · ${row.ruangan.gedung}` : ''}</p></div>
-          <div class="mt-4 flex items-center gap-2"><button type="button" class="action-secondary" aria-label={`Edit jadwal ${days[row.hari - 1]} ${formatTime(row.jamMulai)}`} onclick={() => { editingScheduleId = row.id; scheduleOpen = true; }}>Edit</button><details class="relative"><summary class="inline-flex size-9 list-none items-center justify-center rounded-lg text-lg font-bold tracking-widest text-slate-500 hover:bg-slate-100 [&::-webkit-details-marker]:hidden" aria-label={`Tindakan lain jadwal ${days[row.hari - 1]}`}><span aria-hidden="true">•••</span></summary><div class="mt-2 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-lg sm:absolute sm:left-0 sm:z-10"><p class="text-xs leading-5 text-slate-600">Hapus jadwal ini? Jadwal dengan riwayat KRS disetujui tetap dipertahankan.</p><form method="POST" action="?/detail" class="mt-2" use:enhance={submit}><input type="hidden" name="mode" value="schedule-remove" /><input type="hidden" name="jadwal_id" value={row.id} /><input type="hidden" name="confirm" value="yes" /><button class="action-danger" disabled={saving}>Hapus jadwal</button></form></div></details></div>
+          <div class="flex items-start justify-between gap-4"><div><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">{days[regularSchedule.hari - 1]}</p><h3 class="mt-1 text-xl font-bold text-slate-950">{formatTime(regularSchedule.jamMulai)}–{formatTime(regularSchedule.jamSelesai)}</h3></div><span class="inline-flex size-9 items-center justify-center rounded-lg bg-brand-50 text-brand-700"><Icon name="clock" size={17} /></span></div>
+          <div class="mt-4 border-t border-slate-100 pt-3"><p class="font-semibold text-slate-900">{regularSchedule.ruangan.nama}</p><p class="mt-1 text-sm text-slate-500">{regularSchedule.ruangan.kode}{regularSchedule.ruangan.gedung ? ` · ${regularSchedule.ruangan.gedung}` : ''}</p></div>
+          <div class="mt-4 flex items-center gap-2"><button type="button" class="action-secondary" aria-label={`Edit jadwal ${days[regularSchedule.hari - 1]} ${formatTime(regularSchedule.jamMulai)}`} onclick={() => { editingScheduleId = regularSchedule.id; scheduleOpen = true; }}>Edit Jadwal</button><details class="relative"><summary class="inline-flex size-9 list-none items-center justify-center rounded-lg text-lg font-bold tracking-widest text-slate-500 hover:bg-slate-100 [&::-webkit-details-marker]:hidden" aria-label={`Tindakan lain jadwal ${days[regularSchedule.hari - 1]}`}><span aria-hidden="true">•••</span></summary><div class="mt-2 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-lg sm:absolute sm:left-0 sm:z-10"><p class="text-xs leading-5 text-slate-600">Hapus jadwal ini? Jadwal dengan riwayat KRS disetujui tetap dipertahankan.</p><form method="POST" action="?/detail" class="mt-2" use:enhance={submit}><input type="hidden" name="mode" value="schedule-remove" /><input type="hidden" name="jadwal_id" value={regularSchedule.id} /><input type="hidden" name="confirm" value="yes" /><button class="action-danger" disabled={saving}>Hapus jadwal</button></form></div></details></div>
         </article>
-      {:else}<p class="rounded-xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500 lg:col-span-2">Belum ada jadwal kuliah.</p>{/each}
+      {:else}<p class="rounded-xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">Belum ada jadwal untuk kelas ini. Gunakan “Atur Jadwal” untuk menentukan jadwal reguler kelas.</p>{/if}
     </div>
-    <Pagination {...data.schedules.meta} href={scheduleHref} />
   </section>
 {:else if activeTab === 'meetings'}
   <MeetingManager meetings={data.meetings} area="akademik" {form} />
@@ -180,7 +179,7 @@
   </form>{/key}
 </Modal>
 
-<Modal bind:open={scheduleOpen} title={`${editingSchedule ? 'Edit' : 'Tambah'} Jadwal`} description="Jadwal divalidasi terhadap ruangan, dosen, kelas, dan mahasiswa." closeDisabled={saving} width="lg" onClose={() => { if (form?.values?.mode === 'schedule-save') void goto(page.url, { replaceState: true, noScroll: true, keepFocus: true }); }}>
+<Modal bind:open={scheduleOpen} title={`${editingSchedule ? 'Edit' : 'Atur'} Jadwal`} description="Jadwal divalidasi terhadap ruangan, dosen, kelas, dan mahasiswa." closeDisabled={saving} width="lg" onClose={() => { if (form?.values?.mode === 'schedule-save') void goto(page.url, { replaceState: true, noScroll: true, keepFocus: true }); }}>
   {#if form?.message && form.values?.mode === 'schedule-save' && (form.values.jadwal_id ?? '') === (editingScheduleId ?? '')}<p role="alert" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}
   <ScheduleForm action="?/detail" kelas={data.kelas} rooms={data.rooms.data} roomMeta={data.rooms.meta} schedule={editingSchedule} values={form?.values} {saving} submit={scheduleSubmit} />
   <a href="/akademik/ruangan" class="mt-4 inline-block text-sm font-semibold text-brand-700">Kelola ruangan</a>

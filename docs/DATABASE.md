@@ -42,7 +42,7 @@ erDiagram
     semester ||--o{ kelas_kuliah : contains
     kelas_kuliah ||--o{ kelas_dosen : staffed_by
     dosen ||--o{ kelas_dosen : teaches
-    kelas_kuliah ||--o{ jadwal_kuliah : scheduled
+    kelas_kuliah ||--o| jadwal_kuliah : scheduled
     ruangan ||--o{ jadwal_kuliah : hosts
     mahasiswa ||--o{ krs : owns
     semester ||--o{ krs : contains
@@ -532,14 +532,14 @@ A course offering by a program in a particular academic semester.
 **Business rules:**
 
 - CHECK kapasitas > 0. Never store jumlah_mahasiswa; derive enrollment counts as defined below.
-- Before DIBUKA, require an active program/course, at least one active lecturer assignment, and at least one valid conflict-free schedule.
+- Before DIBUKA, require an active program/course, at least one active lecturer assignment, and exactly one valid conflict-free regular schedule.
 - Before DIBUKA, the service must also verify that the class's mata_kuliah belongs to at least one curriculum for its offering program_studi: a kurikulum_matkul row must match kelas_kuliah.mata_kuliah_id and join to a kurikulum whose program_studi_id equals kelas_kuliah.program_studi_id. This is required for opening a class in the initial system.
 - DIBUKA accepts selections and approvals. DITUTUP prevents new enrollment while existing enrollments remain valid. DIBATALKAN requires transactional cancellation of related active details and any remaining TERJADWAL meetings; completed meetings and attendance remain historical.
 - Do not change semester, course, or offering program after selections exist. Capacity reductions must not fall below approved active enrollment count.
 - Initial enrollment is limited to the student's program and curriculum membership; cross-program enrollment requires a documented design extension.
 - Grading can be finalized only while the class is DITUTUP. Once hasil_studi exists, the class cannot be changed to DIBATALKAN through the ordinary workflow and its grading configuration is frozen as documented below.
 
-**Relationships:** Belongs to a semester, course, and program; has many schedules, lecturer assignments, KRS details, meetings, assessment components, and finalized study results.
+**Relationships:** Belongs to a semester, course, and program; has zero or one regular schedule and many lecturer assignments, KRS details, meetings, assessment components, and finalized study results.
 
 ### kelas_dosen
 
@@ -565,7 +565,7 @@ Lecturer assignments supporting team teaching.
 **Business rules:**
 
 - One class may have many lecturers and one lecturer may teach many classes. A coordinator is optional.
-- All assigned lecturers are assumed to attend every weekly schedule of the class in this initial model.
+- All assigned lecturers are assumed to attend the weekly schedule of the class in this initial model.
 - Adding or changing an assignment must revalidate lecturer schedule conflicts. Preserve at least one lecturer on an opened class.
 
 **Relationships:** Joins kelas_kuliah and dosen in a many-to-many relationship.
@@ -603,7 +603,7 @@ Teaching rooms used by weekly schedules.
 
 ### jadwal_kuliah
 
-Recurring weekly room/time slots for a class over its semester dates.
+The optional recurring weekly room/time schedule for a class over its semester dates. A class has at most one such regular schedule; individual class occurrences remain separate `pertemuan` rows.
 
 | Column | PostgreSQL type | Nullable | Default | Meaning / reference |
 | --- | --- | --- | --- | --- |
@@ -620,22 +620,23 @@ Recurring weekly room/time slots for a class over its semester dates.
 
 **Foreign keys:** `kelas_kuliah_id` → kelas_kuliah.id; `ruangan_id` → ruangan.id.
 
-**Unique constraints:** `UNIQUE (kelas_kuliah_id, hari, jam_mulai, jam_selesai)` prevents duplicate class slots.
+**Unique constraints:** `UNIQUE (kelas_kuliah_id)` enforces at most one regular schedule per class.
 
 **Additional indexes:** `(ruangan_id, hari, jam_mulai)`; the unique index covers kelas_kuliah_id.
 
 **Business rules:**
 
 - CHECK hari BETWEEN 1 AND 7 and jam_mulai < jam_selesai. Overnight slots must be split into separate days.
-- Services must check room, class, and every assigned lecturer for overlap; uniqueness does not detect partial overlaps.
+- Creating a second schedule for the same class is rejected. Schedule changes update the existing row and must exclude that row from overlap checks.
+- Services must check the room and every assigned lecturer for overlap; the class-level unique constraint enforces the one-schedule cardinality.
 - Conflict rules apply across semesters with overlapping date ranges, not merely equal semester_id. See concurrency and schedule rules below.
 - The initial model requires a physical room; virtual classes and per-date exceptions are outside this design.
 
-**Relationships:** Belongs to one class and one room; lecturers and semester are derived from the class.
+**Relationships:** Belongs to exactly one class and one room; the class side is optional one-to-one, while lecturers and semester are derived from the class.
 
 ### pertemuan
 
-An actual class meeting. It records what occurred or was planned for one date independently of the class's recurring weekly jadwal_kuliah slots.
+An actual class meeting. A class may have many meetings; each records what occurred or was planned for one date independently of the class's optional recurring weekly jadwal_kuliah row.
 
 | Column | PostgreSQL type | Nullable | Default | Meaning / reference |
 | --- | --- | --- | --- | --- |
@@ -1111,12 +1112,12 @@ The policy must define which preceding academic semester is eligible, its IPS ra
 
 ## Schedule validity
 
-Two weekly slots conflict if they share a weekday, their effective semester date ranges contain a shared occurrence of that weekday, and their times overlap: existing.jam_mulai < proposed.jam_selesai AND proposed.jam_mulai < existing.jam_selesai. Adjacent slots are permitted. A schedule must have at least one occurrence within its own semester dates.
+Two regular schedules conflict if they share a weekday, their effective semester date ranges contain a shared occurrence of that weekday, and their times overlap: existing.jam_mulai < proposed.jam_selesai AND proposed.jam_mulai < existing.jam_selesai. Adjacent schedules are permitted. A schedule must have at least one occurrence within its own semester dates.
 
 Check every conflicting resource:
 
 - The same ruangan cannot host overlapping classes.
-- The same kelas_kuliah cannot have overlapping slots, even in different rooms.
+- The same kelas_kuliah cannot receive a second regular schedule; the database uniqueness rule is the final concurrency guard.
 - Any lecturer linked through kelas_dosen cannot teach overlapping slots.
 - At KRS submission and approval, a student cannot select classes with overlapping slots.
 

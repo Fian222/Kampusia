@@ -15,7 +15,7 @@ export const jadwalKuliah = pgTable(
     jamSelesai: time('jam_selesai', { withTimezone: false }).notNull(),
   },
   (t) => [
-    unique('jadwal_kuliah_kelas_kuliah_id_hari_jam_mulai_jam_selesai_unique').on(t.kelasKuliahId, t.hari, t.jamMulai, t.jamSelesai),
+    unique('jadwal_kuliah_kelas_kuliah_id_unique').on(t.kelasKuliahId),
     index('jadwal_kuliah_ruangan_id_hari_jam_mulai_idx').on(t.ruanganId, t.hari, t.jamMulai),
     check('jadwal_kuliah_hari_range_check', sql`${t.hari} BETWEEN 1 AND 7`),
     check('jadwal_kuliah_jam_range_check', sql`${t.jamMulai} < ${t.jamSelesai}`),

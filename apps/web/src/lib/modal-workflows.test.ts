@@ -172,7 +172,7 @@ test('detail CRUD modals retain failed action and record context', async () => {
   expect(curriculum).toContain('form.values.membership_id');
 
   expect(curriculum).toContain('editingMembershipId = row.id; membershipOpen = true;');
-  expect(detail).toContain('editingScheduleId = row.id; scheduleOpen = true;');
+  expect(detail).toContain('editingScheduleId = regularSchedule.id; scheduleOpen = true;');
   expect(meetings).toContain('editingId = row.id; meetingOpen = true;');
   expect(grading).toContain('editingComponentId = component.id; componentOpen = true;');
   expect(grading).toContain('correctionComponentId = component.id; correctionOpen = true;');

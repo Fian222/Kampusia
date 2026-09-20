@@ -1,0 +1,2932 @@
+{
+  "id": "bd013834-96ed-46f5-a00d-14f4164a59f5",
+  "prevId": "c9dee3fb-5661-469b-a192-e9d09aa4037c",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.absensi": {
+      "name": "absensi",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "pertemuan_id": {
+          "name": "pertemuan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mahasiswa_id": {
+          "name": "mahasiswa_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(8)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "keterangan": {
+          "name": "keterangan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dicatat_oleh": {
+          "name": "dicatat_oleh",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "diubah_oleh": {
+          "name": "diubah_oleh",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "absensi_mahasiswa_id_pertemuan_id_idx": {
+          "name": "absensi_mahasiswa_id_pertemuan_id_idx",
+          "columns": [
+            {
+              "expression": "mahasiswa_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "pertemuan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "absensi_pertemuan_id_pertemuan_id_fk": {
+          "name": "absensi_pertemuan_id_pertemuan_id_fk",
+          "tableFrom": "absensi",
+          "tableTo": "pertemuan",
+          "columnsFrom": [
+            "pertemuan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "absensi_mahasiswa_id_mahasiswa_id_fk": {
+          "name": "absensi_mahasiswa_id_mahasiswa_id_fk",
+          "tableFrom": "absensi",
+          "tableTo": "mahasiswa",
+          "columnsFrom": [
+            "mahasiswa_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "absensi_dicatat_oleh_users_id_fk": {
+          "name": "absensi_dicatat_oleh_users_id_fk",
+          "tableFrom": "absensi",
+          "tableTo": "users",
+          "columnsFrom": [
+            "dicatat_oleh"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "absensi_diubah_oleh_users_id_fk": {
+          "name": "absensi_diubah_oleh_users_id_fk",
+          "tableFrom": "absensi",
+          "tableTo": "users",
+          "columnsFrom": [
+            "diubah_oleh"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "absensi_pertemuan_id_mahasiswa_id_unique": {
+          "name": "absensi_pertemuan_id_mahasiswa_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "pertemuan_id",
+            "mahasiswa_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "absensi_status_check": {
+          "name": "absensi_status_check",
+          "value": "\"absensi\".\"status\" IN ('HADIR', 'IZIN', 'SAKIT', 'ALPHA')"
+        },
+        "absensi_keterangan_nonblank_check": {
+          "name": "absensi_keterangan_nonblank_check",
+          "value": "\"absensi\".\"keterangan\" ~ '[^[:space:]]'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.dosen": {
+      "name": "dosen",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "program_studi_id": {
+          "name": "program_studi_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nik": {
+          "name": "nik",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kode_dosen": {
+          "name": "kode_dosen",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nidn": {
+          "name": "nidn",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nama": {
+          "name": "nama",
+          "type": "varchar(150)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {
+        "dosen_program_studi_id_idx": {
+          "name": "dosen_program_studi_id_idx",
+          "columns": [
+            {
+              "expression": "program_studi_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "dosen_user_id_users_id_fk": {
+          "name": "dosen_user_id_users_id_fk",
+          "tableFrom": "dosen",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "dosen_program_studi_id_program_studi_id_fk": {
+          "name": "dosen_program_studi_id_program_studi_id_fk",
+          "tableFrom": "dosen",
+          "tableTo": "program_studi",
+          "columnsFrom": [
+            "program_studi_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "dosen_nik_unique": {
+          "name": "dosen_nik_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "nik"
+          ]
+        },
+        "dosen_kode_dosen_unique": {
+          "name": "dosen_kode_dosen_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "kode_dosen"
+          ]
+        },
+        "dosen_nidn_unique": {
+          "name": "dosen_nidn_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "nidn"
+          ]
+        },
+        "dosen_user_id_unique": {
+          "name": "dosen_user_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "user_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "dosen_nik_digits_check": {
+          "name": "dosen_nik_digits_check",
+          "value": "\"dosen\".\"nik\" IS NULL OR \"dosen\".\"nik\" ~ '^[0-9]+$'"
+        },
+        "dosen_kode_dosen_nonblank_check": {
+          "name": "dosen_kode_dosen_nonblank_check",
+          "value": "\"dosen\".\"kode_dosen\" ~ '[^[:space:]]'"
+        },
+        "dosen_kode_dosen_canonical_check": {
+          "name": "dosen_kode_dosen_canonical_check",
+          "value": "\"dosen\".\"kode_dosen\" = upper(\"dosen\".\"kode_dosen\") AND \"dosen\".\"kode_dosen\" !~ '^[[:space:]]|[[:space:]]$'"
+        },
+        "dosen_nidn_nonblank_check": {
+          "name": "dosen_nidn_nonblank_check",
+          "value": "\"dosen\".\"nidn\" ~ '[^[:space:]]'"
+        },
+        "dosen_nidn_canonical_check": {
+          "name": "dosen_nidn_canonical_check",
+          "value": "\"dosen\".\"nidn\" = upper(\"dosen\".\"nidn\") AND \"dosen\".\"nidn\" !~ '^[[:space:]]|[[:space:]]$'"
+        },
+        "dosen_nama_nonblank_check": {
+          "name": "dosen_nama_nonblank_check",
+          "value": "\"dosen\".\"nama\" ~ '[^[:space:]]'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.fakultas": {
+      "name": "fakultas",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "kode": {
+          "name": "kode",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nama": {
+          "name": "nama",
+          "type": "varchar(150)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "fakultas_kode_unique": {
+          "name": "fakultas_kode_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "kode"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "fakultas_kode_nonblank_check": {
+          "name": "fakultas_kode_nonblank_check",
+          "value": "\"fakultas\".\"kode\" ~ '[^[:space:]]'"
+        },
+        "fakultas_kode_canonical_check": {
+          "name": "fakultas_kode_canonical_check",
+          "value": "\"fakultas\".\"kode\" = upper(\"fakultas\".\"kode\") AND \"fakultas\".\"kode\" !~ '^[[:space:]]|[[:space:]]$'"
+        },
+        "fakultas_nama_nonblank_check": {
+          "name": "fakultas_nama_nonblank_check",
+          "value": "\"fakultas\".\"nama\" ~ '[^[:space:]]'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.hasil_studi": {
+      "name": "hasil_studi",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "kelas_kuliah_id": {
+          "name": "kelas_kuliah_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mahasiswa_id": {
+          "name": "mahasiswa_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nilai_angka": {
+          "name": "nilai_angka",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nilai_huruf": {
+          "name": "nilai_huruf",
+          "type": "varchar(8)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nilai_indeks": {
+          "name": "nilai_indeks",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "difinalisasi_at": {
+          "name": "difinalisasi_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "difinalisasi_oleh": {
+          "name": "difinalisasi_oleh",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "dikoreksi_at": {
+          "name": "dikoreksi_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dikoreksi_oleh": {
+          "name": "dikoreksi_oleh",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "alasan_koreksi": {
+          "name": "alasan_koreksi",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "hasil_studi_mahasiswa_id_kelas_kuliah_id_idx": {
+          "name": "hasil_studi_mahasiswa_id_kelas_kuliah_id_idx",
+          "columns": [
+            {
+              "expression": "mahasiswa_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kelas_kuliah_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "hasil_studi_kelas_kuliah_id_kelas_kuliah_id_fk": {
+          "name": "hasil_studi_kelas_kuliah_id_kelas_kuliah_id_fk",
+          "tableFrom": "hasil_studi",
+          "tableTo": "kelas_kuliah",
+          "columnsFrom": [
+            "kelas_kuliah_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "hasil_studi_mahasiswa_id_mahasiswa_id_fk": {
+          "name": "hasil_studi_mahasiswa_id_mahasiswa_id_fk",
+          "tableFrom": "hasil_studi",
+          "tableTo": "mahasiswa",
+          "columnsFrom": [
+            "mahasiswa_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "hasil_studi_difinalisasi_oleh_users_id_fk": {
+          "name": "hasil_studi_difinalisasi_oleh_users_id_fk",
+          "tableFrom": "hasil_studi",
+          "tableTo": "users",
+          "columnsFrom": [
+            "difinalisasi_oleh"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "hasil_studi_dikoreksi_oleh_users_id_fk": {
+          "name": "hasil_studi_dikoreksi_oleh_users_id_fk",
+          "tableFrom": "hasil_studi",
+          "tableTo": "users",
+          "columnsFrom": [
+            "dikoreksi_oleh"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "hasil_studi_kelas_kuliah_id_mahasiswa_id_unique": {
+          "name": "hasil_studi_kelas_kuliah_id_mahasiswa_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "kelas_kuliah_id",
+            "mahasiswa_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "hasil_studi_nilai_angka_range_check": {
+          "name": "hasil_studi_nilai_angka_range_check",
+          "value": "\"hasil_studi\".\"nilai_angka\" >= 0 AND \"hasil_studi\".\"nilai_angka\" <= 100"
+        },
+        "hasil_studi_nilai_indeks_nonnegative_check": {
+          "name": "hasil_studi_nilai_indeks_nonnegative_check",
+          "value": "\"hasil_studi\".\"nilai_indeks\" >= 0"
+        },
+        "hasil_studi_nilai_huruf_canonical_check": {
+          "name": "hasil_studi_nilai_huruf_canonical_check",
+          "value": "\"hasil_studi\".\"nilai_huruf\" = upper(btrim(\"hasil_studi\".\"nilai_huruf\")) AND \"hasil_studi\".\"nilai_huruf\" <> ''"
+        },
+        "hasil_studi_koreksi_fields_check": {
+          "name": "hasil_studi_koreksi_fields_check",
+          "value": "(\n        \"hasil_studi\".\"dikoreksi_at\" IS NULL\n        AND \"hasil_studi\".\"dikoreksi_oleh\" IS NULL\n        AND \"hasil_studi\".\"alasan_koreksi\" IS NULL\n      ) OR (\n        \"hasil_studi\".\"dikoreksi_at\" IS NOT NULL\n        AND \"hasil_studi\".\"dikoreksi_oleh\" IS NOT NULL\n        AND \"hasil_studi\".\"alasan_koreksi\" IS NOT NULL\n        AND btrim(\"hasil_studi\".\"alasan_koreksi\") <> ''\n      )"
+        },
+        "hasil_studi_dikoreksi_at_range_check": {
+          "name": "hasil_studi_dikoreksi_at_range_check",
+          "value": "\"hasil_studi\".\"dikoreksi_at\" IS NULL OR \"hasil_studi\".\"dikoreksi_at\" >= \"hasil_studi\".\"difinalisasi_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.jadwal_kuliah": {
+      "name": "jadwal_kuliah",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "kelas_kuliah_id": {
+          "name": "kelas_kuliah_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ruangan_id": {
+          "name": "ruangan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hari": {
+          "name": "hari",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "jam_mulai": {
+          "name": "jam_mulai",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "jam_selesai": {
+          "name": "jam_selesai",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "jadwal_kuliah_ruangan_id_hari_jam_mulai_idx": {
+          "name": "jadwal_kuliah_ruangan_id_hari_jam_mulai_idx",
+          "columns": [
+            {
+              "expression": "ruangan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "hari",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "jam_mulai",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "jadwal_kuliah_kelas_kuliah_id_kelas_kuliah_id_fk": {
+          "name": "jadwal_kuliah_kelas_kuliah_id_kelas_kuliah_id_fk",
+          "tableFrom": "jadwal_kuliah",
+          "tableTo": "kelas_kuliah",
+          "columnsFrom": [
+            "kelas_kuliah_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "jadwal_kuliah_ruangan_id_ruangan_id_fk": {
+          "name": "jadwal_kuliah_ruangan_id_ruangan_id_fk",
+          "tableFrom": "jadwal_kuliah",
+          "tableTo": "ruangan",
+          "columnsFrom": [
+            "ruangan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "jadwal_kuliah_kelas_kuliah_id_unique": {
+          "name": "jadwal_kuliah_kelas_kuliah_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "kelas_kuliah_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "jadwal_kuliah_hari_range_check": {
+          "name": "jadwal_kuliah_hari_range_check",
+          "value": "\"jadwal_kuliah\".\"hari\" BETWEEN 1 AND 7"
+        },
+        "jadwal_kuliah_jam_range_check": {
+          "name": "jadwal_kuliah_jam_range_check",
+          "value": "\"jadwal_kuliah\".\"jam_mulai\" < \"jadwal_kuliah\".\"jam_selesai\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.kelas_dosen": {
+      "name": "kelas_dosen",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "kelas_kuliah_id": {
+          "name": "kelas_kuliah_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "dosen_id": {
+          "name": "dosen_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_koordinator": {
+          "name": "is_koordinator",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        }
+      },
+      "indexes": {
+        "kelas_dosen_dosen_id_idx": {
+          "name": "kelas_dosen_dosen_id_idx",
+          "columns": [
+            {
+              "expression": "dosen_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "kelas_dosen_koordinator_unique": {
+          "name": "kelas_dosen_koordinator_unique",
+          "columns": [
+            {
+              "expression": "kelas_kuliah_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"kelas_dosen\".\"is_koordinator\" = true",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "kelas_dosen_kelas_kuliah_id_kelas_kuliah_id_fk": {
+          "name": "kelas_dosen_kelas_kuliah_id_kelas_kuliah_id_fk",
+          "tableFrom": "kelas_dosen",
+          "tableTo": "kelas_kuliah",
+          "columnsFrom": [
+            "kelas_kuliah_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "kelas_dosen_dosen_id_dosen_id_fk": {
+          "name": "kelas_dosen_dosen_id_dosen_id_fk",
+          "tableFrom": "kelas_dosen",
+          "tableTo": "dosen",
+          "columnsFrom": [
+            "dosen_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "kelas_dosen_kelas_kuliah_id_dosen_id_unique": {
+          "name": "kelas_dosen_kelas_kuliah_id_dosen_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "kelas_kuliah_id",
+            "dosen_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.kelas_kuliah": {
+      "name": "kelas_kuliah",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "semester_id": {
+          "name": "semester_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mata_kuliah_id": {
+          "name": "mata_kuliah_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "program_studi_id": {
+          "name": "program_studi_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nama_kelas": {
+          "name": "nama_kelas",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kapasitas": {
+          "name": "kapasitas",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'DRAFT'"
+        }
+      },
+      "indexes": {
+        "kelas_kuliah_mata_kuliah_id_idx": {
+          "name": "kelas_kuliah_mata_kuliah_id_idx",
+          "columns": [
+            {
+              "expression": "mata_kuliah_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "kelas_kuliah_program_studi_id_idx": {
+          "name": "kelas_kuliah_program_studi_id_idx",
+          "columns": [
+            {
+              "expression": "program_studi_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "kelas_kuliah_semester_id_status_idx": {
+          "name": "kelas_kuliah_semester_id_status_idx",
+          "columns": [
+            {
+              "expression": "semester_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "kelas_kuliah_semester_id_semester_id_fk": {
+          "name": "kelas_kuliah_semester_id_semester_id_fk",
+          "tableFrom": "kelas_kuliah",
+          "tableTo": "semester",
+          "columnsFrom": [
+            "semester_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "kelas_kuliah_mata_kuliah_id_mata_kuliah_id_fk": {
+          "name": "kelas_kuliah_mata_kuliah_id_mata_kuliah_id_fk",
+          "tableFrom": "kelas_kuliah",
+          "tableTo": "mata_kuliah",
+          "columnsFrom": [
+            "mata_kuliah_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "kelas_kuliah_program_studi_id_program_studi_id_fk": {
+          "name": "kelas_kuliah_program_studi_id_program_studi_id_fk",
+          "tableFrom": "kelas_kuliah",
+          "tableTo": "program_studi",
+          "columnsFrom": [
+            "program_studi_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "kelas_kuliah_offering_unique": {
+          "name": "kelas_kuliah_offering_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "semester_id",
+            "program_studi_id",
+            "mata_kuliah_id",
+            "nama_kelas"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "kelas_kuliah_nama_kelas_nonblank_check": {
+          "name": "kelas_kuliah_nama_kelas_nonblank_check",
+          "value": "\"kelas_kuliah\".\"nama_kelas\" ~ '[^[:space:]]'"
+        },
+        "kelas_kuliah_nama_kelas_canonical_check": {
+          "name": "kelas_kuliah_nama_kelas_canonical_check",
+          "value": "\"kelas_kuliah\".\"nama_kelas\" = upper(\"kelas_kuliah\".\"nama_kelas\") AND \"kelas_kuliah\".\"nama_kelas\" !~ '^[[:space:]]|[[:space:]]$'"
+        },
+        "kelas_kuliah_status_check": {
+          "name": "kelas_kuliah_status_check",
+          "value": "\"kelas_kuliah\".\"status\" IN ('DRAFT', 'DIBUKA', 'DITUTUP', 'DIBATALKAN')"
+        },
+        "kelas_kuliah_kapasitas_positive_check": {
+          "name": "kelas_kuliah_kapasitas_positive_check",
+          "value": "\"kelas_kuliah\".\"kapasitas\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.komponen_nilai": {
+      "name": "komponen_nilai",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "kelas_kuliah_id": {
+          "name": "kelas_kuliah_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nama": {
+          "name": "nama",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bobot": {
+          "name": "bobot",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "urutan": {
+          "name": "urutan",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {
+        "komponen_nilai_active_nama_unique": {
+          "name": "komponen_nilai_active_nama_unique",
+          "columns": [
+            {
+              "expression": "kelas_kuliah_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lower(btrim(\"nama\"))",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"komponen_nilai\".\"is_active\" = true",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "komponen_nilai_kelas_kuliah_id_is_active_urutan_id_idx": {
+          "name": "komponen_nilai_kelas_kuliah_id_is_active_urutan_id_idx",
+          "columns": [
+            {
+              "expression": "kelas_kuliah_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "is_active",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "urutan",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "komponen_nilai_kelas_kuliah_id_kelas_kuliah_id_fk": {
+          "name": "komponen_nilai_kelas_kuliah_id_kelas_kuliah_id_fk",
+          "tableFrom": "komponen_nilai",
+          "tableTo": "kelas_kuliah",
+          "columnsFrom": [
+            "kelas_kuliah_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "komponen_nilai_bobot_range_check": {
+          "name": "komponen_nilai_bobot_range_check",
+          "value": "\"komponen_nilai\".\"bobot\" > 0 AND \"komponen_nilai\".\"bobot\" <= 100"
+        },
+        "komponen_nilai_urutan_positive_check": {
+          "name": "komponen_nilai_urutan_positive_check",
+          "value": "\"komponen_nilai\".\"urutan\" > 0"
+        },
+        "komponen_nilai_nama_nonblank_check": {
+          "name": "komponen_nilai_nama_nonblank_check",
+          "value": "\"komponen_nilai\".\"nama\" ~ '[^[:space:]]'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.krs": {
+      "name": "krs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "mahasiswa_id": {
+          "name": "mahasiswa_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "semester_id": {
+          "name": "semester_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'DRAFT'"
+        },
+        "batas_sks": {
+          "name": "batas_sks",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "diajukan_at": {
+          "name": "diajukan_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "disetujui_at": {
+          "name": "disetujui_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "disetujui_oleh": {
+          "name": "disetujui_oleh",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ditolak_at": {
+          "name": "ditolak_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ditolak_oleh": {
+          "name": "ditolak_oleh",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "alasan_penolakan": {
+          "name": "alasan_penolakan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dibuka_kembali_at": {
+          "name": "dibuka_kembali_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dibuka_kembali_oleh": {
+          "name": "dibuka_kembali_oleh",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dibatalkan_at": {
+          "name": "dibatalkan_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dibatalkan_oleh": {
+          "name": "dibatalkan_oleh",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "alasan_pembatalan": {
+          "name": "alasan_pembatalan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "krs_semester_id_status_idx": {
+          "name": "krs_semester_id_status_idx",
+          "columns": [
+            {
+              "expression": "semester_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "krs_disetujui_oleh_idx": {
+          "name": "krs_disetujui_oleh_idx",
+          "columns": [
+            {
+              "expression": "disetujui_oleh",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "krs_mahasiswa_id_mahasiswa_id_fk": {
+          "name": "krs_mahasiswa_id_mahasiswa_id_fk",
+          "tableFrom": "krs",
+          "tableTo": "mahasiswa",
+          "columnsFrom": [
+            "mahasiswa_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "krs_semester_id_semester_id_fk": {
+          "name": "krs_semester_id_semester_id_fk",
+          "tableFrom": "krs",
+          "tableTo": "semester",
+          "columnsFrom": [
+            "semester_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "krs_disetujui_oleh_users_id_fk": {
+          "name": "krs_disetujui_oleh_users_id_fk",
+          "tableFrom": "krs",
+          "tableTo": "users",
+          "columnsFrom": [
+            "disetujui_oleh"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "krs_ditolak_oleh_users_id_fk": {
+          "name": "krs_ditolak_oleh_users_id_fk",
+          "tableFrom": "krs",
+          "tableTo": "users",
+          "columnsFrom": [
+            "ditolak_oleh"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "krs_dibuka_kembali_oleh_users_id_fk": {
+          "name": "krs_dibuka_kembali_oleh_users_id_fk",
+          "tableFrom": "krs",
+          "tableTo": "users",
+          "columnsFrom": [
+            "dibuka_kembali_oleh"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "krs_dibatalkan_oleh_users_id_fk": {
+          "name": "krs_dibatalkan_oleh_users_id_fk",
+          "tableFrom": "krs",
+          "tableTo": "users",
+          "columnsFrom": [
+            "dibatalkan_oleh"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "krs_mahasiswa_id_semester_id_unique": {
+          "name": "krs_mahasiswa_id_semester_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "mahasiswa_id",
+            "semester_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "krs_status_check": {
+          "name": "krs_status_check",
+          "value": "\"krs\".\"status\" IN ('DRAFT', 'DIAJUKAN', 'DISETUJUI', 'DITOLAK', 'DIBATALKAN')"
+        },
+        "krs_batas_sks_positive_check": {
+          "name": "krs_batas_sks_positive_check",
+          "value": "\"krs\".\"batas_sks\" > 0"
+        },
+        "krs_approval_pair_check": {
+          "name": "krs_approval_pair_check",
+          "value": "(\"krs\".\"disetujui_at\" IS NULL) = (\"krs\".\"disetujui_oleh\" IS NULL)"
+        },
+        "krs_rejection_fields_check": {
+          "name": "krs_rejection_fields_check",
+          "value": "(\n      (\"krs\".\"ditolak_at\" IS NULL AND \"krs\".\"ditolak_oleh\" IS NULL AND \"krs\".\"alasan_penolakan\" IS NULL)\n      OR (\"krs\".\"ditolak_at\" IS NOT NULL AND \"krs\".\"ditolak_oleh\" IS NOT NULL AND \"krs\".\"alasan_penolakan\" IS NOT NULL AND btrim(\"krs\".\"alasan_penolakan\") <> '')\n    )"
+        },
+        "krs_reopening_pair_check": {
+          "name": "krs_reopening_pair_check",
+          "value": "(\"krs\".\"dibuka_kembali_at\" IS NULL) = (\"krs\".\"dibuka_kembali_oleh\" IS NULL)"
+        },
+        "krs_cancellation_fields_check": {
+          "name": "krs_cancellation_fields_check",
+          "value": "(\n      (\"krs\".\"dibatalkan_at\" IS NULL AND \"krs\".\"dibatalkan_oleh\" IS NULL AND \"krs\".\"alasan_pembatalan\" IS NULL)\n      OR (\"krs\".\"dibatalkan_at\" IS NOT NULL AND \"krs\".\"dibatalkan_oleh\" IS NOT NULL AND \"krs\".\"alasan_pembatalan\" IS NOT NULL AND btrim(\"krs\".\"alasan_pembatalan\") <> '')\n    )"
+        },
+        "krs_event_timestamps_check": {
+          "name": "krs_event_timestamps_check",
+          "value": "\n      (\"krs\".\"diajukan_at\" IS NULL OR \"krs\".\"diajukan_at\" >= \"krs\".\"created_at\")\n      AND (\"krs\".\"disetujui_at\" IS NULL OR \"krs\".\"disetujui_at\" >= \"krs\".\"created_at\")\n      AND (\"krs\".\"ditolak_at\" IS NULL OR \"krs\".\"ditolak_at\" >= \"krs\".\"created_at\")\n      AND (\"krs\".\"dibuka_kembali_at\" IS NULL OR \"krs\".\"dibuka_kembali_at\" >= \"krs\".\"created_at\")\n      AND (\"krs\".\"dibatalkan_at\" IS NULL OR \"krs\".\"dibatalkan_at\" >= \"krs\".\"created_at\")\n    "
+        },
+        "krs_status_timestamps_check": {
+          "name": "krs_status_timestamps_check",
+          "value": "(\n      (\"krs\".\"status\" = 'DRAFT' AND \"krs\".\"diajukan_at\" IS NULL)\n      OR (\"krs\".\"status\" = 'DIAJUKAN' AND \"krs\".\"diajukan_at\" IS NOT NULL)\n      OR (\"krs\".\"status\" = 'DISETUJUI' AND \"krs\".\"diajukan_at\" IS NOT NULL AND \"krs\".\"disetujui_at\" IS NOT NULL AND \"krs\".\"disetujui_oleh\" IS NOT NULL AND \"krs\".\"disetujui_at\" >= \"krs\".\"diajukan_at\")\n      OR (\"krs\".\"status\" = 'DITOLAK' AND \"krs\".\"diajukan_at\" IS NOT NULL AND \"krs\".\"ditolak_at\" IS NOT NULL AND \"krs\".\"ditolak_oleh\" IS NOT NULL AND \"krs\".\"alasan_penolakan\" IS NOT NULL AND \"krs\".\"ditolak_at\" >= \"krs\".\"diajukan_at\")\n      OR (\"krs\".\"status\" = 'DIBATALKAN' AND \"krs\".\"dibatalkan_at\" IS NOT NULL AND \"krs\".\"dibatalkan_oleh\" IS NOT NULL AND \"krs\".\"alasan_pembatalan\" IS NOT NULL)\n    )"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.krs_detail": {
+      "name": "krs_detail",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "krs_id": {
+          "name": "krs_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kelas_kuliah_id": {
+          "name": "kelas_kuliah_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(12)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'AKTIF'"
+        }
+      },
+      "indexes": {
+        "krs_detail_kelas_kuliah_id_status_idx": {
+          "name": "krs_detail_kelas_kuliah_id_status_idx",
+          "columns": [
+            {
+              "expression": "kelas_kuliah_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "krs_detail_krs_id_krs_id_fk": {
+          "name": "krs_detail_krs_id_krs_id_fk",
+          "tableFrom": "krs_detail",
+          "tableTo": "krs",
+          "columnsFrom": [
+            "krs_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "krs_detail_kelas_kuliah_id_kelas_kuliah_id_fk": {
+          "name": "krs_detail_kelas_kuliah_id_kelas_kuliah_id_fk",
+          "tableFrom": "krs_detail",
+          "tableTo": "kelas_kuliah",
+          "columnsFrom": [
+            "kelas_kuliah_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "krs_detail_krs_id_kelas_kuliah_id_unique": {
+          "name": "krs_detail_krs_id_kelas_kuliah_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "krs_id",
+            "kelas_kuliah_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "krs_detail_status_check": {
+          "name": "krs_detail_status_check",
+          "value": "\"krs_detail\".\"status\" IN ('AKTIF', 'DIBATALKAN')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.kurikulum": {
+      "name": "kurikulum",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "program_studi_id": {
+          "name": "program_studi_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kode": {
+          "name": "kode",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nama": {
+          "name": "nama",
+          "type": "varchar(150)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tahun_berlaku": {
+          "name": "tahun_berlaku",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "kurikulum_program_studi_id_program_studi_id_fk": {
+          "name": "kurikulum_program_studi_id_program_studi_id_fk",
+          "tableFrom": "kurikulum",
+          "tableTo": "program_studi",
+          "columnsFrom": [
+            "program_studi_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "kurikulum_program_studi_id_kode_unique": {
+          "name": "kurikulum_program_studi_id_kode_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "program_studi_id",
+            "kode"
+          ]
+        },
+        "kurikulum_id_program_studi_id_unique": {
+          "name": "kurikulum_id_program_studi_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "program_studi_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "kurikulum_kode_nonblank_check": {
+          "name": "kurikulum_kode_nonblank_check",
+          "value": "\"kurikulum\".\"kode\" ~ '[^[:space:]]'"
+        },
+        "kurikulum_kode_canonical_check": {
+          "name": "kurikulum_kode_canonical_check",
+          "value": "\"kurikulum\".\"kode\" = upper(\"kurikulum\".\"kode\") AND \"kurikulum\".\"kode\" !~ '^[[:space:]]|[[:space:]]$'"
+        },
+        "kurikulum_nama_nonblank_check": {
+          "name": "kurikulum_nama_nonblank_check",
+          "value": "\"kurikulum\".\"nama\" ~ '[^[:space:]]'"
+        },
+        "kurikulum_tahun_berlaku_range_check": {
+          "name": "kurikulum_tahun_berlaku_range_check",
+          "value": "\"kurikulum\".\"tahun_berlaku\" BETWEEN 1900 AND 9999"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.kurikulum_matkul": {
+      "name": "kurikulum_matkul",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "kurikulum_id": {
+          "name": "kurikulum_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mata_kuliah_id": {
+          "name": "mata_kuliah_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "semester_rekomendasi": {
+          "name": "semester_rekomendasi",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_wajib": {
+          "name": "is_wajib",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {
+        "kurikulum_matkul_mata_kuliah_id_idx": {
+          "name": "kurikulum_matkul_mata_kuliah_id_idx",
+          "columns": [
+            {
+              "expression": "mata_kuliah_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "kurikulum_matkul_kurikulum_id_kurikulum_id_fk": {
+          "name": "kurikulum_matkul_kurikulum_id_kurikulum_id_fk",
+          "tableFrom": "kurikulum_matkul",
+          "tableTo": "kurikulum",
+          "columnsFrom": [
+            "kurikulum_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "kurikulum_matkul_mata_kuliah_id_mata_kuliah_id_fk": {
+          "name": "kurikulum_matkul_mata_kuliah_id_mata_kuliah_id_fk",
+          "tableFrom": "kurikulum_matkul",
+          "tableTo": "mata_kuliah",
+          "columnsFrom": [
+            "mata_kuliah_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "kurikulum_matkul_kurikulum_id_mata_kuliah_id_unique": {
+          "name": "kurikulum_matkul_kurikulum_id_mata_kuliah_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "kurikulum_id",
+            "mata_kuliah_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "kurikulum_matkul_semester_rekomendasi_positive_check": {
+          "name": "kurikulum_matkul_semester_rekomendasi_positive_check",
+          "value": "\"kurikulum_matkul\".\"semester_rekomendasi\" IS NULL OR \"kurikulum_matkul\".\"semester_rekomendasi\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.mahasiswa": {
+      "name": "mahasiswa",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "program_studi_id": {
+          "name": "program_studi_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kurikulum_id": {
+          "name": "kurikulum_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "dosen_pa_id": {
+          "name": "dosen_pa_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nim": {
+          "name": "nim",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nama": {
+          "name": "nama",
+          "type": "varchar(150)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "angkatan": {
+          "name": "angkatan",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'AKTIF'"
+        }
+      },
+      "indexes": {
+        "mahasiswa_program_studi_id_angkatan_idx": {
+          "name": "mahasiswa_program_studi_id_angkatan_idx",
+          "columns": [
+            {
+              "expression": "program_studi_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "angkatan",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "mahasiswa_kurikulum_id_idx": {
+          "name": "mahasiswa_kurikulum_id_idx",
+          "columns": [
+            {
+              "expression": "kurikulum_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "mahasiswa_dosen_pa_id_idx": {
+          "name": "mahasiswa_dosen_pa_id_idx",
+          "columns": [
+            {
+              "expression": "dosen_pa_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "mahasiswa_user_id_users_id_fk": {
+          "name": "mahasiswa_user_id_users_id_fk",
+          "tableFrom": "mahasiswa",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "mahasiswa_program_studi_id_program_studi_id_fk": {
+          "name": "mahasiswa_program_studi_id_program_studi_id_fk",
+          "tableFrom": "mahasiswa",
+          "tableTo": "program_studi",
+          "columnsFrom": [
+            "program_studi_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "mahasiswa_dosen_pa_id_dosen_id_fk": {
+          "name": "mahasiswa_dosen_pa_id_dosen_id_fk",
+          "tableFrom": "mahasiswa",
+          "tableTo": "dosen",
+          "columnsFrom": [
+            "dosen_pa_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "mahasiswa_kurikulum_program_studi_fk": {
+          "name": "mahasiswa_kurikulum_program_studi_fk",
+          "tableFrom": "mahasiswa",
+          "tableTo": "kurikulum",
+          "columnsFrom": [
+            "kurikulum_id",
+            "program_studi_id"
+          ],
+          "columnsTo": [
+            "id",
+            "program_studi_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "mahasiswa_nim_unique": {
+          "name": "mahasiswa_nim_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "nim"
+          ]
+        },
+        "mahasiswa_user_id_unique": {
+          "name": "mahasiswa_user_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "user_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "mahasiswa_nim_nonblank_check": {
+          "name": "mahasiswa_nim_nonblank_check",
+          "value": "\"mahasiswa\".\"nim\" ~ '[^[:space:]]'"
+        },
+        "mahasiswa_nim_canonical_check": {
+          "name": "mahasiswa_nim_canonical_check",
+          "value": "\"mahasiswa\".\"nim\" = upper(\"mahasiswa\".\"nim\") AND \"mahasiswa\".\"nim\" !~ '^[[:space:]]|[[:space:]]$'"
+        },
+        "mahasiswa_nama_nonblank_check": {
+          "name": "mahasiswa_nama_nonblank_check",
+          "value": "\"mahasiswa\".\"nama\" ~ '[^[:space:]]'"
+        },
+        "mahasiswa_status_check": {
+          "name": "mahasiswa_status_check",
+          "value": "\"mahasiswa\".\"status\" IN ('AKTIF', 'CUTI', 'LULUS', 'KELUAR', 'NONAKTIF')"
+        },
+        "mahasiswa_angkatan_range_check": {
+          "name": "mahasiswa_angkatan_range_check",
+          "value": "\"mahasiswa\".\"angkatan\" BETWEEN 1900 AND 9999"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.mata_kuliah": {
+      "name": "mata_kuliah",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "kode": {
+          "name": "kode",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nama": {
+          "name": "nama",
+          "type": "varchar(150)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sks": {
+          "name": "sks",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "mata_kuliah_kode_unique": {
+          "name": "mata_kuliah_kode_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "kode"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "mata_kuliah_kode_nonblank_check": {
+          "name": "mata_kuliah_kode_nonblank_check",
+          "value": "\"mata_kuliah\".\"kode\" ~ '[^[:space:]]'"
+        },
+        "mata_kuliah_kode_canonical_check": {
+          "name": "mata_kuliah_kode_canonical_check",
+          "value": "\"mata_kuliah\".\"kode\" = upper(\"mata_kuliah\".\"kode\") AND \"mata_kuliah\".\"kode\" !~ '^[[:space:]]|[[:space:]]$'"
+        },
+        "mata_kuliah_nama_nonblank_check": {
+          "name": "mata_kuliah_nama_nonblank_check",
+          "value": "\"mata_kuliah\".\"nama\" ~ '[^[:space:]]'"
+        },
+        "mata_kuliah_sks_positive_check": {
+          "name": "mata_kuliah_sks_positive_check",
+          "value": "\"mata_kuliah\".\"sks\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.nilai_mahasiswa": {
+      "name": "nilai_mahasiswa",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "komponen_nilai_id": {
+          "name": "komponen_nilai_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mahasiswa_id": {
+          "name": "mahasiswa_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nilai": {
+          "name": "nilai",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dicatat_oleh": {
+          "name": "dicatat_oleh",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "diubah_oleh": {
+          "name": "diubah_oleh",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "nilai_mahasiswa_mahasiswa_id_komponen_nilai_id_idx": {
+          "name": "nilai_mahasiswa_mahasiswa_id_komponen_nilai_id_idx",
+          "columns": [
+            {
+              "expression": "mahasiswa_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "komponen_nilai_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "nilai_mahasiswa_komponen_nilai_id_komponen_nilai_id_fk": {
+          "name": "nilai_mahasiswa_komponen_nilai_id_komponen_nilai_id_fk",
+          "tableFrom": "nilai_mahasiswa",
+          "tableTo": "komponen_nilai",
+          "columnsFrom": [
+            "komponen_nilai_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "nilai_mahasiswa_mahasiswa_id_mahasiswa_id_fk": {
+          "name": "nilai_mahasiswa_mahasiswa_id_mahasiswa_id_fk",
+          "tableFrom": "nilai_mahasiswa",
+          "tableTo": "mahasiswa",
+          "columnsFrom": [
+            "mahasiswa_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "nilai_mahasiswa_dicatat_oleh_users_id_fk": {
+          "name": "nilai_mahasiswa_dicatat_oleh_users_id_fk",
+          "tableFrom": "nilai_mahasiswa",
+          "tableTo": "users",
+          "columnsFrom": [
+            "dicatat_oleh"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "nilai_mahasiswa_diubah_oleh_users_id_fk": {
+          "name": "nilai_mahasiswa_diubah_oleh_users_id_fk",
+          "tableFrom": "nilai_mahasiswa",
+          "tableTo": "users",
+          "columnsFrom": [
+            "diubah_oleh"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "nilai_mahasiswa_komponen_nilai_id_mahasiswa_id_unique": {
+          "name": "nilai_mahasiswa_komponen_nilai_id_mahasiswa_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "komponen_nilai_id",
+            "mahasiswa_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "nilai_mahasiswa_nilai_range_check": {
+          "name": "nilai_mahasiswa_nilai_range_check",
+          "value": "\"nilai_mahasiswa\".\"nilai\" IS NULL OR (\"nilai_mahasiswa\".\"nilai\" >= 0 AND \"nilai_mahasiswa\".\"nilai\" <= 100)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.pertemuan": {
+      "name": "pertemuan",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "kelas_kuliah_id": {
+          "name": "kelas_kuliah_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nomor_pertemuan": {
+          "name": "nomor_pertemuan",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tanggal": {
+          "name": "tanggal",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "jam_mulai": {
+          "name": "jam_mulai",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "jam_selesai": {
+          "name": "jam_selesai",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "materi": {
+          "name": "materi",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'TERJADWAL'"
+        }
+      },
+      "indexes": {
+        "pertemuan_tanggal_status_idx": {
+          "name": "pertemuan_tanggal_status_idx",
+          "columns": [
+            {
+              "expression": "tanggal",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pertemuan_kelas_kuliah_id_kelas_kuliah_id_fk": {
+          "name": "pertemuan_kelas_kuliah_id_kelas_kuliah_id_fk",
+          "tableFrom": "pertemuan",
+          "tableTo": "kelas_kuliah",
+          "columnsFrom": [
+            "kelas_kuliah_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "pertemuan_kelas_kuliah_id_nomor_pertemuan_unique": {
+          "name": "pertemuan_kelas_kuliah_id_nomor_pertemuan_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "kelas_kuliah_id",
+            "nomor_pertemuan"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "pertemuan_nomor_pertemuan_positive_check": {
+          "name": "pertemuan_nomor_pertemuan_positive_check",
+          "value": "\"pertemuan\".\"nomor_pertemuan\" > 0"
+        },
+        "pertemuan_jam_range_check": {
+          "name": "pertemuan_jam_range_check",
+          "value": "\"pertemuan\".\"jam_mulai\" < \"pertemuan\".\"jam_selesai\""
+        },
+        "pertemuan_status_check": {
+          "name": "pertemuan_status_check",
+          "value": "\"pertemuan\".\"status\" IN ('TERJADWAL', 'SELESAI', 'DIBATALKAN')"
+        },
+        "pertemuan_materi_nonblank_check": {
+          "name": "pertemuan_materi_nonblank_check",
+          "value": "\"pertemuan\".\"materi\" ~ '[^[:space:]]'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.program_studi": {
+      "name": "program_studi",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "fakultas_id": {
+          "name": "fakultas_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kode": {
+          "name": "kode",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nama": {
+          "name": "nama",
+          "type": "varchar(150)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "jenjang": {
+          "name": "jenjang",
+          "type": "varchar(12)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {
+        "program_studi_fakultas_id_idx": {
+          "name": "program_studi_fakultas_id_idx",
+          "columns": [
+            {
+              "expression": "fakultas_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "program_studi_fakultas_id_fakultas_id_fk": {
+          "name": "program_studi_fakultas_id_fakultas_id_fk",
+          "tableFrom": "program_studi",
+          "tableTo": "fakultas",
+          "columnsFrom": [
+            "fakultas_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "program_studi_kode_unique": {
+          "name": "program_studi_kode_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "kode"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "program_studi_kode_nonblank_check": {
+          "name": "program_studi_kode_nonblank_check",
+          "value": "\"program_studi\".\"kode\" ~ '[^[:space:]]'"
+        },
+        "program_studi_kode_canonical_check": {
+          "name": "program_studi_kode_canonical_check",
+          "value": "\"program_studi\".\"kode\" = upper(\"program_studi\".\"kode\") AND \"program_studi\".\"kode\" !~ '^[[:space:]]|[[:space:]]$'"
+        },
+        "program_studi_nama_nonblank_check": {
+          "name": "program_studi_nama_nonblank_check",
+          "value": "\"program_studi\".\"nama\" ~ '[^[:space:]]'"
+        },
+        "program_studi_jenjang_check": {
+          "name": "program_studi_jenjang_check",
+          "value": "\"program_studi\".\"jenjang\" IN ('D1', 'D2', 'D3', 'D4', 'S1', 'S2', 'S3', 'PROFESI')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.ruangan": {
+      "name": "ruangan",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "kode": {
+          "name": "kode",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nama": {
+          "name": "nama",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gedung": {
+          "name": "gedung",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kapasitas": {
+          "name": "kapasitas",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "ruangan_kode_unique": {
+          "name": "ruangan_kode_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "kode"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "ruangan_kode_nonblank_check": {
+          "name": "ruangan_kode_nonblank_check",
+          "value": "\"ruangan\".\"kode\" ~ '[^[:space:]]'"
+        },
+        "ruangan_kode_canonical_check": {
+          "name": "ruangan_kode_canonical_check",
+          "value": "\"ruangan\".\"kode\" = upper(\"ruangan\".\"kode\") AND \"ruangan\".\"kode\" !~ '^[[:space:]]|[[:space:]]$'"
+        },
+        "ruangan_nama_nonblank_check": {
+          "name": "ruangan_nama_nonblank_check",
+          "value": "\"ruangan\".\"nama\" ~ '[^[:space:]]'"
+        },
+        "ruangan_gedung_nonblank_check": {
+          "name": "ruangan_gedung_nonblank_check",
+          "value": "\"ruangan\".\"gedung\" ~ '[^[:space:]]'"
+        },
+        "ruangan_kapasitas_positive_check": {
+          "name": "ruangan_kapasitas_positive_check",
+          "value": "\"ruangan\".\"kapasitas\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.semester": {
+      "name": "semester",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "kode": {
+          "name": "kode",
+          "type": "varchar(5)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nama": {
+          "name": "nama",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tahun_mulai": {
+          "name": "tahun_mulai",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "jenis": {
+          "name": "jenis",
+          "type": "varchar(8)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tanggal_mulai": {
+          "name": "tanggal_mulai",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tanggal_selesai": {
+          "name": "tanggal_selesai",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "krs_mulai_at": {
+          "name": "krs_mulai_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "krs_selesai_at": {
+          "name": "krs_selesai_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        }
+      },
+      "indexes": {
+        "semester_active_unique": {
+          "name": "semester_active_unique",
+          "columns": [
+            {
+              "expression": "is_active",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"semester\".\"is_active\" = true",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "semester_kode_unique": {
+          "name": "semester_kode_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "kode"
+          ]
+        },
+        "semester_tahun_mulai_jenis_unique": {
+          "name": "semester_tahun_mulai_jenis_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tahun_mulai",
+            "jenis"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "semester_kode_nonblank_check": {
+          "name": "semester_kode_nonblank_check",
+          "value": "\"semester\".\"kode\" ~ '[^[:space:]]'"
+        },
+        "semester_kode_canonical_check": {
+          "name": "semester_kode_canonical_check",
+          "value": "\"semester\".\"kode\" = upper(\"semester\".\"kode\") AND \"semester\".\"kode\" !~ '^[[:space:]]|[[:space:]]$'"
+        },
+        "semester_nama_nonblank_check": {
+          "name": "semester_nama_nonblank_check",
+          "value": "\"semester\".\"nama\" ~ '[^[:space:]]'"
+        },
+        "semester_jenis_check": {
+          "name": "semester_jenis_check",
+          "value": "\"semester\".\"jenis\" IN ('GANJIL', 'GENAP')"
+        },
+        "semester_tahun_mulai_range_check": {
+          "name": "semester_tahun_mulai_range_check",
+          "value": "\"semester\".\"tahun_mulai\" BETWEEN 1900 AND 9998"
+        },
+        "semester_tanggal_range_check": {
+          "name": "semester_tanggal_range_check",
+          "value": "\"semester\".\"tanggal_mulai\" <= \"semester\".\"tanggal_selesai\""
+        },
+        "semester_krs_window_check": {
+          "name": "semester_krs_window_check",
+          "value": "(\n      (\"semester\".\"krs_mulai_at\" IS NULL AND \"semester\".\"krs_selesai_at\" IS NULL)\n      OR (\"semester\".\"krs_mulai_at\" IS NOT NULL AND \"semester\".\"krs_selesai_at\" IS NOT NULL AND \"semester\".\"krs_mulai_at\" < \"semester\".\"krs_selesai_at\")\n    )"
+        },
+        "semester_kode_matches_term_check": {
+          "name": "semester_kode_matches_term_check",
+          "value": "\"semester\".\"kode\" = \"semester\".\"tahun_mulai\"::text || CASE \"semester\".\"jenis\" WHEN 'GANJIL' THEN '1' ELSE '2' END"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "login_id": {
+          "name": "login_id",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(254)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "must_change_password": {
+          "name": "must_change_password",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_login_id_unique": {
+          "name": "users_login_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "login_id"
+          ]
+        },
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "users_login_id_digits_check": {
+          "name": "users_login_id_digits_check",
+          "value": "\"users\".\"login_id\" IS NULL OR \"users\".\"login_id\" ~ '^[0-9]+$'"
+        },
+        "users_email_nonblank_check": {
+          "name": "users_email_nonblank_check",
+          "value": "\"users\".\"email\" ~ '[^[:space:]]'"
+        },
+        "users_email_canonical_check": {
+          "name": "users_email_canonical_check",
+          "value": "\"users\".\"email\" = lower(\"users\".\"email\") AND \"users\".\"email\" !~ '^[[:space:]]|[[:space:]]$'"
+        },
+        "users_password_hash_nonblank_check": {
+          "name": "users_password_hash_nonblank_check",
+          "value": "\"users\".\"password_hash\" ~ '[^[:space:]]'"
+        },
+        "users_role_check": {
+          "name": "users_role_check",
+          "value": "\"users\".\"role\" IN ('ADMIN', 'AKADEMIK', 'DOSEN', 'MAHASISWA')"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

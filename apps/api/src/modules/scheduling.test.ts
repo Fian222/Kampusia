@@ -85,15 +85,26 @@ test('Jadwal rejects invalid class, room, inactive room, weekday, times, capacit
   await c.services.jadwal.add(c.classes[0]!.id, c.body);
   expect((await c.request(c.path + '/' + c.slots[0]!.id, 'PATCH', {})).status).toBe(400);
 });
-for (const resource of ['room', 'class', 'lecturer', 'student'] as const) test('Jadwal detects ' + resource + ' conflicts and allows adjacency', async () => {
+for (const resource of ['room', 'lecturer', 'student'] as const) test('Jadwal detects ' + resource + ' conflicts and allows adjacency', async () => {
   const c = setup(); await c.services.jadwal.add(c.classes[0]!.id, c.body);
-  const target = resource === 'class' ? c.classes[0]! : c.classes[1]!;
+  const target = c.classes[1]!;
   if (resource === 'lecturer') c.assignments.push(...c.classes.map(row => ({ kelasKuliahId: row.id, dosenId: missing })));
   if (resource === 'student') c.peers.add(c.classes[0]!.id);
   const body = { ...c.body, ruangan_id: resource === 'room' ? c.rooms[0]!.id : c.rooms[1]!.id, jam_mulai: '09:30', jam_selesai: '11:00' };
   const response = await c.request(`/kelas-kuliah/${target.id}/jadwal`, 'POST', body); expect(response.status).toBe(409);
-  const text = await response.text(); expect(text).toContain({ room: 'ruangan', class: 'kelas yang sama', lecturer: 'dosen', student: 'KRS mahasiswa' }[resource]);
+  const text = await response.text(); expect(text).toContain({ room: 'ruangan', lecturer: 'dosen', student: 'KRS mahasiswa' }[resource]);
   expect((await c.request(`/kelas-kuliah/${target.id}/jadwal`, 'POST', { ...body, jam_mulai: '10:00', jam_selesai: '12:00' })).status).toBe(201);
+});
+test('Jadwal permits one regular schedule, edits that row, and allows recreation after deletion', async () => {
+  const c = setup(); const id = c.classes[0]!.id;
+  const slot = await c.services.jadwal.add(id, c.body);
+  await expect(c.services.jadwal.add(id, { ...c.body, ruangan_id: c.rooms[1]!.id, hari: 2 }))
+    .rejects.toThrow('Jadwal kelas sudah tersedia. Edit jadwal yang ada.');
+  const edited = await c.services.jadwal.update(id, slot.id, { hari: 2, ruangan_id: c.rooms[1]!.id });
+  expect(edited.id).toBe(slot.id); expect(edited.hari).toBe(2);
+  await c.services.jadwal.remove(id, slot.id);
+  const recreated = await c.services.jadwal.add(id, c.body);
+  expect(recreated.id).not.toBe(slot.id); expect(c.slots).toHaveLength(1);
 });
 test('Weekday occurrence handles inclusive boundaries, Sunday and intersecting dates without shared weekday', () => {
   expect(hasWeekday('2026-09-14', '2026-09-14', 1)).toBe(true);
@@ -147,7 +158,8 @@ test('Ruangan invalid capacity and unsafe changes rejected; historical/cancelled
 for (const role of ['ADMIN', 'AKADEMIK', 'DOSEN', 'MAHASISWA'] as const) test('Scheduling and room endpoints enforce role ' + role, async () => {
   const c = setup(role); const allowed = ['ADMIN', 'AKADEMIK'].includes(role);
   const slot = await c.services.jadwal.add(c.classes[0]!.id, c.body);
-  for (const [path, method, body] of [[c.path, 'GET'], [c.path, 'POST', { ...c.body, hari: 2 }], [c.path + '/' + slot.id, 'PATCH', { hari: 3 }], [c.path + '/' + slot.id, 'DELETE'], ['/ruangan', 'GET'], ['/ruangan/' + c.rooms[0]!.id, 'GET'], ['/ruangan', 'POST', { kode: 'NEW', nama: 'Room', kapasitas: 40 }], ['/ruangan/' + c.rooms[0]!.id, 'PATCH', { nama: 'New' }]] as const) expect((await c.request(path, method, body)).status).toBe(allowed ? method === 'POST' ? 201 : 200 : 403);
+  const secondPath = `/kelas-kuliah/${c.classes[1]!.id}/jadwal`;
+  for (const [path, method, body] of [[c.path, 'GET'], [secondPath, 'POST', { ...c.body, ruangan_id: c.rooms[1]!.id, hari: 2 }], [c.path + '/' + slot.id, 'PATCH', { hari: 3 }], [c.path + '/' + slot.id, 'DELETE'], ['/ruangan', 'GET'], ['/ruangan/' + c.rooms[0]!.id, 'GET'], ['/ruangan', 'POST', { kode: 'NEW', nama: 'Room', kapasitas: 40 }], ['/ruangan/' + c.rooms[0]!.id, 'PATCH', { nama: 'New' }]] as const) expect((await c.request(path, method, body)).status).toBe(allowed ? method === 'POST' ? 201 : 200 : 403);
 });
 test('Scheduling sessions, inactive users, origin and list validation remain enforced', async () => {
   const c = setup();
@@ -167,9 +179,9 @@ test('Schedule write retries the complete transaction and caps repeated serializ
   await expect(blocked.add(c.classes[0]!.id, { ...c.body, hari: 2 })).rejects.toThrow('Data berubah bersamaan'); expect(attempts).toBe(3); expect(c.slots).toHaveLength(1);
 });
 
-test('Restoring a cancelled class validates overlaps among its own retained slots', async () => {
+test('Class schedule validation defensively detects overlapping legacy rows', async () => {
   const c = setup(); const kelas = c.classes[0]!; kelas.status = 'DIBATALKAN';
-  await c.services.jadwal.add(kelas.id, c.body);
-  await c.services.jadwal.add(kelas.id, { ...c.body, ruangan_id: c.rooms[1]!.id, jam_mulai: '09:00' });
+  const first = await c.services.jadwal.add(kelas.id, c.body);
+  c.slots.push({ ...first, ...stamps(), kelasKuliahId: kelas.id, ruanganId: c.rooms[1]!.id, jamMulai: '09:00:00' });
   await expect(validateClassSchedules(c.tx, { ...kelas, status: 'DRAFT' })).rejects.toThrow('kelas yang sama');
 });
