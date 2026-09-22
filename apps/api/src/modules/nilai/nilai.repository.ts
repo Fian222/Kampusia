@@ -18,7 +18,22 @@ function transactionRepository(tx: Transaction) {
     async actor(id: string) { return (await tx.select({ id: users.id, role: users.role, isActive: users.isActive }).from(users).where(eq(users.id, id)).for('share'))[0]; },
     async lecturer(userId: string) { return (await tx.select({ id: dosen.id, isActive: dosen.isActive }).from(dosen).where(eq(dosen.userId, userId)).for('share'))[0]; },
     async assignment(classId: string, lecturerId: string) { return (await tx.select().from(kelasDosen).where(and(eq(kelasDosen.kelasKuliahId, classId), eq(kelasDosen.dosenId, lecturerId))).for('share'))[0]; },
-    async coordinator(classId: string) { return (await tx.select({ dosenId: kelasDosen.dosenId }).from(kelasDosen).where(and(eq(kelasDosen.kelasKuliahId, classId), eq(kelasDosen.isKoordinator, true))).for('share'))[0]; },
+    async assignedLecturers(classId: string) {
+      return tx.select({
+        assignmentId: kelasDosen.id,
+        isKoordinator: kelasDosen.isKoordinator,
+        dosenId: dosen.id,
+        nama: dosen.nama,
+        dosenIsActive: dosen.isActive,
+        userId: users.id,
+        userRole: users.role,
+        userIsActive: users.isActive,
+      }).from(kelasDosen)
+        .innerJoin(dosen, eq(kelasDosen.dosenId, dosen.id))
+        .leftJoin(users, eq(dosen.userId, users.id))
+        .where(eq(kelasDosen.kelasKuliahId, classId))
+        .orderBy(asc(dosen.nama), asc(dosen.id));
+    },
     async classInfo(id: string) { return (await tx.select(classSelection).from(kelasKuliah).innerJoin(semester, eq(kelasKuliah.semesterId, semester.id)).innerJoin(mataKuliah, eq(kelasKuliah.mataKuliahId, mataKuliah.id)).innerJoin(programStudi, eq(kelasKuliah.programStudiId, programStudi.id)).where(eq(kelasKuliah.id, id)))[0]; },
     async lockClass(id: string) { return (await tx.select().from(kelasKuliah).where(eq(kelasKuliah.id, id)).for('update'))[0]; },
     async relatedPlanIds(classId: string, studentId?: string) {

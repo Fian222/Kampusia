@@ -75,4 +75,21 @@ test('Dosen class detail remains teaching-focused without Akademik administratio
   expect(page).not.toContain('Tambah Dosen');
   expect(page).not.toContain('Ubah Status');
   expect(page).not.toContain('Pengaturan');
+  expect(page).toContain('href="#ringkasan"');
+  expect(page).toContain('Pertemuan / Absensi');
+  expect(page).toContain('data.grading.summary.completeStudents');
+});
+
+test('shared grading UI follows server permissions and keeps manager actions oversight-only', async () => {
+  const component = await read('lib/components/GradingManager.svelte');
+  const server = await read('lib/server/grading.ts');
+
+  expect(component).toContain("area === 'akademik' ? 'Pengawasan Penilaian' : 'Penilaian'");
+  expect(component).toContain('grading.permissions.canManageComponents');
+  expect(component).toContain('grading.permissions.canRecordScores');
+  expect(component).toContain('grading.permissions.canFinalize');
+  expect(component).toContain('grading.permissions.canCorrect');
+  expect(component).toContain('grading.finalization.message');
+  expect(component).toContain('Koreksi administratif');
+  expect(server).toContain("if (admin && values.mode !== 'correct')");
 });

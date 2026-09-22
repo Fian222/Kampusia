@@ -34,7 +34,7 @@ test('core academic workspaces expose clear hierarchy and focused actions', asyn
   expect(classDetail).toContain('aria-label="Ruang kerja kelas"');
   expect(classDetail).toContain('classWorkspaceTabs');
   expect(classDetail).toContain("activeTab === 'meetings'");
-  expect(lecturerDetail).toContain('Pertemuan & absensi');
+  expect(lecturerDetail).toContain('Pertemuan / Absensi');
   expect(profiles).toContain('Hasil Studi');
   expect(profiles).toContain('md:hidden');
   expect(results).toContain('<summary class="cursor-pointer font-semibold text-slate-900">Cara IPS dan IPK dihitung</summary>');

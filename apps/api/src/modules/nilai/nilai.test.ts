@@ -19,16 +19,17 @@ function fixture() {
   const kelas: typeof kelasKuliah.$inferSelect = { ...common(), semesterId: uuid(), mataKuliahId: uuid(), programStudiId: uuid(), namaKelas: 'A', kapasitas: 30, status: 'DITUTUP' };
   const classInfo = { ...kelas, semester: { id: kelas.semesterId, kode: '20261', nama: 'Ganjil' }, mataKuliah: { id: kelas.mataKuliahId, kode: 'IF101', nama: 'Basis Data', sks: 3 }, programStudi: { id: kelas.programStudiId, kode: 'IF', nama: 'Informatika' } };
   const lecturer = { id: uuid(), isActive: true };
+  const otherLecturer = { id: uuid(), isActive: true };
   const students = [{ id: uuid(), nim: '001', nama: 'Ani', krsId: uuid(), detailId: uuid() }, { id: uuid(), nim: '002', nama: 'Budi', krsId: uuid(), detailId: uuid() }];
   const components: (typeof komponenNilai.$inferSelect)[] = [];
   const scores: (typeof nilaiMahasiswa.$inferSelect)[] = [];
   const results: (typeof hasilStudi.$inferSelect)[] = [];
-  let effective = [...students]; let assigned = true; let coordinatorId: string | undefined = lecturer.id; let activeActor = true; let failResultUpdate = false;
+  let effective = [...students]; let assigned = true; let coordinatorId: string | undefined = lecturer.id; let teamSize = 1; let activeActor = true; let failResultUpdate = false;
   const tx = {
     actor: async (id: string) => { const user = users.find(row => row.id === id); return user ? { id, role: user.role, isActive: activeActor } : undefined; },
-    lecturer: async (id: string) => id === lecturerUser.id ? lecturer : id === foreignLecturer.id ? { id: uuid(), isActive: true } : undefined,
+    lecturer: async (id: string) => id === lecturerUser.id ? lecturer : id === foreignLecturer.id ? otherLecturer : undefined,
     assignment: async (_classId: string, id: string) => assigned && id === lecturer.id ? { ...common(), kelasKuliahId: kelas.id, dosenId: id, isKoordinator: coordinatorId === id } : undefined,
-    coordinator: async () => coordinatorId ? { dosenId: coordinatorId } : undefined,
+    assignedLecturers: async () => [{ assignmentId: uuid(), isKoordinator: coordinatorId === lecturer.id, dosenId: lecturer.id, nama: 'Dosen Utama', dosenIsActive: true, userId: lecturerUser.id, userRole: 'DOSEN' as const, userIsActive: true }, ...(teamSize > 1 || coordinatorId === otherLecturer.id ? [{ assignmentId: uuid(), isKoordinator: coordinatorId === otherLecturer.id, dosenId: otherLecturer.id, nama: 'Rina Pratama', dosenIsActive: true, userId: foreignLecturer.id, userRole: 'DOSEN' as const, userIsActive: true }] : [])],
     classInfo: async (id: string) => id === kelas.id ? classInfo : undefined,
     lockClass: async (id: string) => id === kelas.id ? kelas : undefined,
     relatedPlanIds: async (_id: string, studentId?: string) => effective.filter(row => !studentId || row.id === studentId).map(row => row.krsId), lockPlans: async () => {},
@@ -47,8 +48,8 @@ function fixture() {
   };
   const repository: NilaiRepository = { transaction: async operation => { const snapshots = [structuredClone(components), structuredClone(scores), structuredClone(results)] as const; try { return await operation(tx as unknown as NilaiTransaction); } catch (error) { components.splice(0, components.length, ...snapshots[0]); scores.splice(0, scores.length, ...snapshots[1]); results.splice(0, results.length, ...snapshots[2]); throw error; } } };
   const service = createNilaiService(repository);
-  const addComponents = async () => [await service.createComponent(admin, kelas.id, { nama: 'Tugas', bobot: '40', urutan: 1 }), await service.createComponent(admin, kelas.id, { nama: 'Ujian', bobot: '60', urutan: 2 })];
-  return { admin, academic, lecturerUser, foreignLecturer, studentUser, kelas, students, components, scores, results, service, addComponents, setEffective: (rows: typeof students) => { effective = rows; }, setAssigned: (value: boolean) => { assigned = value; }, setNoCoordinator: () => { coordinatorId = undefined; }, setForeignCoordinator: () => { coordinatorId = uuid(); }, failCorrection: () => { failResultUpdate = true; }, deactivateActor: () => { activeActor = false; } };
+  const addComponents = async () => [await service.createComponent(lecturerUser, kelas.id, { nama: 'Tugas', bobot: '40', urutan: 1 }), await service.createComponent(lecturerUser, kelas.id, { nama: 'Ujian', bobot: '60', urutan: 2 })];
+  return { admin, academic, lecturerUser, foreignLecturer, studentUser, kelas, students, components, scores, results, service, addComponents, setEffective: (rows: typeof students) => { effective = rows; }, setAssigned: (value: boolean) => { assigned = value; }, setNoCoordinator: () => { coordinatorId = undefined; teamSize = 1; }, setMultipleNoCoordinator: () => { coordinatorId = undefined; teamSize = 2; }, setForeignCoordinator: () => { coordinatorId = otherLecturer.id; teamSize = 2; }, failCorrection: () => { failResultUpdate = true; }, deactivateActor: () => { activeActor = false; } };
 }
 
 test('exact grading policy rounds once and maps development bands', () => {
@@ -56,19 +57,31 @@ test('exact grading policy rounds once and maps development bands', () => {
 });
 
 test('components list/create/update/deactivate/delete obey validation and safe history', async () => {
-  const f = fixture(); const component = await f.service.createComponent(f.admin, f.kelas.id, { nama: ' Tugas ', bobot: '40', urutan: 1 });
+  const f = fixture(); const component = await f.service.createComponent(f.lecturerUser, f.kelas.id, { nama: ' Tugas ', bobot: '40', urutan: 1 });
   expect(component.nama).toBe('Tugas'); expect((await f.service.listComponents(f.admin, f.kelas.id)).summary.activeWeight).toBe('40.00');
-  await expect(f.service.createComponent(f.admin, f.kelas.id, { nama: 'tugas', bobot: '20', urutan: 2 })).rejects.toThrow('sudah digunakan');
-  await expect(f.service.createComponent(f.admin, f.kelas.id, { nama: 'Buruk', bobot: '0', urutan: 2 })).rejects.toThrow('rentang');
-  await f.service.updateComponent(f.academic, f.kelas.id, component.id, { is_active: false, bobot: '30.50' }); expect(f.components[0]!.isActive).toBe(false);
-  await f.service.deleteComponent(f.admin, f.kelas.id, component.id); expect(f.components).toHaveLength(0);
+  await expect(f.service.createComponent(f.lecturerUser, f.kelas.id, { nama: 'tugas', bobot: '20', urutan: 2 })).rejects.toThrow('sudah digunakan');
+  await expect(f.service.createComponent(f.lecturerUser, f.kelas.id, { nama: 'Buruk', bobot: '0', urutan: 2 })).rejects.toThrow('rentang');
+  await f.service.updateComponent(f.lecturerUser, f.kelas.id, component.id, { is_active: false, bobot: '30.50' }); expect(f.components[0]!.isActive).toBe(false);
+  await f.service.deleteComponent(f.lecturerUser, f.kelas.id, component.id); expect(f.components).toHaveLength(0);
 });
 
 test('assigned active lecturer may grade; foreign lecturer and mahasiswa are rejected', async () => {
   const f = fixture(); expect((await f.service.createComponent(f.lecturerUser, f.kelas.id, { nama: 'Quiz', bobot: '100', urutan: 1 })).nama).toBe('Quiz');
   await expect(f.service.listComponents(f.foreignLecturer, f.kelas.id)).rejects.toThrow('ditugaskan');
+  await expect(f.service.createComponent(f.foreignLecturer, f.kelas.id, { nama: 'Ujian', bobot: '100', urutan: 2 })).rejects.toThrow('ditugaskan');
   await expect(f.service.listComponents(f.studentUser, f.kelas.id)).rejects.toThrow('akses');
   f.deactivateActor(); await expect(f.service.listComponents(f.admin, f.kelas.id)).rejects.toThrow('izin');
+});
+
+test('ADMIN and AKADEMIK have oversight only while assigned DOSEN owns ordinary grading', async () => {
+  const f = fixture();
+  expect((await f.service.roster(f.admin, f.kelas.id)).permissions.canManageComponents).toBe(false);
+  await expect(f.service.createComponent(f.admin, f.kelas.id, { nama: 'Final', bobot: '100', urutan: 1 })).rejects.toThrow('Dosen');
+  await expect(f.service.createComponent(f.academic, f.kelas.id, { nama: 'Final', bobot: '100', urutan: 1 })).rejects.toThrow('Dosen');
+  const component = await f.service.createComponent(f.lecturerUser, f.kelas.id, { nama: 'Final', bobot: '100', urutan: 1 });
+  await expect(f.service.record(f.admin, f.kelas.id, f.students[0]!.id, component.id, { nilai: '80' })).rejects.toThrow('Dosen');
+  await expect(f.service.record(f.academic, f.kelas.id, f.students[0]!.id, component.id, { nilai: '80' })).rejects.toThrow('Dosen');
+  await expect(f.service.finalize(f.admin, f.kelas.id)).rejects.toThrow('Dosen');
 });
 
 test('roster uses effective students and missing remains distinct from numeric zero', async () => {
@@ -76,22 +89,22 @@ test('roster uses effective students and missing remains distinct from numeric z
   let roster = await f.service.roster(f.admin, f.kelas.id); expect(roster.data).toHaveLength(1); expect(roster.data[0]!.scores[0]!.nilai).toBeNull();
   await f.service.record(f.lecturerUser, f.kelas.id, f.students[0]!.id, component!.id, { nilai: '0' });
   roster = await f.service.roster(f.admin, f.kelas.id); expect(roster.data[0]!.scores[0]!.nilai).toBe('0.00');
-  const row = f.scores[0]!; const createdAt = row.createdAt; await f.service.record(f.admin, f.kelas.id, f.students[0]!.id, component!.id, { nilai: null });
+  const row = f.scores[0]!; const createdAt = row.createdAt; await f.service.record(f.lecturerUser, f.kelas.id, f.students[0]!.id, component!.id, { nilai: null });
   expect(row.id).toBe(f.scores[0]!.id); expect(row.createdAt).toBe(createdAt); expect(row.nilai).toBeNull();
-  await expect(f.service.record(f.admin, f.kelas.id, f.students[0]!.id, component!.id, { nilai: '101' })).rejects.toThrow('rentang');
+  await expect(f.service.record(f.lecturerUser, f.kelas.id, f.students[0]!.id, component!.id, { nilai: '101' })).rejects.toThrow('rentang');
 });
 
 test('component with retained score cannot be removed and historical score is excluded', async () => {
-  const f = fixture(); const [component] = await f.addComponents(); await f.service.record(f.admin, f.kelas.id, f.students[0]!.id, component!.id, { nilai: '70' });
-  await expect(f.service.deleteComponent(f.admin, f.kelas.id, component!.id)).rejects.toThrow('nonaktifkan');
+  const f = fixture(); const [component] = await f.addComponents(); await f.service.record(f.lecturerUser, f.kelas.id, f.students[0]!.id, component!.id, { nilai: '70' });
+  await expect(f.service.deleteComponent(f.lecturerUser, f.kelas.id, component!.id)).rejects.toThrow('nonaktifkan');
   f.setEffective([f.students[1]!]); expect((await f.service.roster(f.admin, f.kelas.id)).historicalScores).toHaveLength(1);
 });
 
 test('finalization rejects bad weight and missing values without partial results', async () => {
-  const f = fixture(); const one = await f.service.createComponent(f.admin, f.kelas.id, { nama: 'Tugas', bobot: '90', urutan: 1 });
-  await expect(f.service.finalize(f.admin, f.kelas.id)).rejects.toThrow('100.00'); expect(f.results).toHaveLength(0);
-  await f.service.updateComponent(f.admin, f.kelas.id, one.id, { bobot: '100' }); await f.service.record(f.admin, f.kelas.id, f.students[0]!.id, one.id, { nilai: '80' });
-  await expect(f.service.finalize(f.admin, f.kelas.id)).rejects.toThrow('002'); expect(f.results).toHaveLength(0);
+  const f = fixture(); const one = await f.service.createComponent(f.lecturerUser, f.kelas.id, { nama: 'Tugas', bobot: '90', urutan: 1 });
+  await expect(f.service.finalize(f.lecturerUser, f.kelas.id)).rejects.toThrow('100.00'); expect(f.results).toHaveLength(0);
+  await f.service.updateComponent(f.lecturerUser, f.kelas.id, one.id, { bobot: '100' }); await f.service.record(f.lecturerUser, f.kelas.id, f.students[0]!.id, one.id, { nilai: '80' });
+  await expect(f.service.finalize(f.lecturerUser, f.kelas.id)).rejects.toThrow('002'); expect(f.results).toHaveLength(0);
 });
 
 test('atomic finalization calculates snapshots once and freezes ordinary changes', async () => {
@@ -99,26 +112,28 @@ test('atomic finalization calculates snapshots once and freezes ordinary changes
   for (const student of f.students) { await f.service.record(f.lecturerUser, f.kelas.id, student.id, task!.id, { nilai: student.nim === '001' ? '80' : '0' }); await f.service.record(f.lecturerUser, f.kelas.id, student.id, exam!.id, { nilai: '90' }); }
   const finalized = await f.service.finalize(f.lecturerUser, f.kelas.id); expect(finalized.data).toHaveLength(2); expect(new Set(finalized.data.map(row => row.difinalisasiAt.valueOf())).size).toBe(1);
   expect(f.results[0]!.nilaiAngka).toBe('86.00'); expect(f.results[0]!.nilaiHuruf).toBe('A'); expect(f.results[1]!.nilaiAngka).toBe('54.00'); expect(f.results[1]!.nilaiHuruf).toBe('D');
-  await expect(f.service.finalize(f.admin, f.kelas.id)).rejects.toThrow('sudah difinalisasi');
-  await expect(f.service.updateComponent(f.admin, f.kelas.id, task!.id, { bobot: '50' })).rejects.toThrow('dibekukan');
+  await expect(f.service.finalize(f.lecturerUser, f.kelas.id)).rejects.toThrow('sudah difinalisasi');
+  await expect(f.service.updateComponent(f.lecturerUser, f.kelas.id, task!.id, { bobot: '50' })).rejects.toThrow('dibekukan');
   await expect(f.service.record(f.lecturerUser, f.kelas.id, f.students[0]!.id, task!.id, { nilai: '100' })).rejects.toThrow('dibekukan');
 });
 
-test('only coordinator lecturer finalizes when configured', async () => {
-  const f = fixture(); const component = await f.service.createComponent(f.admin, f.kelas.id, { nama: 'Final', bobot: '100', urutan: 1 }); for (const student of f.students) await f.service.record(f.admin, f.kelas.id, student.id, component.id, { nilai: '80' });
-  f.setForeignCoordinator(); await expect(f.service.finalize(f.lecturerUser, f.kelas.id)).rejects.toThrow('koordinator');
-  f.setNoCoordinator(); expect((await f.service.finalize(f.lecturerUser, f.kelas.id)).data).toHaveLength(2);
+test('coordinator policy controls lecturer finalization without arbitrary fallback', async () => {
+  const f = fixture(); const component = await f.service.createComponent(f.lecturerUser, f.kelas.id, { nama: 'Final', bobot: '100', urutan: 1 }); for (const student of f.students) await f.service.record(f.lecturerUser, f.kelas.id, student.id, component.id, { nilai: '80' });
+  f.setForeignCoordinator(); await expect(f.service.finalize(f.lecturerUser, f.kelas.id)).rejects.toThrow('Rina Pratama');
+  f.setMultipleNoCoordinator(); await expect(f.service.finalize(f.lecturerUser, f.kelas.id)).rejects.toThrow('Tentukan dosen koordinator');
+  f.setNoCoordinator(); expect((await f.service.roster(f.lecturerUser, f.kelas.id)).permissions.canFinalize).toBe(true);
+  expect((await f.service.finalize(f.lecturerUser, f.kelas.id)).data).toHaveLength(2);
 });
 
 test('failed correction rolls back both source score and result snapshot', async () => {
-  const f = fixture(); const component = await f.service.createComponent(f.admin, f.kelas.id, { nama: 'Final', bobot: '100', urutan: 1 }); for (const student of f.students) await f.service.record(f.admin, f.kelas.id, student.id, component.id, { nilai: '80' }); await f.service.finalize(f.admin, f.kelas.id);
+  const f = fixture(); const component = await f.service.createComponent(f.lecturerUser, f.kelas.id, { nama: 'Final', bobot: '100', urutan: 1 }); for (const student of f.students) await f.service.record(f.lecturerUser, f.kelas.id, student.id, component.id, { nilai: '80' }); await f.service.finalize(f.lecturerUser, f.kelas.id);
   const beforeScore = f.scores[0]!.nilai; const beforeResult = f.results[0]!.nilaiAngka; f.failCorrection();
   await expect(f.service.correct(f.academic, f.kelas.id, f.students[0]!.id, { component_id: component.id, nilai: '95', alasan: 'Koreksi gagal simulasi' })).rejects.toThrow('simulated');
   expect(f.scores[0]!.nilai).toBe(beforeScore); expect(f.results[0]!.nilaiAngka).toBe(beforeResult); expect(f.results[0]!.dikoreksiAt).toBeNull();
 });
 
 test('controlled correction requires manager/reason and preserves original finalization metadata', async () => {
-  const f = fixture(); const component = await f.service.createComponent(f.admin, f.kelas.id, { nama: 'Final', bobot: '100', urutan: 1 }); for (const student of f.students) await f.service.record(f.admin, f.kelas.id, student.id, component.id, { nilai: '80' }); await f.service.finalize(f.admin, f.kelas.id);
+  const f = fixture(); const component = await f.service.createComponent(f.lecturerUser, f.kelas.id, { nama: 'Final', bobot: '100', urutan: 1 }); for (const student of f.students) await f.service.record(f.lecturerUser, f.kelas.id, student.id, component.id, { nilai: '80' }); await f.service.finalize(f.lecturerUser, f.kelas.id);
   const before = { ...f.results[0]! };
   await expect(f.service.correct(f.lecturerUser, f.kelas.id, f.students[0]!.id, { component_id: component.id, nilai: '90', alasan: 'Valid' })).rejects.toThrow('akses');
   await expect(f.service.correct(f.academic, f.kelas.id, f.students[0]!.id, { component_id: component.id, nilai: '90', alasan: '   ' })).rejects.toThrow('wajib');
@@ -133,6 +148,8 @@ test('grading API enforces authentication, origin, and student mutation denial',
   const request = (path: string, method = 'GET', body?: object, origin = 'http://localhost:5173') => app.handle(new Request('http://localhost' + path, { method, headers: { origin, 'content-type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) }));
   expect((await request(`/kelas-kuliah/${f.kelas.id}/komponen-nilai`)).status).toBe(200);
   expect((await request(`/kelas-kuliah/${f.kelas.id}/komponen-nilai`, 'POST', { nama: 'X', bobot: '100', urutan: 1 }, 'http://evil.test')).status).toBe(403);
+  expect((await request(`/kelas-kuliah/${f.kelas.id}/komponen-nilai`, 'POST', { nama: 'X', bobot: '100', urutan: 1 })).status).toBe(403);
+  current = f.lecturerUser; expect((await request(`/kelas-kuliah/${f.kelas.id}/komponen-nilai`, 'POST', { nama: 'X', bobot: '100', urutan: 1 })).status).toBe(201);
   current = f.studentUser; expect((await request(`/kelas-kuliah/${f.kelas.id}/komponen-nilai`, 'POST', { nama: 'X', bobot: '100', urutan: 1 })).status).toBe(403);
   current = null; expect((await request(`/kelas-kuliah/${f.kelas.id}/nilai`)).status).toBe(401);
 });

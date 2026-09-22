@@ -123,7 +123,7 @@
       <article class="surface-panel p-5 sm:p-6">
         <p class="eyebrow">Aktivitas akademik</p><h3 class="mt-2 font-bold text-slate-950">Kesiapan Kelas</h3>
         <div class="mt-4 grid grid-cols-2 gap-3"><div class="rounded-xl bg-slate-50 p-4"><p class="text-2xl font-bold text-slate-950">{data.meetings.meta.total}</p><p class="mt-1 text-xs text-slate-500">Pertemuan</p></div><div class="rounded-xl bg-slate-50 p-4"><p class="text-2xl font-bold text-slate-950">{activeComponents}</p><p class="mt-1 text-xs text-slate-500">Komponen nilai aktif</p></div></div>
-        <div class="mt-4 flex flex-wrap gap-x-5 gap-y-2"><a class="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:text-brand-800" href={tabHref('meetings')} data-sveltekit-noscroll>Lihat pertemuan <Icon name="arrow-right" size={15} /></a><a class="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:text-brand-800" href={tabHref('grading')} data-sveltekit-noscroll>Kelola penilaian <Icon name="arrow-right" size={15} /></a></div>
+        <div class="mt-4 flex flex-wrap gap-x-5 gap-y-2"><a class="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:text-brand-800" href={tabHref('meetings')} data-sveltekit-noscroll>Lihat pertemuan <Icon name="arrow-right" size={15} /></a><a class="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:text-brand-800" href={tabHref('grading')} data-sveltekit-noscroll>Awasi penilaian <Icon name="arrow-right" size={15} /></a></div>
       </article>
     </div>
   </section>

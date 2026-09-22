@@ -42,7 +42,14 @@ export async function loadDashboard(event: RequestEvent, role: Role) {
       read(client.dosen.me['kelas-kuliah'].get({ query: { page: 1, limit: 3, search: '' } })),
       read(client.dosen.me.krs.get({ query: { page: 1, limit: 1, search: '' } })),
     ]);
-    return { user, kind: 'lecturer' as const, lecturer: { classes, pendingKrsTotal: pendingKrs.meta.total } };
+    const gradingRows = await Promise.all(classes.data.map(async kelas => ({
+      classId: kelas.id,
+      grading: (await read(client['kelas-kuliah']({ id: kelas.id }).nilai.get())).data,
+    })));
+    const gradingByClass = Object.fromEntries(gradingRows.map(row => [row.classId, row.grading]));
+    const unfinished = gradingRows.filter(row => !row.grading.summary.finalized && (row.grading.summary.activeWeight !== '100.00' || row.grading.summary.missingScores > 0));
+    const readyToFinalize = gradingRows.filter(row => row.grading.permissions.canFinalize && row.grading.kelas.status === 'DITUTUP' && row.grading.summary.activeWeight === '100.00' && row.grading.summary.missingScores === 0 && row.grading.summary.totalStudents > 0);
+    return { user, kind: 'lecturer' as const, lecturer: { classes, pendingKrsTotal: pendingKrs.meta.total, gradingByClass, gradingNeedsAttention: unfinished.length, readyToFinalize: readyToFinalize.length } };
   }
 
   const [history, results, attendance] = await Promise.all([

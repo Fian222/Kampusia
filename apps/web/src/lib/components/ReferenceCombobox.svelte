@@ -157,7 +157,7 @@
     if (!(next instanceof Node) || !root?.contains(next)) open = false;
   }
 
-  onDestroy(() => window.clearTimeout(debounceTimer));
+  onDestroy(() => globalThis.clearTimeout(debounceTimer));
 </script>
 
 <div class="relative" bind:this={root} onfocusout={handleFocusOut}>

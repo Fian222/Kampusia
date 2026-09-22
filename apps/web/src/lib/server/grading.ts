@@ -30,6 +30,7 @@ export async function saveGrading(event: RequestEvent, admin: boolean) {
   const values: Record<string, string> = Object.fromEntries([...form].map(([key, value]) => [key, String(value)]));
   const client = serverApi(event); const classId = event.params.id!; const base = client['kelas-kuliah']({ id: classId });
   try {
+    if (admin && values.mode !== 'correct') return fail(403, { values, message: 'Penilaian biasa dilakukan oleh Dosen pengajar. ADMIN/AKADEMIK hanya melakukan pengawasan dan koreksi terkontrol.' });
     if (values.mode === 'component-create') {
       return response(await base['komponen-nilai'].post({ nama: values.nama!, bobot: decimal(values.bobot!, 'Bobot')!, urutan: Number(values.urutan), is_active: values.is_active !== 'false' }), values, 'Komponen nilai ditambahkan.');
     }

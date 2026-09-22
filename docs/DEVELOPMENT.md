@@ -372,7 +372,9 @@ The database deliberately does not enforce cross-row active component weights to
 
 ## Grading application module
 
-The grading application layer uses the existing Route → Service → Repository → Drizzle structure and the existing authenticated, origin-checked server flow. ADMIN/AKADEMIK can inspect and manage every class. An active DOSEN can access only classes assigned through `kelas_dosen`; when a coordinator is configured, only that coordinator can finalize. MAHASISWA cannot mutate grading data.
+The grading application layer uses the existing Route → Service → Repository → Drizzle structure and the existing authenticated, origin-checked server flow. Normal grading belongs to an active DOSEN assigned through `kelas_dosen`: assigned lecturers configure components and enter or update ordinary scores. ADMIN/AKADEMIK can inspect every class but cannot use ordinary component, score-entry, or finalization mutations. MAHASISWA cannot access the grading workflow.
+
+Normal finalization follows the existing `kelas_dosen.is_koordinator` assignment. When a coordinator is configured, only that assigned coordinator may finalize. When exactly one active assigned DOSEN exists and no coordinator is configured, that lecturer may finalize. Multiple active assigned lecturers without a coordinator receive a clear domain error requiring one to be designated; Kampusia never selects a coordinator implicitly. ADMIN/AKADEMIK retain only the separate, reason-required post-finalization correction path.
 
 Class-scoped endpoints are:
 
@@ -407,7 +409,9 @@ This is a development policy, not a statutory or universal university scale. It 
 
 Post-finalization correction is restricted to ADMIN/AKADEMIK and requires a nonblank reason. One retained active-component score and the existing result snapshot are updated and recalculated atomically under the same policy. The original result id, class/student identity, creation time, finalization time, and finalizer are preserved; only the latest correction metadata is retained. A full revision ledger, manual final-result override, institutional repeat-course replacement policy, and result annulment remain outside this milestone. KHS/IPS/IPK consume the corrected snapshot through the separate read-only module below.
 
-The DOSEN and ADMIN/AKADEMIK class-detail pages include component management, an inline score grid, saved/loading/error feedback, incomplete-score and weight indicators, finalization confirmation, frozen-state messaging, and manager-only reason-required correction forms.
+The DOSEN class workspace presents Ringkasan, Pertemuan/Absensi, and Penilaian as first-class sections. Penilaian includes component management, an inline score grid, saved/loading/field-adjacent error feedback, weight and completeness indicators, final-result previews, coordinator-aware finalization messaging, and frozen-state messaging. The Dosen dashboard shows bounded grading progress for its newest assigned classes.
+
+The shared ADMIN/AKADEMIK class page renders the same grading data in **Pengawasan Penilaian** mode without ordinary create/edit/score/finalize controls. After finalization it exposes only the existing reason-required administrative correction action. These responsibility changes require no database schema or migration: `kelas_dosen`, `komponen_nilai`, `nilai_mahasiswa`, and `hasil_studi` remain unchanged.
 
 Verification:
 

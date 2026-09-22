@@ -12,7 +12,7 @@
 
   const managerShortcuts: Shortcut[] = [
     { title: 'Persetujuan KRS', description: 'Buka antrean dan riwayat keputusan KRS.', href: '/akademik/krs', icon: 'clipboard' },
-    { title: 'Kelas Kuliah', description: 'Kelola penawaran, dosen, jadwal, dan nilai.', href: '/akademik/kelas-kuliah', icon: 'presentation' },
+    { title: 'Kelas Kuliah', description: 'Kelola penawaran dan pantau pelaksanaan kelas.', href: '/akademik/kelas-kuliah', icon: 'presentation' },
     { title: 'Mahasiswa', description: 'Kelola profil dan buka hasil studi.', href: '/akademik/mahasiswa', icon: 'users' },
     { title: 'Semester', description: 'Atur semester aktif dan periode KRS.', href: '/akademik/semester', icon: 'calendar' },
   ];
@@ -83,16 +83,19 @@
     <StatCard label="KRS menunggu review" value={data.manager.pendingKrsTotal} detail="Status DIAJUKAN" icon="clipboard" accent />
   </section>
 {:else if data.kind === 'lecturer'}
-  <section class="mt-6 grid gap-3 sm:grid-cols-2" aria-label="Ringkasan ruang dosen">
+  <section class="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Ringkasan ruang dosen">
     <StatCard label="Kelas ditugaskan" value={data.lecturer.classes.meta.total} detail="Seluruh status kelas" icon="presentation" accent />
     <StatCard label="KRS menunggu review" value={data.lecturer.pendingKrsTotal} detail="Mahasiswa bimbingan" icon="clipboard" />
+    <StatCard label="Nilai perlu dilengkapi" value={data.lecturer.gradingNeedsAttention} detail="Dari kelas terbaru" icon="chart" />
+    <StatCard label="Siap difinalisasi" value={data.lecturer.readyToFinalize} detail="Sesuai kewenangan Anda" icon="check" />
   </section>
 
   <section class="mt-7 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-panel" aria-labelledby="lecturer-classes-title">
     <div class="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6"><div><p class="eyebrow">Perkuliahan</p><h2 id="lecturer-classes-title" class="mt-1 text-lg font-bold">Kelas terbaru</h2></div><a class="text-sm font-semibold text-brand-700 hover:text-brand-800" href="/dosen/kelas-kuliah">Lihat semua</a></div>
     <ul class="divide-y divide-slate-100">
       {#each data.lecturer.classes.data as kelas}
-        <li><a class="group flex items-center gap-4 px-5 py-4 hover:bg-slate-50 sm:px-6" href={`/dosen/kelas-kuliah/${kelas.id}`}><span class="grid size-10 shrink-0 place-items-center rounded-lg bg-slate-100 text-sm font-bold text-slate-700">{kelas.namaKelas}</span><span class="min-w-0 flex-1"><span class="block truncate font-semibold text-slate-900 group-hover:text-brand-800">{kelas.mataKuliah.nama}</span><span class="mt-0.5 block truncate text-xs text-slate-500">{kelas.mataKuliah.kode} · {kelas.semester.nama}</span></span><Badge tone={kelas.status === 'DIBUKA' ? 'success' : kelas.status === 'DIBATALKAN' ? 'danger' : 'neutral'}>{kelas.status}</Badge><Icon name="arrow-right" size={16} class="text-slate-400" /></a></li>
+        {@const grading = data.lecturer.gradingByClass[kelas.id]}
+        <li><a class="group flex items-center gap-4 px-5 py-4 hover:bg-slate-50 sm:px-6" href={`/dosen/kelas-kuliah/${kelas.id}`}><span class="grid size-10 shrink-0 place-items-center rounded-lg bg-slate-100 text-sm font-bold text-slate-700">{kelas.namaKelas}</span><span class="min-w-0 flex-1"><span class="block truncate font-semibold text-slate-900 group-hover:text-brand-800">{kelas.mataKuliah.nama}</span><span class="mt-0.5 block truncate text-xs text-slate-500">{kelas.mataKuliah.kode} · {kelas.semester.nama}</span>{#if grading}<span class="mt-1 block text-xs text-slate-500">Nilai lengkap {grading.summary.completeStudents}/{grading.summary.totalStudents} · Bobot {grading.summary.activeWeight}%</span>{/if}</span><Badge tone={grading?.summary.finalized ? 'success' : grading?.permissions.canFinalize && grading.kelas.status === 'DITUTUP' && grading.summary.activeWeight === '100.00' && grading.summary.missingScores === 0 && grading.summary.totalStudents > 0 ? 'info' : 'neutral'}>{grading?.summary.finalized ? 'Final' : grading?.permissions.canFinalize && grading.kelas.status === 'DITUTUP' && grading.summary.activeWeight === '100.00' && grading.summary.missingScores === 0 && grading.summary.totalStudents > 0 ? 'Siap final' : kelas.status}</Badge><Icon name="arrow-right" size={16} class="text-slate-400" /></a></li>
       {:else}
         <li class="px-5 py-8 text-center text-sm text-slate-500">Belum ada kelas yang ditugaskan.</li>
       {/each}

@@ -20,14 +20,14 @@ test.skipIf(!enabled)('PostgreSQL class finalization and correction are atomic a
       for (const account of [f.user, f.other]) { const plan = await krsService.create(account, f.term.id); await krsService.add(account, plan.id, classId); await krsService.submit(account, plan.id); await krsService.approve(f.admin, plan.id); plans.push(plan); }
       await tx.update(kelasKuliah).set({ status: 'DITUTUP' }).where(eq(kelasKuliah.id, classId));
       const service = createNilaiService(createNilaiRepository(tx));
-      const task = await service.createComponent(f.admin, classId, { nama: 'Tugas', bobot: '40', urutan: 1 });
-      const exam = await service.createComponent(f.admin, classId, { nama: 'Ujian', bobot: '60', urutan: 2 });
-      await service.record(f.admin, classId, f.students[0]!.id, task.id, { nilai: '80' }); await service.record(f.admin, classId, f.students[0]!.id, exam.id, { nilai: '90' });
-      await service.record(f.admin, classId, f.students[1]!.id, task.id, { nilai: '70' });
-      await expect(service.finalize(f.admin, classId)).rejects.toThrow('belum lengkap');
+      const task = await service.createComponent(f.adviser, classId, { nama: 'Tugas', bobot: '40', urutan: 1 });
+      const exam = await service.createComponent(f.adviser, classId, { nama: 'Ujian', bobot: '60', urutan: 2 });
+      await service.record(f.adviser, classId, f.students[0]!.id, task.id, { nilai: '80' }); await service.record(f.adviser, classId, f.students[0]!.id, exam.id, { nilai: '90' });
+      await service.record(f.adviser, classId, f.students[1]!.id, task.id, { nilai: '70' });
+      await expect(service.finalize(f.adviser, classId)).rejects.toThrow('belum lengkap');
       expect(await tx.select().from(hasilStudi).where(eq(hasilStudi.kelasKuliahId, classId))).toHaveLength(0);
-      await service.record(f.admin, classId, f.students[1]!.id, exam.id, { nilai: '75' });
-      const finalized = await service.finalize(f.admin, classId); expect(finalized.data).toHaveLength(2); expect(new Set(finalized.data.map(row => row.difinalisasiAt.valueOf())).size).toBe(1);
+      await service.record(f.adviser, classId, f.students[1]!.id, exam.id, { nilai: '75' });
+      const finalized = await service.finalize(f.adviser, classId); expect(finalized.data).toHaveLength(2); expect(new Set(finalized.data.map(row => row.difinalisasiAt.valueOf())).size).toBe(1);
       const original = finalized.data.find(row => row.mahasiswaId === f.students[0]!.id)!;
       const corrected = await service.correct(f.admin, classId, f.students[0]!.id, { component_id: exam.id, nilai: '100', alasan: 'Berita acara koreksi ujian' });
       expect(corrected.id).toBe(original.id); expect(corrected.difinalisasiAt).toEqual(original.difinalisasiAt); expect(corrected.difinalisasiOleh).toBe(original.difinalisasiOleh); expect(corrected.nilaiAngka).toBe('92.00');
@@ -46,8 +46,8 @@ test.skipIf(!enabled)('PostgreSQL concurrent finalization produces one complete 
     const krsService = createKrsService(createKrsRepository(db), 6);
     const plan = await krsService.create(f.user, f.term.id); await krsService.add(f.user, plan.id, classId); await krsService.submit(f.user, plan.id); await krsService.approve(f.admin, plan.id);
     await db.update(kelasKuliah).set({ status: 'DITUTUP' }).where(eq(kelasKuliah.id, classId));
-    const service = createNilaiService(createNilaiRepository(db)); const component = await service.createComponent(f.admin, classId, { nama: 'Final', bobot: '100', urutan: 1 }); await service.record(f.admin, classId, f.students[0]!.id, component.id, { nilai: '88' });
-    const attempts = await Promise.allSettled([service.finalize(f.admin, classId), service.finalize(f.admin, classId)]);
+    const service = createNilaiService(createNilaiRepository(db)); const component = await service.createComponent(f.adviser, classId, { nama: 'Final', bobot: '100', urutan: 1 }); await service.record(f.adviser, classId, f.students[0]!.id, component.id, { nilai: '88' });
+    const attempts = await Promise.allSettled([service.finalize(f.adviser, classId), service.finalize(f.adviser, classId)]);
     expect(attempts.filter(row => row.status === 'fulfilled')).toHaveLength(1); expect(attempts.filter(row => row.status === 'rejected')).toHaveLength(1);
     expect(await db.select().from(hasilStudi).where(eq(hasilStudi.kelasKuliahId, classId))).toHaveLength(1);
   } finally {

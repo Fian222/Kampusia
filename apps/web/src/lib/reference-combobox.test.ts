@@ -5,6 +5,8 @@ const read = (path: string) => Bun.file(new URL(path, import.meta.url)).text();
 test('reference combobox submits ids and supports scalable keyboard search', async () => {
   const source = await read('./components/ReferenceCombobox.svelte');
 
+  expect(source).toContain('onDestroy(() => globalThis.clearTimeout(debounceTimer))');
+  expect(source).not.toContain('onDestroy(() => window.clearTimeout(debounceTimer))');
   expect(source).toContain('<input type="hidden" {name} {value}');
   expect(source).toContain('value = option.value');
   expect(source).toContain('window.setTimeout(() => navigate');
