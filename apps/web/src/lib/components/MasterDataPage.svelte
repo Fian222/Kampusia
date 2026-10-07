@@ -1,5 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { finishConfirmation } from '$lib/form-feedback';
+  import ReferenceLookup from './ReferenceLookup.svelte';
   import { goto } from '$app/navigation';
   import { page, navigating } from '$app/state';
   import { seamlessFilter } from '$lib/actions/seamless-filter';
@@ -20,11 +22,8 @@
   let formOpen = $state(false);
   let requestedEditId = $state<string | null>(null);
   let confirmation = $state<{ id: string; nama: string; isActive: boolean } | null>(null);
-  let confirmationDialog: HTMLDialogElement;
-  $effect(() => {
-    if (confirmation && !confirmationDialog.open) confirmationDialog.showModal();
-    else if (!confirmation && confirmationDialog.open) confirmationDialog.close();
-  });
+  let confirmationOpen = $state(false);
+  let confirmationError = $state<string | null>(null);
   const isProgram = $derived(data.kind === 'program-studi');
   const listPending = $derived(isListNavigationPending(navigating, page.url.pathname));
   const filterKeys = $derived(isProgram ? ['search', 'is_active', 'jenjang', 'fakultas_id'] : ['search', 'is_active']);
@@ -85,6 +84,7 @@
     {#if filtersActive}<div class="flex items-end"><a class="py-2 text-sm text-slate-600" href={filterResetHref} data-sveltekit-noscroll>Reset filter</a></div>{/if}
   </form>
 </section>
+{#if isProgram && data.faculties}<ReferenceLookup references={[{ label: 'Fakultas', prefix: 'faculty', meta: data.faculties.meta }]} />{/if}
 
 <section class="surface-panel relative mt-6 overflow-hidden" aria-label={`Daftar ${title}`} aria-busy={listPending}>
   <ListPending />
@@ -97,7 +97,7 @@
           <tr class="border-b border-slate-100"><td class="p-3 font-medium">{row.kode}</td><td class="p-3">{row.nama}</td>
             {#if isProgram && row.fakultas}<td class="p-3">{row.fakultas.nama}{#if !row.fakultas.isActive}<span class="block text-xs text-slate-500">Fakultas nonaktif</span>{/if}</td><td class="p-3">{row.jenjang}</td>{/if}
             <td class="p-3"><StatusBadge active={row.isActive} /></td>
-            <td class="p-3"><div class="flex gap-2"><a class="action-secondary" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a><button class="action-ghost" disabled={saving} onclick={() => confirmation = row}>{row.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button></div></td>
+            <td class="p-3"><div class="flex gap-2"><a class="action-secondary" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a><button class="action-ghost" disabled={saving} onclick={() => { confirmation = row; confirmationError = null; confirmationOpen = true; }}>{row.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button></div></td>
           </tr>
         {:else}<tr><td colspan={isProgram ? 6 : 4} class="p-8 text-center text-slate-500">Tidak ada data yang cocok. Ubah filter atau tambahkan {title.toLowerCase()}.</td></tr>{/each}
       </tbody>
@@ -106,19 +106,19 @@
   <div class="px-5 pb-4 sm:px-6"><Pagination {...data.meta} href={number => href({ page: number })} /></div>
 </section>
 
-<dialog bind:this={confirmationDialog} class="m-auto max-w-lg rounded-xl border border-amber-300 bg-amber-50 p-6 text-slate-900 backdrop:bg-slate-900/40" aria-labelledby="confirmation-title" oncancel={event => { if (saving) event.preventDefault(); else confirmation = null; }}>
+<Modal bind:open={confirmationOpen} title={`${confirmation?.isActive ? 'Nonaktifkan' : 'Aktifkan'} ${confirmation?.nama ?? title}`} closeDisabled={saving} width="sm" onClose={() => { confirmation = null; confirmationError = null; }}>
   {#if confirmation}
-    <h2 id="confirmation-title" class="font-semibold">{confirmation.isActive ? 'Nonaktifkan' : 'Aktifkan'} {confirmation.nama}?</h2>
     <p class="mt-2 text-sm">{confirmation.isActive ? 'Penonaktifan tidak menghapus data atau riwayat akademik. Data tidak tersedia untuk penugasan baru.' : 'Data akan tersedia kembali untuk penugasan baru.'}</p>
-    <form method="POST" class="mt-4 flex gap-4" use:enhance={() => {
+    {#if confirmationError}<p role="alert" class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{confirmationError}</p>{/if}
+    <form method="POST" class="mt-4 flex flex-wrap gap-4" use:enhance={() => {
       saving = true;
-      return async ({ update }) => { try { await update({ reset: false }); confirmation = null; } finally { saving = false; } };
+      return async ({ update, result }) => { try { await finishConfirmation(result, update, () => confirmationOpen = false, message => confirmationError = message); } finally { saving = false; } };
     }}>
       <input type="hidden" name="mode" value="status" /><input type="hidden" name="id" value={confirmation.id} /><input type="hidden" name="is_active" value={String(!confirmation.isActive)} />
-      <button class={buttonClass} disabled={saving}>Ya, {confirmation.isActive ? 'nonaktifkan' : 'aktifkan'}</button><button type="button" class="text-sm" disabled={saving} onclick={() => confirmation = null}>Batal</button>
+      <button class={buttonClass} disabled={saving}>Ya, {confirmation.isActive ? 'nonaktifkan' : 'aktifkan'}</button><button type="button" class="text-sm" disabled={saving} onclick={() => confirmationOpen = false}>Batal</button>
     </form>
   {/if}
-</dialog>
+</Modal>
 
 <Modal bind:open={formOpen} title={`${editModal.editing ? 'Edit' : 'Tambah'} ${title}`} description={editModal.loading ? 'Menyiapkan data untuk disunting.' : data.edit ? `Perbarui data ${data.edit.nama}.` : `Tambahkan ${title.toLowerCase()} baru.`} closeDisabled={saving} width={isProgram ? 'lg' : 'md'} onClose={() => { const shouldClear = requestedEditId !== null || queryEditId || page.url.searchParams.has('modal') || form?.values?.mode === 'save'; requestedEditId = null; if (shouldClear) void goto(clearEditQueryHref(page.url), { replaceState: true, ...modalNavigationOptions }); }}>
   {#if editModal.loading}

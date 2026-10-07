@@ -1,5 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { finishConfirmation } from '$lib/form-feedback';
+  import ReferenceLookup from './ReferenceLookup.svelte';
   import { goto, invalidateAll } from '$app/navigation';
   import { page, navigating } from '$app/state';
   import { seamlessFilter } from '$lib/actions/seamless-filter';
@@ -23,6 +25,7 @@
   let requestedEditId = $state<string | null>(null);
   let confirmation = $state<{ id: string; nama: string; isActive: boolean } | null>(null);
   let confirmationOpen = $state(false);
+  let confirmationError = $state<string | null>(null);
   let accountConfirmation = $state<{ mode: 'provision-account' | 'reset-password'; id: string; nama: string; identifier: string } | null>(null);
   let accountConfirmationOpen = $state(false);
   let credential = $state<{ account: { loginId: string; role: string; isActive: boolean }; temporaryPassword: string | null; created?: boolean } | null>(null);
@@ -108,7 +111,7 @@
     <label class="text-sm font-medium">Program Studi<select class={inputClass} name="program_studi_id" value={data.filters.program_studi_id ?? ''}><option value="">Semua program studi</option>{#each programs as item}{#if item}<option value={item.id}>{item.kode} — {item.nama}</option>{/if}{/each}</select></label>
     {#if data.kind === 'mahasiswa'}
       <label class="text-sm font-medium">Kurikulum<select class={inputClass} name="kurikulum_id" value={data.filters.kurikulum_id ?? ''}><option value="">Semua kurikulum</option>
-        {#if data.filters.kurikulum_id && !data.curricula.data.some(item => item.id === data.filters.kurikulum_id)}<option value={data.filters.kurikulum_id}>Kurikulum terpilih ({data.filters.kurikulum_id})</option>{/if}
+        {#if data.filters.kurikulum_id && !data.curricula.data.some(item => item.id === data.filters.kurikulum_id)}<option value={data.filters.kurikulum_id}>Kurikulum terpilih</option>{/if}
         {#each data.curricula.data as item}<option value={item.id}>{item.kode} — {item.nama}</option>{/each}
       </select></label>
       <label class="text-sm font-medium">Angkatan<input class={inputClass} name="angkatan" type="number" min="1900" max="9999" step="1" value={data.filters.angkatan ?? ''} /></label>
@@ -120,6 +123,7 @@
     {#if filtersActive}<div class="flex items-end"><a class="py-2 text-sm text-slate-600" href={filterResetHref} data-sveltekit-noscroll>Reset filter</a></div>{/if}
   </form>
 </section>
+<ReferenceLookup references={[{ label: 'Program Studi', prefix: 'program', meta: data.programs.meta }, ...(data.curricula ? [{ label: 'Kurikulum', prefix: 'curriculum', meta: data.curricula.meta }] : [])]} />
 
 <section class="surface-panel relative mt-6 overflow-hidden" aria-label="Daftar profil" aria-busy={listPending}>
   <ListPending />
@@ -139,7 +143,7 @@
         {#each data.records as row}<tr>
           <td class="px-5 py-4"><p class="font-semibold text-slate-950">{row.nama}</p><p class="mt-1 text-xs text-slate-500"><span class="font-mono font-semibold">{row.kodeDosen}</span>{row.nik ? ` · NIK ${row.nik}` : ''}{row.nidn ? ` · NIDN ${row.nidn}` : ''}</p><p class="mt-1 text-xs text-slate-500">{row.account?.loginId ? `Akun ${row.account.loginId} · ${row.account.isActive ? 'Aktif' : 'Nonaktif'}` : 'Belum memiliki akun login'}</p></td>
           <td class="px-5 py-4"><p class="font-medium text-slate-800">{row.programStudi?.nama ?? 'Tanpa homebase'}</p>{#if row.programStudi}<p class="mt-1 text-xs text-slate-500">{row.programStudi.kode}</p>{/if}</td><td class="px-5 py-4"><StatusBadge active={row.isActive} /></td>
-          <td class="px-5 py-4"><div class="flex flex-wrap gap-2"><a class="inline-flex min-h-8 items-center rounded-lg px-2.5 text-xs font-semibold text-brand-700 hover:bg-brand-50" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a><button class="inline-flex min-h-8 items-center rounded-lg px-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100" onclick={() => { confirmation = row; confirmationOpen = true; }}>{row.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button></div></td>
+          <td class="px-5 py-4"><div class="flex flex-wrap gap-2"><a class="inline-flex min-h-8 items-center rounded-lg px-2.5 text-xs font-semibold text-brand-700 hover:bg-brand-50" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a><button class="inline-flex min-h-8 items-center rounded-lg px-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100" onclick={() => { confirmation = row; confirmationError = null; confirmationOpen = true; }}>{row.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button></div></td>
         </tr>{/each}
       {/if}
     </tbody>
@@ -160,7 +164,7 @@
       <li class="p-4">
         <div class="flex items-start justify-between gap-3"><div><p class="font-semibold text-slate-950">{row.nama}</p><p class="mt-1 font-mono text-xs font-semibold text-slate-500">{row.kodeDosen}</p><p class="mt-1 text-xs text-slate-500">{row.nik ? `NIK ${row.nik}` : 'NIK belum diisi'} · {row.account?.loginId ? `Akun ${row.account.loginId} · ${row.account.isActive ? 'Aktif' : 'Nonaktif'}` : 'Belum memiliki akun login'}</p></div><StatusBadge active={row.isActive} /></div>
         <div class="mt-3 text-sm text-slate-600"><p>{row.programStudi?.nama ?? 'Tanpa homebase'}</p>{#if row.nidn}<p class="mt-1 text-xs text-slate-500">NIDN {row.nidn}</p>{/if}</div>
-        <div class="mt-4 flex gap-2"><a class="inline-flex min-h-9 items-center rounded-lg px-3 text-xs font-semibold text-brand-700" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a><button class="inline-flex min-h-9 items-center rounded-lg px-3 text-xs font-semibold text-slate-600" onclick={() => { confirmation = row; confirmationOpen = true; }}>{row.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button></div>
+        <div class="mt-4 flex gap-2"><a class="inline-flex min-h-9 items-center rounded-lg px-3 text-xs font-semibold text-brand-700" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a><button class="inline-flex min-h-9 items-center rounded-lg px-3 text-xs font-semibold text-slate-600" onclick={() => { confirmation = row; confirmationError = null; confirmationOpen = true; }}>{row.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button></div>
       </li>
     {:else}
       <li><EmptyState title={`Belum ada data ${title.toLowerCase()}`} description="Ubah filter atau tambahkan profil baru." icon="user" compact /></li>
@@ -263,9 +267,10 @@
 
 <Modal bind:open={confirmationOpen} title={`${confirmation?.isActive ? 'Nonaktifkan' : 'Aktifkan'} dosen`} description={confirmation ? `${confirmation.nama}. Riwayat penugasan tetap tersimpan.` : undefined} width="sm" closeDisabled={saving} onClose={() => confirmation = null}>
   {#if confirmation}
+    {#if confirmationError}<p role="alert" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{confirmationError}</p>{/if}
     <form method="POST" class="flex justify-end gap-3" use:enhance={() => {
       saving = true;
-      return async ({ update }) => { try { await update(); confirmationOpen = false; } finally { saving = false; } };
+      return async ({ update, result }) => { try { await finishConfirmation(result, update, () => confirmationOpen = false, message => confirmationError = message); } finally { saving = false; } };
     }}>
       <input type="hidden" name="mode" value="status" /><input type="hidden" name="id" value={confirmation.id} /><input type="hidden" name="is_active" value={String(!confirmation.isActive)} />
       <button type="button" class="px-4 py-2 text-sm font-semibold text-slate-600" disabled={saving} onclick={() => confirmationOpen = false}>Batal</button><button class={buttonClass} disabled={saving}>Ya, simpan</button>

@@ -11,7 +11,7 @@
   type Shortcut = { title: string; description: string; href: string; icon: IconName };
 
   const managerShortcuts: Shortcut[] = [
-    { title: 'Persetujuan KRS', description: 'Buka antrean dan riwayat keputusan KRS.', href: '/akademik/krs', icon: 'clipboard' },
+    { title: 'Manajemen KRS', description: 'Tinjau KRS yang menunggu keputusan.', href: '/akademik/krs?status=DIAJUKAN', icon: 'clipboard' },
     { title: 'Kelas Kuliah', description: 'Kelola penawaran dan pantau pelaksanaan kelas.', href: '/akademik/kelas-kuliah', icon: 'presentation' },
     { title: 'Mahasiswa', description: 'Kelola profil dan buka hasil studi.', href: '/akademik/mahasiswa', icon: 'users' },
     { title: 'Semester', description: 'Atur semester aktif dan periode KRS.', href: '/akademik/semester', icon: 'calendar' },
@@ -84,8 +84,8 @@
   <section class="metric-strip" aria-label="Ringkasan ruang dosen">
     <StatCard embedded label="Kelas ditugaskan" value={data.lecturer.classes.meta.total} detail="Seluruh status kelas" icon="presentation" accent />
     <StatCard embedded label="KRS menunggu review" value={data.lecturer.pendingKrsTotal} detail="Mahasiswa bimbingan" icon="clipboard" />
-    <StatCard embedded label="Nilai perlu dilengkapi" value={data.lecturer.gradingNeedsAttention} detail="Dari kelas terbaru" icon="chart" />
-    <StatCard embedded label="Siap difinalisasi" value={data.lecturer.readyToFinalize} detail="Sesuai kewenangan Anda" icon="check" />
+    <StatCard embedded label="Nilai perlu dilengkapi" value={data.lecturer.gradingNeedsAttention} detail={`Dari ${data.lecturer.classes.data.length} kelas ditampilkan`} icon="chart" />
+    <StatCard embedded label="Siap difinalisasi" value={data.lecturer.readyToFinalize} detail={`Dari ${data.lecturer.classes.data.length} kelas ditampilkan`} icon="check" />
   </section>
 
   <section class="class-panel" aria-labelledby="lecturer-classes-title">
@@ -113,7 +113,7 @@
 
   <section class="metric-strip" aria-label="Ringkasan akademik mahasiswa">
     <StatCard embedded label="SKS KRS" value={currentKrs ? `${currentKrs.totalSks}/${currentKrs.batasSks}` : '—'} detail={currentKrs ? `${currentKrs.remainingSks} SKS tersisa` : 'Belum ada KRS'} icon="clipboard" accent />
-    <StatCard embedded label="IPS terbaru" value={data.student.latestSemesterResult?.ips ?? '—'} detail={data.student.latestSemesterResult?.semester.nama ?? 'Belum ada hasil final'} icon="chart" />
+    <StatCard embedded label="IPS terbaru" value={data.student.latestSemesterResult?.ips ?? '—'} detail={data.student.latestSemesterResult ? `${data.student.latestSemesterResult.semester.nama}${data.student.latestSemesterResult.provisional ? ' · Hasil belum lengkap' : ''}` : 'Belum ada hasil final'} icon="chart" />
     <StatCard embedded label="IPK" value={data.student.cumulative.ipk ?? '—'} detail={`${data.student.cumulative.totalSksKumulatif} SKS kumulatif`} icon="graduation" />
     <StatCard embedded label="Catatan absensi" value={data.student.attendanceTotal} detail="Riwayat tercatat" icon="clock" />
   </section>

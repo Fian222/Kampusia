@@ -6,6 +6,7 @@
   import { isListNavigationPending } from '$lib/navigation/pending';
   import { hasActiveQuery, resetQueryHref } from '$lib/navigation/query';
   import { clearEditQueryHref, editQueryHref, modalNavigationOptions, resolveEditModalState } from '$lib/navigation/edit-modal';
+  import ReferenceLookup from '$lib/components/ReferenceLookup.svelte';
   import Pagination from '$lib/components/Pagination.svelte';
   import AcademicFields from '$lib/components/AcademicFields.svelte';
   import ReferenceCombobox from '$lib/components/ReferenceCombobox.svelte';
@@ -52,6 +53,7 @@
   <noscript><button class={button}>Terapkan filter</button></noscript>
   {#if filtersActive}<div class="flex items-end"><a class="py-2 text-sm text-slate-600" href={resetQueryHref(page.url, filterKeys)} data-sveltekit-noscroll>Reset filter</a></div>{/if}
 </form>
+<ReferenceLookup references={[{ label: 'Semester', prefix: 'semester', meta: data.semesters.meta }, { label: 'Program Studi', prefix: 'program', meta: data.programs.meta }, { label: 'Mata Kuliah', prefix: 'course', meta: data.courses.meta }]} />
 <section class={`${box} relative`} aria-busy={listPending}>
   <ListPending />
   <div class="flex justify-between"><h2 class="font-semibold">Daftar Kelas Kuliah</h2></div>

@@ -63,3 +63,17 @@ or keyboard focus within navigation. Use standard properties for Firefox and a
 Use visible keyboard focus, text with adequate contrast, reduced-motion
 alternatives, wrapping semester/adviser text, and existing empty-state copy.
 Preserve all route destinations, data sources, calculations, and permissions.
+
+Use the shared surface, line and warm neutral tokens across forms and tables. Keep
+administrative rows compact while giving buttons and form controls 44px targets.
+Mobile form text is 16px; wide academic tables retain horizontal scrolling.
+
+Reference fields search the existing paginated APIs. Their dropdowns use the native
+popover top layer above scrollable dialogs, with bounded keyboard navigation,
+focus return and contextual retry. Reference filters share one secondary search and
+pagination panel; selected IDs remain ordinary URL filter parameters.
+
+Failed confirmation submissions stay open with their context and feedback. Keep
+pending feedback close to the affected list or form, and provide workspace recovery
+for both route errors and hook-level failures. Dashboard metrics must identify any
+limited class scope or incomplete academic result.

@@ -6,12 +6,15 @@
   import StatCard from './ui/StatCard.svelte';
   import Badge from './ui/Badge.svelte';
   type Data = Awaited<ReturnType<typeof loadAttendance>>['roster'];
-  let { roster, area, form }: { roster: Data; area: 'akademik' | 'dosen'; form?: { message?: string; saved?: boolean } | null } = $props();
+  let { roster, area, form }: { roster: Data; area: 'akademik' | 'dosen'; form?: { message?: string; saved?: boolean; values?: Record<string, string> } | null } = $props();
   let saving = $state(false);
   const submit = () => { saving = true; return async ({ update }: { update: (options: { reset: boolean }) => Promise<void> }) => { try { await update({ reset: false }); } finally { saving = false; } }; };
   const button = 'min-h-10 rounded-lg bg-brand-700 px-3 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50';
   function tone(status: string) { return status === 'HADIR' ? 'success' as const : status === 'ALPHA' ? 'danger' as const : status === 'IZIN' || status === 'SAKIT' ? 'info' as const : 'warning' as const; }
   function meetingLabel(status: string) { return status === 'TERJADWAL' ? 'Terbuka' : status === 'SELESAI' ? 'Absensi selesai' : 'Dibatalkan'; }
+  function submitted(studentId: string, name: string, fallback: string) {
+    return !form?.saved && form?.values?.mahasiswa_id === studentId ? form.values[name] ?? fallback : fallback;
+  }
   const readOnly = $derived(roster.pertemuan.status === 'DIBATALKAN' || (roster.pertemuan.status === 'SELESAI' && area === 'dosen'));
 </script>
 
@@ -31,7 +34,7 @@
   <div class="flex flex-col gap-4 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
     <div><h2 class="font-bold">Daftar kehadiran</h2><p class="mt-1 text-sm leading-6 text-slate-500"><strong class="font-semibold text-amber-800">Belum dicatat bukan ALPHA.</strong> Pilih ALPHA hanya bila memang menjadi hasil kehadiran.</p></div>
     {#if roster.pertemuan.status === 'TERJADWAL'}
-      <form method="POST" class="flex flex-col gap-2 sm:items-end" use:enhance={submit}><input type="hidden" name="mode" value="complete" /><label class="flex items-center gap-2 text-xs"><input type="checkbox" name="confirm" value="yes" required /> Semua kehadiran sudah benar</label><button class={button} disabled={saving}>Selesaikan Absensi</button></form>
+      <form method="POST" class="flex flex-col gap-2 sm:items-end" use:enhance={submit}><input type="hidden" name="mode" value="complete" /><label class="flex items-center gap-2 text-xs"><input type="checkbox" name="confirm" value="yes" required /> Semua kehadiran sudah benar</label><button class={button} disabled={saving || roster.summary.missing > 0}>Selesaikan Absensi</button>{#if roster.summary.missing > 0}<p class="text-xs text-muted">Catat {roster.summary.missing} kehadiran tersisa sebelum menyelesaikan absensi.</p>{/if}</form>
     {/if}
   </div>
   <div class="overflow-x-auto"><table class="min-w-[900px] w-full text-left text-sm"><thead><tr><th class="px-4 py-3.5">NIM</th><th class="px-4 py-3.5">Nama</th><th class="px-4 py-3.5">Status</th><th class="px-4 py-3.5">{readOnly ? 'Catatan' : 'Pencatatan kehadiran'}</th></tr></thead>
@@ -43,8 +46,8 @@
           <form method="POST" class="flex min-w-96 flex-wrap gap-2" use:enhance={submit}>
             <input type="hidden" name="mode" value={row.absensi ? 'correct' : 'record'} /><input type="hidden" name="mahasiswa_id" value={row.mahasiswa.id} />
             {#if !row.absensi && roster.pertemuan.status === 'SELESAI' && area === 'akademik'}<input type="hidden" name="koreksi_terlambat" value="yes" />{/if}
-            <select class="min-w-32 rounded-lg border border-slate-300 px-3 py-2" name="status" aria-label={`Status kehadiran ${row.mahasiswa.nama}`} required><option value="" selected={!row.absensi}>Pilih status</option>{#each ['HADIR', 'IZIN', 'SAKIT', 'ALPHA'] as value}<option {value} selected={row.absensi?.status === value}>{value}</option>{/each}</select>
-            <input class="min-w-48 flex-1 rounded-lg border border-slate-300 px-3 py-2" name="keterangan" aria-label={`Keterangan kehadiran ${row.mahasiswa.nama}`} placeholder={roster.pertemuan.status === 'SELESAI' ? 'Alasan koreksi (wajib)' : 'Keterangan (opsional)'} value={row.absensi?.keterangan ?? ''} required={roster.pertemuan.status === 'SELESAI'} />
+            <select class="min-w-32 rounded-lg border border-slate-300 px-3 py-2" name="status" aria-label={`Status kehadiran ${row.mahasiswa.nama}`} required><option value="" selected={!submitted(row.mahasiswa.id, 'status', row.absensi?.status ?? '')}>Pilih status</option>{#each ['HADIR', 'IZIN', 'SAKIT', 'ALPHA'] as value}<option {value} selected={submitted(row.mahasiswa.id, 'status', row.absensi?.status ?? '') === value}>{value}</option>{/each}</select>
+            <input class="min-w-48 flex-1 rounded-lg border border-slate-300 px-3 py-2" name="keterangan" aria-label={`Keterangan kehadiran ${row.mahasiswa.nama}`} placeholder={roster.pertemuan.status === 'SELESAI' ? 'Alasan koreksi (wajib)' : 'Keterangan (opsional)'} value={submitted(row.mahasiswa.id, 'keterangan', row.absensi?.keterangan ?? '')} required={roster.pertemuan.status === 'SELESAI'} />
             <button class={button} disabled={saving}>{row.absensi ? (roster.pertemuan.status === 'SELESAI' ? 'Simpan Koreksi' : 'Perbarui') : 'Catat'}</button>
           </form>
         {/if}
@@ -57,8 +60,8 @@
     {:else}<form method="POST" class="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 p-3" use:enhance={submit}>
       <input type="hidden" name="mode" value="correct" /><input type="hidden" name="mahasiswa_id" value={row.mahasiswa.id} />
       <span class="min-w-52 font-medium">{row.mahasiswa.nim} — {row.mahasiswa.nama}</span>
-      <select class="rounded border p-2" name="status" required>{#each ['HADIR', 'IZIN', 'SAKIT', 'ALPHA'] as value}<option {value} selected={row.status === value}>{value}</option>{/each}</select>
-      <input class="min-w-52 flex-1 rounded border p-2" name="keterangan" value={row.keterangan ?? ''} placeholder={roster.pertemuan.status === 'SELESAI' ? 'Alasan koreksi (wajib)' : 'Keterangan'} required={roster.pertemuan.status === 'SELESAI'} />
+      <select class="rounded border p-2" name="status" aria-label={`Status kehadiran ${row.mahasiswa.nama}`} required>{#each ['HADIR', 'IZIN', 'SAKIT', 'ALPHA'] as value}<option {value} selected={submitted(row.mahasiswa.id, 'status', row.status) === value}>{value}</option>{/each}</select>
+      <input class="min-w-52 flex-1 rounded border p-2" name="keterangan" aria-label={`Keterangan kehadiran ${row.mahasiswa.nama}`} value={submitted(row.mahasiswa.id, 'keterangan', row.keterangan ?? '')} placeholder={roster.pertemuan.status === 'SELESAI' ? 'Alasan koreksi (wajib)' : 'Keterangan'} required={roster.pertemuan.status === 'SELESAI'} />
       <button class={button} disabled={saving}>Simpan Koreksi</button>
     </form>{/if}
   {/each}</div>

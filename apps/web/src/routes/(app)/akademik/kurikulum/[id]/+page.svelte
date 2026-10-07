@@ -1,5 +1,6 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { finishConfirmation } from '$lib/form-feedback';
   import { goto } from '$app/navigation';
   import { page, navigating } from '$app/state';
   import { seamlessFilter } from '$lib/actions/seamless-filter';
@@ -18,9 +19,9 @@
   let membershipOpen = $state(false);
   let editingMembershipId = $state<string>();
   let removing = $state<{ id: string; nama: string } | null>(null);
-  let dialog: HTMLDialogElement;
+  let removalOpen = $state(false);
+  let removalError = $state<string | null>(null);
   const listPending = $derived(isListNavigationPending(navigating, page.url.pathname));
-  $effect(() => { if (removing && !dialog.open) dialog.showModal(); else if (!removing && dialog.open) dialog.close(); });
   const inputClass = 'control-base mt-1.5';
   const buttonClass = 'min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-50';
   const sectionClass = 'surface-panel mt-6 p-5 sm:p-6';
@@ -32,10 +33,10 @@
   function value(mode: string, id: string, key: string, fallback: string) {
     return form?.values?.mode === mode && (mode === 'add' || form.values.membership_id === id) ? form.values[key] ?? fallback : fallback;
   }
-  const submit = () => {
+  const submit: NonNullable<Parameters<typeof enhance>[1]> = () => {
     saving = true;
-    return async ({ update }: { update: (options: { reset: boolean }) => Promise<void> }) => {
-      try { await update({ reset: false }); removing = null; } finally { saving = false; }
+    return async ({ update, result }) => {
+      try { await finishConfirmation(result, update, () => removalOpen = false, message => removalError = message); } finally { saving = false; }
     };
   };
   const editingMembership = $derived(data.memberships.data.find(row => row.id === editingMembershipId));
@@ -67,7 +68,7 @@
             <td class="p-3">{row.mataKuliah.kode}</td><td class="p-3">{row.mataKuliah.nama}{#if !row.mataKuliah.isActive}<span class="block text-xs text-slate-500">Nonaktif</span>{/if}</td><td class="p-3">{row.mataKuliah.sks}</td>
             <td class="p-3">{row.semesterRekomendasi ?? 'Belum ditentukan'}</td>
             <td class="p-3">{row.isWajib ? 'Wajib' : 'Pilihan'}</td>
-            <td class="p-3"><div class="flex items-center gap-3"><button type="button" class="font-semibold text-brand-700" aria-label={`Edit ${row.mataKuliah.nama} dalam kurikulum`} onclick={() => { editingMembershipId = row.id; membershipOpen = true; }}>Edit</button><button class="text-red-700" disabled={saving} onclick={() => removing = { id: row.id, nama: row.mataKuliah.nama }}>Hapus</button></div></td>
+            <td class="p-3"><div class="flex items-center gap-3"><button type="button" class="font-semibold text-brand-700" aria-label={`Edit ${row.mataKuliah.nama} dalam kurikulum`} onclick={() => { editingMembershipId = row.id; membershipOpen = true; }}>Edit</button><button class="text-red-700" disabled={saving} onclick={() => { removing = { id: row.id, nama: row.mataKuliah.nama }; removalError = null; removalOpen = true; }}>Hapus</button></div></td>
           </tr>
         {:else}<tr><td colspan="6" class="p-8 text-center text-slate-500">Tidak ada mata kuliah yang cocok.</td></tr>{/each}
       </tbody>
@@ -88,10 +89,10 @@
   </form>
   {/key}
 </Modal>
-<dialog bind:this={dialog} class="m-auto max-w-lg rounded-xl border border-amber-300 bg-amber-50 p-6 backdrop:bg-slate-900/40" aria-labelledby="remove-title" oncancel={event => { if (saving) event.preventDefault(); else removing = null; }}>
+<Modal bind:open={removalOpen} title={`Hapus ${removing?.nama ?? 'mata kuliah'} dari kurikulum?`} closeDisabled={saving} width="sm" onClose={() => removing = null}>
   {#if removing}
-    <h2 id="remove-title" class="font-semibold">Hapus {removing.nama} dari kurikulum?</h2>
     <p class="mt-2 text-sm">Penghapusan hanya diperbolehkan bila kurikulum belum digunakan mahasiswa dan keanggotaan tidak memiliki riwayat kelas.</p>
-    <form method="POST" class="mt-4 flex gap-4" use:enhance={submit}><input type="hidden" name="mode" value="remove" /><input type="hidden" name="membership_id" value={removing.id} /><button class={buttonClass} disabled={saving}>Ya, hapus keanggotaan</button><button type="button" disabled={saving} onclick={() => removing = null}>Batal</button></form>
+    {#if removalError}<p role="alert" class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{removalError}</p>{/if}
+    <form method="POST" class="mt-4 flex flex-wrap gap-4" use:enhance={submit}><input type="hidden" name="mode" value="remove" /><input type="hidden" name="membership_id" value={removing.id} /><button class={buttonClass} disabled={saving}>Ya, hapus keanggotaan</button><button type="button" disabled={saving} onclick={() => removalOpen = false}>Batal</button></form>
   {/if}
-</dialog>
+</Modal>

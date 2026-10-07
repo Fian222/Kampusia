@@ -22,7 +22,7 @@ function decimal(value: string, label: string, nullable = false) {
 async function response(result: { status: number; error: unknown; data: { success: boolean } | null }, values: Record<string, string>, message: string) {
   if (result.status === 401) redirect(303, '/login');
   if (result.error || !result.data?.success) return fail(result.status >= 400 && result.status < 500 ? result.status : 503, { values, message: apiMessage(result.error && typeof result.error === 'object' && 'value' in result.error ? result.error.value : null) });
-  return { saved: true as const, message };
+  return { saved: true as const, values, message };
 }
 export async function saveGrading(event: RequestEvent, admin: boolean) {
   access(event, admin);

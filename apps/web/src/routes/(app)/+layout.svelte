@@ -1,6 +1,6 @@
 <script lang="ts">
   import { roleAreas } from '$lib/auth';
-  import { page } from '$app/state';
+  import { page, navigating } from '$app/state';
   import Icon, { type IconName } from '$lib/components/ui/Icon.svelte';
   import UserAvatar from '$lib/components/ui/UserAvatar.svelte';
 
@@ -30,7 +30,7 @@
   type NavItem = { path: string; label: string; icon: IconName; exact?: boolean };
   type NavGroup = { label: string; items: NavItem[] };
   const managerGroups: NavGroup[] = [
-    { label: 'Ruang kerja', items: [{ path: '/akademik/krs', label: 'Persetujuan KRS', icon: 'clipboard' }] },
+    { label: 'Ruang kerja', items: [{ path: '/akademik/krs', label: 'Manajemen KRS', icon: 'clipboard' }] },
     { label: 'Data akademik', items: [
       { path: '/akademik/fakultas', label: 'Fakultas', icon: 'building' },
       { path: '/akademik/program-studi', label: 'Program Studi', icon: 'graduation' },
@@ -59,6 +59,7 @@
   $effect(() => {
     page.url.pathname;
     menuOpen = false;
+    if (accountMenu) accountMenu.open = false;
   });
 </script>
 
@@ -121,6 +122,7 @@
         </div>
       </details>
     </header>
+    {#if navigating.to && navigating.to.url.pathname !== page.url.pathname}<p role="status" class="navigation-status">Membuka halaman…</p>{/if}
     <main id="main-content" tabindex="-1" class="app-content">{@render children()}</main>
   </div>
 </div>
@@ -194,6 +196,7 @@
   .account-info strong { overflow-wrap: anywhere; color: var(--color-ink); font-weight: 600; }
   .logout-action { display: flex; align-items: center; gap: .6rem; min-height: 2.75rem; width: 100%; margin-top: .4rem; padding: .6rem .75rem; border-radius: .5rem; text-align: left; color: #b91c1c; font-size: .8125rem; font-weight: 600; }
   .logout-action:hover { background: #fef2f2; }
+  .navigation-status { position: fixed; z-index: 35; inset: 4.5rem 0 auto; padding: .5rem 1rem; background: var(--color-brand-50); color: var(--color-brand-800); font-size: .8125rem; text-align: center; }
   .app-content { max-width: 90rem; width: 100%; margin: 0 auto; padding: 1.75rem 1rem 3rem; }
   .app-content:focus { outline: none; }
   .skip-link { position: fixed; left: 1rem; top: -5rem; z-index: 60; border-radius: .5rem; padding: .75rem 1rem; background: white; color: var(--color-ink); font-size: .875rem; font-weight: 600; }

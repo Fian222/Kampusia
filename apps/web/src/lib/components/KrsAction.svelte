@@ -1,5 +1,6 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { finishConfirmation } from '$lib/form-feedback';
   import Icon from './ui/Icon.svelte';
   import Modal from './ui/Modal.svelte';
 
@@ -24,19 +25,12 @@
   let localError = $state<string | null>(null);
   const dangerous = $derived(mode === 'cancel' || mode === 'reject' || mode === 'clear');
 
-  function messageFrom(value: unknown) {
-    if (!value || typeof value !== 'object' || !('message' in value)) return 'Tindakan belum dapat disimpan.';
-    return typeof value.message === 'string' ? value.message : 'Tindakan belum dapat disimpan.';
-  }
-
   const submit: NonNullable<Parameters<typeof enhance>[1]> = () => {
     saving = true;
     localError = null;
     return async ({ result, update }) => {
       try {
-        if (result.type === 'failure') localError = messageFrom(result.data);
-        await update({ reset: false, invalidateAll: true });
-        if (result.type === 'success') open = false;
+        await finishConfirmation(result, update, () => open = false, message => localError = message);
       } finally {
         saving = false;
       }

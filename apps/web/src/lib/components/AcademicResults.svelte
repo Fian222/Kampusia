@@ -1,7 +1,9 @@
 <script lang="ts">
   import type { AcademicResultsData } from '$lib/server/academic-results';
   import { seamlessFilter } from '$lib/actions/seamless-filter';
-  import { page } from '$app/state';
+  import { page, navigating } from '$app/state';
+  import { isListNavigationPending } from '$lib/navigation/pending';
+  import ListPending from './ui/ListPending.svelte';
   import { hasActiveQuery, resetQueryHref } from '$lib/navigation/query';
   import PageHeader from './ui/PageHeader.svelte';
   import StatCard from './ui/StatCard.svelte';
@@ -9,6 +11,7 @@
   import Icon from './ui/Icon.svelte';
 
   let { data }: { data: AcademicResultsData } = $props();
+  const listPending = $derived(isListNavigationPending(navigating, page.url.pathname));
   const student = $derived(data.summary.mahasiswa);
   const card = 'surface-panel p-5 sm:p-6';
 </script>
@@ -30,7 +33,8 @@
   <dl class="mt-4 grid gap-4 text-sm sm:grid-cols-3"><div><dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">NIM</dt><dd class="mt-1 font-semibold text-slate-800">{student.nim}</dd></div><div><dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">Nama</dt><dd class="mt-1 font-semibold text-slate-800">{student.nama}</dd></div><div><dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">Program Studi</dt><dd class="mt-1 font-semibold text-slate-800">{student.programStudi.kode} — {student.programStudi.nama}</dd></div></dl>
 </section>
 
-<section class={`${card} mt-6`}>
+<section class={`${card} relative mt-6`} aria-busy={listPending}>
+  <ListPending />
   <div class="flex flex-wrap items-end justify-between gap-4">
     <div><h2 class="text-lg font-semibold">Kartu Hasil Studi</h2><p class="mt-1 text-sm text-slate-500">IPS mengukur satu semester; IPK merangkum seluruh hasil final.</p></div>
     {#if data.summary.semesters.length}
@@ -48,7 +52,7 @@
       <div class="rounded-lg bg-slate-50 p-4"><p class="text-sm text-slate-500">Total SKS semester</p><p class="text-2xl font-semibold">{data.khs.summary.totalSks}</p></div>
       <div class="rounded-lg bg-slate-50 p-4"><p class="text-sm text-slate-500">Bobot semester</p><p class="text-2xl font-semibold">{data.khs.summary.totalBobot}</p></div>
     </div>
-    {#if data.khs.summary.provisional}<p role="status" class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Ada {data.khs.summary.unfinishedCourseCount} mata kuliah efektif yang belum memiliki hasil final. Mata kuliah tersebut tidak masuk perhitungan; ringkasan semester ini masih provisional.</p>{/if}
+    {#if data.khs.summary.provisional}<p role="status" class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Ada {data.khs.summary.unfinishedCourseCount} mata kuliah efektif yang belum memiliki hasil final. Mata kuliah tersebut tidak masuk perhitungan; ringkasan semester ini belum lengkap.</p>{/if}
     <div class="mt-5 overflow-x-auto rounded-xl border border-slate-200"><table class="w-full whitespace-nowrap text-left text-sm"><thead><tr><th class="px-4 py-3">Kode</th><th class="px-4 py-3">Mata Kuliah</th><th class="px-4 py-3">Kelas</th><th class="px-4 py-3 text-right">SKS</th><th class="px-4 py-3 text-right">Nilai Angka</th><th class="px-4 py-3 text-center">Huruf</th><th class="px-4 py-3 text-right">Indeks</th></tr></thead>
       <tbody class="divide-y divide-slate-100">{#each data.khs.courses as row}<tr><td class="px-3 py-4 font-medium">{row.mataKuliah.kode}</td><td class="px-3 py-4">{row.mataKuliah.nama}</td><td class="px-3 py-4">{row.kelas.namaKelas}</td><td class="px-3 py-4 text-right">{row.mataKuliah.sks}</td><td class="px-3 py-4 text-right">{row.nilaiAngka}</td><td class="px-3 py-4 text-center font-semibold">{row.nilaiHuruf}</td><td class="px-3 py-4 text-right">{row.nilaiIndeks}</td></tr>{:else}<tr><td class="p-8 text-center text-slate-500" colspan="7">Belum ada hasil final pada semester ini.</td></tr>{/each}</tbody>
     </table></div>
@@ -59,7 +63,7 @@
 
 <details class="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">
   <summary class="cursor-pointer font-semibold text-slate-900">Cara IPS dan IPK dihitung</summary>
-  <p class="mt-2">IPS dan IPK dihitung dengan aritmetika desimal eksak, lalu hasil akhirnya ditampilkan dua desimal dengan pembulatan half-up. Nilai indeks nol tetap menghitung SKS.</p>
+  <p class="mt-2">IPS dihitung dari jumlah SKS × indeks nilai, dibagi total SKS dalam semester tersebut. IPK menggunakan seluruh hasil final. Angka ditampilkan dengan dua desimal; nilai indeks nol tetap menghitung SKS.</p>
   <p class="mt-2">Semua percobaan mata kuliah yang telah difinalisasi dihitung, termasuk pengulangan lintas semester. Kebijakan penggantian nilai mata kuliah berulang belum ditetapkan.</p>
   {#if data.ipk.hasRepeatedCourses}<p class="mt-2 font-medium text-amber-800">Data ini memuat mata kuliah berulang; IPK memakai model hitung-semua saat ini.</p>{/if}
 </details>

@@ -94,11 +94,11 @@
               <input type="hidden" name="kelas_id" value={kelas.id} />
               <button
                 class="inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-brand-700 px-3.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:cursor-wait disabled:opacity-70 sm:w-auto"
-                disabled={pendingId === kelas.id}
+                disabled={pendingId !== null}
                 aria-label={`Ambil ${kelas.mataKuliah.nama}, kelas ${kelas.namaKelas}`}
               >
                 {#if pendingId === kelas.id}<span class="size-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden="true"></span>{:else}<Icon name="plus" size={15} />{/if}
-                Ambil
+                {pendingId === kelas.id ? 'Mengambil…' : 'Ambil'}
               </button>
             </form>
           {:else if mode === 'selected' && actionsEnabled && krsId && item.detailId}
@@ -108,7 +108,7 @@
               <input type="hidden" name="detail_id" value={item.detailId} />
               <button
                 class="inline-flex min-h-9 w-full items-center justify-center rounded-lg border border-red-200 bg-white px-3 text-sm font-semibold text-red-700 shadow-sm hover:bg-red-50 disabled:cursor-wait disabled:opacity-70 sm:w-auto"
-                disabled={pendingId === item.detailId}
+                disabled={pendingId !== null}
                 aria-label={`Keluarkan ${kelas.mataKuliah.nama}, kelas ${kelas.namaKelas} dari KRS`}
               >
                 {pendingId === item.detailId ? 'Mengeluarkan…' : 'Keluarkan'}

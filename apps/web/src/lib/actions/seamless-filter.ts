@@ -49,14 +49,26 @@ export function seamlessFilter(form: HTMLFormElement, options: Options = {}) {
     currentHref: () => window.location.pathname + window.location.search,
     targetHref: () => formQueryHref(form, new URL(window.location.href), options.pageKey),
     navigate: async href => {
+      form.querySelector('[data-filter-error]')?.remove();
       const restoreDialogForm = preserveDialogForm(form);
-      await goto(href, {
-        replaceState: true,
-        noScroll: true,
-        keepFocus: true,
-      });
-      await tick();
-      restoreDialogForm();
+      try {
+        await goto(href, { replaceState: true, noScroll: true, keepFocus: true });
+        await tick();
+        restoreDialogForm();
+      } catch (cause) {
+        const feedback = document.createElement('p');
+        feedback.dataset.filterError = '';
+        feedback.setAttribute('role', 'alert');
+        feedback.className = 'text-sm text-red-700 sm:col-span-full';
+        feedback.textContent = 'Filter belum diterapkan. Periksa koneksi lalu coba lagi. ';
+        const retry = document.createElement('button');
+        retry.type = 'submit';
+        retry.className = 'action-secondary';
+        retry.textContent = 'Coba lagi';
+        feedback.append(retry);
+        form.append(feedback);
+        throw cause;
+      }
     },
   });
 
