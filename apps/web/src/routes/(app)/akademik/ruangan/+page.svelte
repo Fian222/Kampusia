@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SelectField from '$lib/components/ui/SelectField.svelte';
   import { enhance } from '$app/forms';
   import { goto } from '$app/navigation';
   import { page, navigating } from '$app/state';
@@ -37,7 +38,7 @@
 {#if form?.message}<p class={box} role={form.saved ? 'status' : 'alert'}>{form.message}</p>{/if}
 <form method="GET" class="filter-panel mt-6 grid gap-4 sm:grid-cols-3" use:seamlessFilter>
   <label class="text-sm">Cari kode atau nama<input class={input} name="search" value={data.filters.search} maxlength="150" /></label>
-  <label class="text-sm">Status<select class={input} name="is_active" value={data.filters.is_active ?? ''}><option value="">Semua</option><option value="true">Aktif</option><option value="false">Nonaktif</option></select></label>
+  <SelectField name="is_active" label="Status" value={data.filters.is_active ?? ''} options={[{ value: '', label: 'Semua' }, { value: 'true', label: 'Aktif' }, { value: 'false', label: 'Nonaktif' }]} />
   <noscript><button class={button}>Terapkan filter</button></noscript>
   {#if filtersActive}<div class="flex items-end"><a class="py-2 text-sm text-slate-600" href={resetQueryHref(page.url, filterKeys)} data-sveltekit-noscroll>Reset filter</a></div>{/if}
 </form>

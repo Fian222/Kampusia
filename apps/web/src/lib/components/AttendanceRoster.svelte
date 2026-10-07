@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SelectField from './ui/SelectField.svelte';
   import { enhance } from '$app/forms';
   import type { loadAttendance } from '$lib/server/attendance';
   import { formatAcademicDate } from '$lib/date-format';
@@ -46,7 +47,7 @@
           <form method="POST" class="flex min-w-96 flex-wrap gap-2" use:enhance={submit}>
             <input type="hidden" name="mode" value={row.absensi ? 'correct' : 'record'} /><input type="hidden" name="mahasiswa_id" value={row.mahasiswa.id} />
             {#if !row.absensi && roster.pertemuan.status === 'SELESAI' && area === 'akademik'}<input type="hidden" name="koreksi_terlambat" value="yes" />{/if}
-            <select class="min-w-32 rounded-lg border border-slate-300 px-3 py-2" name="status" aria-label={`Status kehadiran ${row.mahasiswa.nama}`} required><option value="" selected={!submitted(row.mahasiswa.id, 'status', row.absensi?.status ?? '')}>Pilih status</option>{#each ['HADIR', 'IZIN', 'SAKIT', 'ALPHA'] as value}<option {value} selected={submitted(row.mahasiswa.id, 'status', row.absensi?.status ?? '') === value}>{value}</option>{/each}</select>
+            <SelectField name="status" label={`Status kehadiran ${row.mahasiswa.nama}`} hideLabel class="min-w-40" required placeholder="Pilih status" value={submitted(row.mahasiswa.id, 'status', row.absensi?.status ?? '')} options={['HADIR', 'IZIN', 'SAKIT', 'ALPHA'].map(value => ({ value, label: value }))} />
             <input class="min-w-48 flex-1 rounded-lg border border-slate-300 px-3 py-2" name="keterangan" aria-label={`Keterangan kehadiran ${row.mahasiswa.nama}`} placeholder={roster.pertemuan.status === 'SELESAI' ? 'Alasan koreksi (wajib)' : 'Keterangan (opsional)'} value={submitted(row.mahasiswa.id, 'keterangan', row.absensi?.keterangan ?? '')} required={roster.pertemuan.status === 'SELESAI'} />
             <button class={button} disabled={saving}>{row.absensi ? (roster.pertemuan.status === 'SELESAI' ? 'Simpan Koreksi' : 'Perbarui') : 'Catat'}</button>
           </form>
@@ -60,7 +61,7 @@
     {:else}<form method="POST" class="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 p-3" use:enhance={submit}>
       <input type="hidden" name="mode" value="correct" /><input type="hidden" name="mahasiswa_id" value={row.mahasiswa.id} />
       <span class="min-w-52 font-medium">{row.mahasiswa.nim} — {row.mahasiswa.nama}</span>
-      <select class="rounded border p-2" name="status" aria-label={`Status kehadiran ${row.mahasiswa.nama}`} required>{#each ['HADIR', 'IZIN', 'SAKIT', 'ALPHA'] as value}<option {value} selected={submitted(row.mahasiswa.id, 'status', row.status) === value}>{value}</option>{/each}</select>
+      <SelectField name="status" label={`Status kehadiran ${row.mahasiswa.nama}`} hideLabel class="min-w-40" required value={submitted(row.mahasiswa.id, 'status', row.status)} options={['HADIR', 'IZIN', 'SAKIT', 'ALPHA'].map(value => ({ value, label: value }))} />
       <input class="min-w-52 flex-1 rounded border p-2" name="keterangan" aria-label={`Keterangan kehadiran ${row.mahasiswa.nama}`} value={submitted(row.mahasiswa.id, 'keterangan', row.keterangan ?? '')} placeholder={roster.pertemuan.status === 'SELESAI' ? 'Alasan koreksi (wajib)' : 'Keterangan'} required={roster.pertemuan.status === 'SELESAI'} />
       <button class={button} disabled={saving}>Simpan Koreksi</button>
     </form>{/if}

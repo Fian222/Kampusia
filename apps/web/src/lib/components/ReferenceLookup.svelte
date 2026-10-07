@@ -1,14 +1,17 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { seamlessFilter } from '$lib/actions/seamless-filter';
   import { queryHref, resetQueryHref } from '$lib/navigation/query';
   import Pagination from './Pagination.svelte';
 
   let { references }: { references: { label: string; prefix: string; meta: { page: number; limit: number; total: number } }[] } = $props();
+  let enhanced = $state(false);
+  onMount(() => { enhanced = true; });
 </script>
 
 {#if references.some(reference => reference.meta.total > reference.meta.limit || page.url.searchParams.has(`${reference.prefix}_search`) || reference.meta.page > 1)}
-  <details class="surface-panel mt-3 p-4 text-sm">
+  <details hidden={enhanced} class="surface-panel mt-3 p-4 text-sm">
     <summary class="min-h-11 content-center font-semibold text-brand-700">Cari pilihan filter lainnya</summary>
     <p class="mt-2 text-muted">Cari kode atau nama, lalu pilih hasilnya pada filter di atas.</p>
     <div class="mt-4 grid gap-5 lg:grid-cols-2">

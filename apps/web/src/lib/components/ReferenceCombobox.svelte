@@ -1,8 +1,9 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { navigating, page } from '$app/state';
-  import { onDestroy, tick, untrack } from 'svelte';
+  import { onDestroy, onMount, tick, untrack } from 'svelte';
   import Icon from './ui/Icon.svelte';
+  import { selectionPopover } from '$lib/actions/selection-popover';
   import { nextEnabledOption } from '$lib/navigation/reference-options';
 
   export type ReferenceOption = {
@@ -31,6 +32,7 @@
     error,
     help,
     onValueChange,
+    optionalIndicator = true,
   }: {
     name: string;
     label: string;
@@ -50,22 +52,25 @@
     error?: string;
     help?: string;
     onValueChange?: (value: string, previousValue: string) => void;
+    optionalIndicator?: boolean;
   } = $props();
 
-  const id = $derived(`reference-${name.replace(/[^a-z0-9_-]/gi, '-')}`);
+  const instanceId = $props.id();
+  const id = $derived(`reference-${name.replace(/[^a-z0-9_-]/gi, '-')}-${instanceId}`);
   const listboxId = $derived(`${id}-listbox`);
   let root = $state<HTMLDivElement>();
   let searchInput = $state<HTMLInputElement>();
   let trigger = $state<HTMLButtonElement>();
-  let popup = $state<HTMLDivElement>();
-  let popupStyle = $state('');
+  let native: HTMLSelectElement;
+  let enhanced = $state(false);
+  let invalid = $state(false);
   let open = $state(false);
   let query = $state('');
   let lookupError = $state<string | null>(null);
   let lastLookupChanges: Record<string, string | number | null> = {};
   let activeIndex = $state(-1);
-  let loadedSearch = $state('');
-  let shownOptions = $state<ReferenceOption[]>([]);
+  let loadedSearch = $state(untrack(() => page.url.searchParams.get(searchParam) ?? ''));
+  let shownOptions = $state<ReferenceOption[]>(untrack(() => options));
   let selectedMemory = $state<ReferenceOption | null>(null);
   let debounceTimer: number | undefined;
   const loading = $derived(Boolean(navigating?.to?.url.pathname === page.url.pathname
@@ -77,6 +82,7 @@
     if (selectedOption?.value === value && !rows.some(option => option.value === selectedOption.value)) rows.unshift(selectedOption);
     return rows;
   });
+  const message = $derived(error ?? (invalid ? `${label} wajib dipilih.` : undefined));
   const selected = $derived(allOptions.find(option => option.value === value) ?? (selectedOption?.value === value ? selectedOption : null));
 
   $effect(() => {
@@ -127,50 +133,42 @@
     trigger?.focus({ preventScroll: true });
   }
 
-  function positionPopup() {
-    if (!trigger || !popup) return;
-    const rect = trigger.getBoundingClientRect();
-    const viewport = window.visualViewport;
-    const viewportTop = viewport?.offsetTop ?? 0;
-    const viewportHeight = viewport?.height ?? window.innerHeight;
-    const below = viewportTop + viewportHeight - rect.bottom - 12;
-    const above = rect.top - viewportTop - 12;
-    const height = Math.min(360, Math.max(below, above));
-    const top = below >= Math.min(360, above) ? rect.bottom + 6 : Math.max(viewportTop + 8, rect.top - height - 6);
-    const width = Math.min(rect.width, window.innerWidth - 24);
-    popupStyle = `left: ${Math.max(12, Math.min(rect.left, window.innerWidth - width - 12))}px; top: ${top}px; width: ${width}px; max-height: ${Math.max(100, height)}px;`;
-  }
-
-  $effect(() => {
-    if (!open || !popup) return;
-    positionPopup();
-    if (typeof popup.showPopover === 'function') popup.showPopover();
-    const reposition = () => positionPopup();
-    window.addEventListener('resize', reposition);
-    window.addEventListener('scroll', reposition, true);
-    window.visualViewport?.addEventListener('resize', reposition);
-    return () => {
-      window.removeEventListener('resize', reposition);
-      window.removeEventListener('scroll', reposition, true);
-      window.visualViewport?.removeEventListener('resize', reposition);
+  onMount(() => {
+    enhanced = true;
+    const restore = () => {
+      value = native.value;
+      invalid = false;
+      selectedMemory = value ? { value, label: native.selectedOptions[0]?.textContent ?? 'Pilihan tersimpan' } : null;
     };
+    const reset = () => queueMicrotask(restore);
+    const form = native.form;
+    form?.addEventListener('reset', reset);
+    native.addEventListener('kampusia:restore', restore);
+    return () => { form?.removeEventListener('reset', reset); native.removeEventListener('kampusia:restore', restore); };
   });
+  $effect(() => { if (disabled) open = false; });
 
-  function choose(option: ReferenceOption) {
-    if (option.disabled) return;
+  async function choose(option: ReferenceOption) {
+    if (option.disabled || disabled) return;
     const previous = value;
     value = option.value;
     selectedMemory = option;
     onValueChange?.(option.value, previous);
+    invalid = false;
     dismiss();
+    await tick();
+    native.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  function clear() {
+  async function clear() {
     const previous = value;
     value = '';
     selectedMemory = null;
     onValueChange?.('', previous);
+    invalid = false;
     dismiss();
+    await tick();
+    native.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
   function move(direction: 1 | -1) {
@@ -179,7 +177,8 @@
   }
 
   function handleSearchKeydown(event: KeyboardEvent) {
-    if (event.key === 'ArrowDown') { event.preventDefault(); move(1); }
+    if (event.key === 'Tab') dismiss();
+    else if (event.key === 'ArrowDown') { event.preventDefault(); move(1); }
     else if (event.key === 'ArrowUp') { event.preventDefault(); move(-1); }
     else if (event.key === 'Enter') { event.preventDefault(); if (query.trim() !== loadedSearch) { globalThis.clearTimeout(debounceTimer); navigate({ [searchParam]: query.trim() || null, [pageParam]: null }); } else if (!loading && activeIndex >= 0) { const option = allOptions[activeIndex]; if (option) choose(option); } }
     else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); dismiss(); }
@@ -205,23 +204,31 @@
   onpointerdown={event => { if (open && event.target instanceof Node && !root?.contains(event.target)) { globalThis.clearTimeout(debounceTimer); open = false; } }}
 />
 
-<div class="relative" bind:this={root} onfocusout={handleFocusOut}>
-  <label id={`${id}-label`} class="text-sm font-semibold text-slate-700" for={id}>{label}{#if required}<span class="ml-1 text-red-500" aria-hidden="true">*</span>{:else}<span class="ml-1 font-normal text-slate-400">(opsional)</span>{/if}</label>
-  <input type="hidden" {name} {value} disabled={disabled} />
+<div class="selection-field relative" data-enhanced={enhanced} bind:this={root} onfocusout={handleFocusOut}>
+  <label id={`${id}-label`} class="text-sm font-semibold text-slate-700" for={enhanced ? id : `${id}-native`}>{label}{#if required}<span class="ml-1 text-red-500" aria-hidden="true">*</span>{:else if optionalIndicator}<span class="ml-1 font-normal text-slate-400">(opsional)</span>{/if}</label>
+  <!-- Native backing provides no-JS selection, required validation and form submission. -->
+  <select bind:this={native} id={`${id}-native`} class="selection-native control-base mt-1.5" {name} {value} {required} {disabled} tabindex={enhanced ? -1 : undefined} aria-hidden={enhanced ? 'true' : undefined}
+    onchange={() => { value = native.value; invalid = false; }}
+    oninvalid={event => { if (enhanced) { event.preventDefault(); invalid = true; trigger?.focus(); } }}>
+    <option value="" disabled={required}>{placeholder}</option>
+    {#if value && !allOptions.some(option => option.value === value)}<option {value}>Pilihan tersimpan</option>{/if}
+    {#each allOptions as option}<option value={option.value} disabled={option.disabled && option.value !== value}>{option.label}{option.description ? ` — ${option.description}` : ''}</option>{/each}
+  </select>
+  {#if enhanced}
   <div class="relative mt-1.5 flex items-center gap-2">
     <button
       id={id}
       bind:this={trigger}
       type="button"
       role="combobox"
-      class="control-base flex min-w-0 w-full items-center justify-between gap-3 text-left disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-      aria-labelledby={`${id}-label ${id}`}
+      class="selection-trigger control-base"
+      aria-labelledby={`${id}-label`}
       aria-controls={listboxId}
       aria-expanded={open}
       aria-haspopup="listbox"
-      aria-invalid={error ? 'true' : undefined}
+      aria-invalid={message ? 'true' : undefined}
       aria-required={required}
-      aria-describedby={error ? `${id}-error` : help ? `${id}-help` : undefined}
+      aria-describedby={message ? `${id}-error` : help ? `${id}-help` : undefined}
       aria-activedescendant={open && activeIndex >= 0 ? `${id}-option-${activeIndex}` : undefined}
       {disabled}
       onclick={() => open ? dismiss() : void show()}
@@ -235,8 +242,9 @@
     {/if}
   </div>
 
-  {#if open}
-    <div bind:this={popup} popover="manual" style={popupStyle} class="reference-popup fixed z-50 m-0 flex flex-col overflow-hidden rounded-xl border border-line bg-white p-0 shadow-xl">
+  {/if}
+  {#if open && enhanced}
+    <div popover="manual" class="selection-popup" data-selection-popup use:selectionPopover={() => trigger}>
       <div class="border-b border-slate-100 p-2.5">
         <div class="relative"><Icon name="search" size={16} class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input bind:this={searchInput} bind:value={query} class="control-base w-full pl-9" role="combobox" aria-expanded={open} aria-autocomplete="list" aria-label={`Cari ${label}`} aria-controls={listboxId} aria-activedescendant={!loading && activeIndex >= 0 ? `${id}-option-${activeIndex}` : undefined} placeholder={searchPlaceholder} oninput={search} onkeydown={handleSearchKeydown} /></div>
       </div>
@@ -246,7 +254,7 @@
         {:else if !allOptions.length}<div class="px-3 py-5 text-center text-sm text-slate-500">Tidak ada pilihan yang cocok.</div>
         {:else}
           {#each allOptions as option, index (option.value)}
-            <div id={`${id}-option-${index}`} role="option" aria-selected={option.value === value} aria-disabled={option.disabled} class={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm outline-none ${index === activeIndex ? 'bg-brand-50' : 'hover:bg-slate-50'} ${option.disabled ? 'cursor-not-allowed opacity-50' : ''}`} tabindex="-1" onmouseenter={() => activeIndex = index} onclick={() => choose(option)} onkeydown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); choose(option); } }}>
+            <div id={`${id}-option-${index}`} role="option" aria-selected={option.value === value} aria-disabled={option.disabled} class="selection-option" class:selection-active={index === activeIndex} tabindex="-1" onpointerdown={event => event.preventDefault()} onmouseenter={() => activeIndex = index} onclick={() => choose(option)} onkeydown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); choose(option); } }}>
               <span class="min-w-0 flex-1"><span class="block truncate font-semibold text-slate-800">{option.label}</span>{#if option.description}<span class="mt-0.5 block truncate text-xs text-slate-500">{option.description}</span>{/if}</span>{#if option.value === value}<Icon name="check" size={16} class="shrink-0 text-brand-700" />{/if}
             </div>
           {/each}
@@ -255,10 +263,5 @@
       </div>
     </div>
   {/if}
-  {#if error}<p id={`${id}-error`} class="mt-1.5 text-xs text-red-700">{error}</p>{:else if help}<p id={`${id}-help`} class="mt-1.5 text-xs text-slate-500">{help}</p>{/if}
+  {#if message}<p id={`${id}-error`} role="alert" class="mt-1.5 text-xs text-red-700">{message}</p>{:else if help}<p id={`${id}-help`} class="mt-1.5 text-xs text-slate-500">{help}</p>{/if}
 </div>
-
-<style>
-  .reference-popup { display: flex; }
-  .reference-popup::backdrop { background: transparent; }
-</style>

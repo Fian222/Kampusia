@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SelectField from '$lib/components/ui/SelectField.svelte';
   import { enhance } from '$app/forms';
   import { finishConfirmation } from '$lib/form-feedback';
   import { goto } from '$app/navigation';
@@ -84,7 +85,7 @@
     <input type="hidden" name="mode" value={editingMembership ? 'update' : 'add'} /><input type="hidden" name="membership_id" value={editingMembership?.id ?? ''} />
     {#if editingMembership}<p class="rounded-lg bg-slate-50 p-3 text-sm font-semibold sm:col-span-2">{editingMembership.mataKuliah.kode} — {editingMembership.mataKuliah.nama}</p>{:else}<div class="sm:col-span-2"><ReferenceCombobox name="mata_kuliah_id" label="Mata Kuliah" value={value('add', '', 'mata_kuliah_id', '')} options={courseOptions} meta={data.courses.meta} searchParam="course_search" pageParam="course_page" placeholder="Pilih mata kuliah aktif" searchPlaceholder="Cari mata kuliah…" required disabled={!data.curriculum.isActive} /></div>{/if}
     <label class="text-sm">Semester rekomendasi<input class={inputClass} name="semester_rekomendasi" type="number" min="1" max="32767" placeholder="Belum ditentukan" value={value(editingMembership ? 'update' : 'add', editingMembership?.id ?? '', 'semester_rekomendasi', String(editingMembership?.semesterRekomendasi ?? ''))} /></label>
-    <label class="text-sm">Wajib/Pilihan<select class={inputClass} name="is_wajib" value={value(editingMembership ? 'update' : 'add', editingMembership?.id ?? '', 'is_wajib', String(editingMembership?.isWajib ?? true))}><option value="true">Wajib</option><option value="false">Pilihan</option></select></label>
+    <SelectField name="is_wajib" label="Wajib/Pilihan" value={value(editingMembership ? 'update' : 'add', editingMembership?.id ?? '', 'is_wajib', String(editingMembership?.isWajib ?? true))} options={[{ value: 'true', label: 'Wajib' }, { value: 'false', label: 'Pilihan' }]} />
     <div class="flex justify-end gap-3 sm:col-span-2"><button type="button" class="px-4 py-2 text-sm font-semibold text-slate-600" disabled={saving} onclick={() => membershipOpen = false}>Batal</button><button class={buttonClass} disabled={saving || (!editingMembership && !data.curriculum.isActive)}>{saving ? 'Menyimpan…' : 'Simpan'}</button></div>
   </form>
   {/key}

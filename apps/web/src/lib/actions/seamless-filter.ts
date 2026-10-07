@@ -9,6 +9,8 @@ type Options = {
 };
 
 type ControlSnapshot = {
+  name: string;
+  occurrence: number;
   value: string;
   checked?: boolean;
   selectedLabel?: string;
@@ -17,25 +19,36 @@ type ControlSnapshot = {
 function preserveDialogForm(lookupForm: HTMLFormElement) {
   const dialog = lookupForm.closest('dialog');
   const forms = dialog ? [...dialog.querySelectorAll<HTMLFormElement>('form[method="POST"]')] : [];
-  const snapshots = forms.map(form => [...form.elements].map<ControlSnapshot | null>(element => {
-    if (!(element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement)) return null;
-    return {
-      value: element.value,
-      checked: element instanceof HTMLInputElement && ['checkbox', 'radio'].includes(element.type) ? element.checked : undefined,
-      selectedLabel: element instanceof HTMLSelectElement ? element.selectedOptions[0]?.textContent ?? undefined : undefined,
-    };
-  }));
+  const snapshots = forms.map(form => {
+    const occurrences = new Map<string, number>();
+    return [...form.elements].flatMap<ControlSnapshot>(element => {
+      if (!(element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement) || !element.name) return [];
+      const occurrence = occurrences.get(element.name) ?? 0;
+      occurrences.set(element.name, occurrence + 1);
+      return [{
+        name: element.name, occurrence,
+        value: element.value,
+        checked: element instanceof HTMLInputElement && ['checkbox', 'radio'].includes(element.type) ? element.checked : undefined,
+        selectedLabel: element instanceof HTMLSelectElement ? element.selectedOptions[0]?.textContent ?? undefined : undefined,
+      }];
+    });
+  });
 
   return () => {
     const currentForms = dialog ? [...dialog.querySelectorAll<HTMLFormElement>('form[method="POST"]')] : forms;
     currentForms.forEach((form, formIndex) => {
-      [...form.elements].forEach((element, controlIndex) => {
-        const snapshot = snapshots[formIndex]?.[controlIndex];
-        if (!snapshot || !(element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement)) return;
+      const occurrences = new Map<string, number>();
+      [...form.elements].forEach(element => {
+        if (!(element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement) || !element.name) return;
+        const occurrence = occurrences.get(element.name) ?? 0;
+        occurrences.set(element.name, occurrence + 1);
+        const snapshot = snapshots[formIndex]?.find(snapshot => snapshot.name === element.name && snapshot.occurrence === occurrence);
+        if (!snapshot) return;
         if (element instanceof HTMLSelectElement && snapshot.value && ![...element.options].some(option => option.value === snapshot.value)) {
           element.add(new Option(snapshot.selectedLabel ?? 'Pilihan tersimpan', snapshot.value));
         }
         element.value = snapshot.value;
+        element.dispatchEvent(new Event('kampusia:restore'));
         if (element instanceof HTMLInputElement && snapshot.checked !== undefined) element.checked = snapshot.checked;
       });
     });
@@ -77,11 +90,13 @@ export function seamlessFilter(form: HTMLFormElement, options: Options = {}) {
     void scheduler.immediate();
   };
   const change = (event: Event) => {
+    if (event.target instanceof Element && event.target.closest('[data-selection-popup]')) return;
     if (event.target instanceof HTMLSelectElement || event.target instanceof HTMLInputElement && ['checkbox', 'radio', 'number', 'date'].includes(event.target.type)) {
       void scheduler.immediate();
     }
   };
   const input = (event: Event) => {
+    if (event.target instanceof Element && event.target.closest('[data-selection-popup]')) return;
     if (!(event.target instanceof HTMLInputElement) || !['text', 'search'].includes(event.target.type)) return;
     scheduler.debounce();
   };
@@ -89,7 +104,7 @@ export function seamlessFilter(form: HTMLFormElement, options: Options = {}) {
     if (event.target instanceof Element && event.target.closest('a[href]')) scheduler.destroy();
   };
   const keydown = (event: KeyboardEvent) => {
-    if (event.key !== 'Enter' || !(event.target instanceof HTMLInputElement)) return;
+    if (event.defaultPrevented || event.key !== 'Enter' || !(event.target instanceof HTMLInputElement)) return;
     event.preventDefault();
     void scheduler.immediate();
   };

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SelectField from '$lib/components/ui/SelectField.svelte';
   import { enhance } from '$app/forms';
   import { finishConfirmation } from '$lib/form-feedback';
   import ReferenceLookup from './ReferenceLookup.svelte';
@@ -71,13 +72,10 @@
 <section class="filter-panel mt-6" aria-label="Filter data">
   <form method="GET" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" use:seamlessFilter>
     <label class="text-sm font-medium">Cari kode atau nama<input class={inputClass} name="search" value={data.filters.search} maxlength="150" placeholder="Kode atau nama" /></label>
-    <label class="text-sm font-medium">Status<select class={inputClass} name="is_active" value={data.filters.is_active ?? ''}><option value="">Semua status</option><option value="true">Aktif</option><option value="false">Nonaktif</option></select></label>
+    <SelectField name="is_active" label="Status" value={data.filters.is_active ?? ''} options={[{ value: '', label: 'Semua status' }, { value: 'true', label: 'Aktif' }, { value: 'false', label: 'Nonaktif' }]} />
     {#if isProgram}
-      <label class="text-sm font-medium">Jenjang<select class={inputClass} name="jenjang" value={data.filters.jenjang ?? ''}><option value="">Semua jenjang</option>{#each data.jenjangValues as item}<option value={item}>{item}</option>{/each}</select></label>
-      <label class="text-sm font-medium">Fakultas<select class={inputClass} name="fakultas_id" value={data.filters.fakultas_id ?? ''}><option value="">Semua fakultas</option>
-        {#if data.filters.fakultas_id && !data.faculties?.data.some(item => item.id === data.filters.fakultas_id)}<option value={data.filters.fakultas_id}>Fakultas terpilih</option>{/if}
-        {#each data.faculties?.data ?? [] as item}<option value={item.id}>{item.kode} — {item.nama}{item.isActive ? '' : ' (Nonaktif)'}</option>{/each}
-      </select></label>
+      <SelectField name="jenjang" label="Jenjang" value={data.filters.jenjang ?? ''} options={[{ value: '', label: 'Semua jenjang' }, ...data.jenjangValues.map(item => ({ value: item, label: item }))]} />
+      <ReferenceCombobox name="fakultas_id" label="Fakultas" value={data.filters.fakultas_id ?? ''} options={(data.faculties?.data ?? []).map(item => ({ value: item.id, label: item.nama, description: `${item.kode}${item.isActive ? '' : ' · Nonaktif'}` }))} selectedOption={data.filters.fakultas_id ? { value: data.filters.fakultas_id, label: 'Fakultas terpilih' } : null} meta={data.faculties!.meta} searchParam="faculty_search" pageParam="faculty_page" placeholder="Semua fakultas" nullable optionalIndicator={false} />
       <input type="hidden" name="faculty_search" value={data.facultyQuery.search} /><input type="hidden" name="faculty_page" value={data.facultyQuery.page} />
     {/if}
     <noscript><button class={buttonClass}>Terapkan filter</button></noscript>
@@ -136,7 +134,7 @@
       <label class="text-sm font-medium">Nama<input class={inputClass} name="nama" value={value('nama', data.edit?.nama ?? '')} required maxlength="150" pattern=".*\S.*" /></label>
       {#if isProgram}
         <ReferenceCombobox name="fakultas_id" label="Fakultas" value={value('fakultas_id', editFaculty?.id ?? '')} options={facultyOptions} selectedOption={selectedFacultyOption} meta={data.faculties!.meta} searchParam="faculty_search" pageParam="faculty_page" placeholder="Pilih fakultas aktif" searchPlaceholder="Cari fakultas…" required error={saveFailed && !form?.values?.fakultas_id ? 'Fakultas wajib dipilih.' : undefined} />
-        <label class="text-sm font-medium">Jenjang<select class={inputClass} name="jenjang" required value={value('jenjang', data.edit?.jenjang ?? '')}><option value="" disabled>Pilih jenjang</option>{#each data.jenjangValues as item}<option value={item}>{item}</option>{/each}</select></label>
+        <SelectField name="jenjang" label="Jenjang" value={value('jenjang', data.edit?.jenjang ?? '')} required placeholder="Pilih jenjang" options={[...data.jenjangValues.map(item => ({ value: item, label: item }))]} />
         {#if data.edit}<p class="text-sm text-slate-500 sm:col-span-2">Perubahan fakultas merupakan koreksi administratif. Pastikan perubahan sesuai dengan riwayat akademik program studi.</p>{/if}
       {/if}
       <div class="flex justify-end gap-3 sm:col-span-2"><button type="button" class="px-4 py-2 text-sm font-semibold text-slate-600" disabled={saving} onclick={() => formOpen = false}>Batal</button><button class={buttonClass} disabled={saving}>{saving ? 'Menyimpan…' : 'Simpan'}</button></div>

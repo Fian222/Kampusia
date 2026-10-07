@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SelectField from '$lib/components/ui/SelectField.svelte';
   import { enhance } from '$app/forms';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
@@ -69,7 +70,7 @@
     <label class="text-sm sm:col-span-2">Nama<input class={`${input} mt-1.5`} name="nama" value={componentValues?.nama ?? editingComponent?.nama ?? ''} required maxlength="100" /></label>
     <label class="text-sm">Bobot (%)<input class={`${input} mt-1.5`} name="bobot" value={componentValues?.bobot ?? editingComponent?.bobot ?? ''} required inputmode="decimal" placeholder="20.00" /></label>
     <label class="text-sm">Urutan<input class={`${input} mt-1.5`} name="urutan" type="number" min="1" max="32767" value={componentValues?.urutan ?? editingComponent?.urutan ?? ''} required /></label>
-    {#if editingComponent}<label class="text-sm sm:col-span-2">Status<select class={`${input} mt-1.5`} name="is_active" value={componentValues?.is_active ?? String(editingComponent.isActive)}><option value="true">Aktif</option><option value="false">Nonaktif</option></select></label>{/if}
+    {#if editingComponent}<SelectField name="is_active" label="Status" value={componentValues?.is_active ?? String(editingComponent.isActive)} options={[{ value: 'true', label: 'Aktif' }, { value: 'false', label: 'Nonaktif' }]} />{/if}
     <div class="flex justify-end gap-3 sm:col-span-2"><button type="button" class="px-4 py-2 text-sm font-semibold text-slate-600" disabled={saving} onclick={() => componentOpen = false}>Batal</button><button class={button} disabled={saving}>{saving ? 'Menyimpan…' : 'Simpan komponen'}</button></div>
   </form>
 </Modal>{/if}

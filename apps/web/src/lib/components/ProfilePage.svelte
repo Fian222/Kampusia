@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SelectField from '$lib/components/ui/SelectField.svelte';
   import { enhance } from '$app/forms';
   import { finishConfirmation } from '$lib/form-feedback';
   import ReferenceLookup from './ReferenceLookup.svelte';
@@ -108,16 +109,13 @@
       {#if page.url.searchParams.has(key)}<input type="hidden" name={key} value={page.url.searchParams.get(key)} />{/if}
     {/each}
     <label class="text-sm font-medium">{data.kind === 'mahasiswa' ? 'Cari NIM atau nama' : 'Cari NIK, kode dosen, NIDN, atau nama'}<input class={inputClass} name="search" value={data.filters.search} maxlength="150" /></label>
-    <label class="text-sm font-medium">Program Studi<select class={inputClass} name="program_studi_id" value={data.filters.program_studi_id ?? ''}><option value="">Semua program studi</option>{#each programs as item}{#if item}<option value={item.id}>{item.kode} — {item.nama}</option>{/if}{/each}</select></label>
+    <ReferenceCombobox name="program_studi_id" label="Program Studi" value={data.filters.program_studi_id ?? ''} options={programs.filter(item => item !== null).map(item => ({ value: item.id, label: item.nama, description: item.kode }))} selectedOption={data.filters.program_studi_id ? { value: data.filters.program_studi_id, label: 'Program studi terpilih' } : null} meta={data.programs.meta} searchParam="program_search" pageParam="program_page" placeholder="Semua program studi" nullable optionalIndicator={false} />
     {#if data.kind === 'mahasiswa'}
-      <label class="text-sm font-medium">Kurikulum<select class={inputClass} name="kurikulum_id" value={data.filters.kurikulum_id ?? ''}><option value="">Semua kurikulum</option>
-        {#if data.filters.kurikulum_id && !data.curricula.data.some(item => item.id === data.filters.kurikulum_id)}<option value={data.filters.kurikulum_id}>Kurikulum terpilih</option>{/if}
-        {#each data.curricula.data as item}<option value={item.id}>{item.kode} — {item.nama}</option>{/each}
-      </select></label>
+      <ReferenceCombobox name="kurikulum_id" label="Kurikulum" value={data.filters.kurikulum_id ?? ''} options={data.curricula.data.map(item => ({ value: item.id, label: item.nama, description: item.kode }))} selectedOption={data.filters.kurikulum_id ? { value: data.filters.kurikulum_id, label: 'Kurikulum terpilih' } : null} meta={data.curricula.meta} searchParam="curriculum_search" pageParam="curriculum_page" placeholder="Semua kurikulum" nullable optionalIndicator={false} />
       <label class="text-sm font-medium">Angkatan<input class={inputClass} name="angkatan" type="number" min="1900" max="9999" step="1" value={data.filters.angkatan ?? ''} /></label>
-      <label class="text-sm font-medium">Status<select class={inputClass} name="status" value={data.filters.status ?? ''}><option value="">Semua status</option>{#each data.statuses as item}<option value={item}>{item}</option>{/each}</select></label>
+      <SelectField name="status" label="Status" value={data.filters.status ?? ''} options={[{ value: '', label: 'Semua status' }, ...data.statuses.map(item => ({ value: item, label: item }))]} />
     {:else}
-      <label class="text-sm font-medium">Status<select class={inputClass} name="is_active" value={data.filters.is_active ?? ''}><option value="">Semua status</option><option value="true">Aktif</option><option value="false">Nonaktif</option></select></label>
+      <SelectField name="is_active" label="Status" value={data.filters.is_active ?? ''} options={[{ value: '', label: 'Semua status' }, { value: 'true', label: 'Aktif' }, { value: 'false', label: 'Nonaktif' }]} />
     {/if}
     <noscript><button class={buttonClass}>Terapkan filter</button></noscript>
     {#if filtersActive}<div class="flex items-end"><a class="py-2 text-sm text-slate-600" href={filterResetHref} data-sveltekit-noscroll>Reset filter</a></div>{/if}
@@ -198,7 +196,7 @@
       {#if data.kind === 'mahasiswa'}
         <ReferenceCombobox name="kurikulum_id" label="Kurikulum" bind:value={selectedCurriculumId} options={curriculumOptions} selectedOption={selectedCurriculumOption} meta={data.curricula.meta} searchParam="curriculum_search" pageParam="curriculum_page" watchParams={['choice_program']} placeholder={selectedProgramId ? 'Pilih kurikulum' : 'Pilih program studi terlebih dahulu'} searchPlaceholder="Cari kurikulum…" required disabled={!selectedProgramId} error={saveFailed && !selectedCurriculumId ? 'Kurikulum wajib dipilih.' : undefined} help={selectedProgramId && !selectedCurriculumId ? 'Pilih kurikulum yang sesuai dengan program studi.' : undefined} />
         <label class="text-sm font-medium">Angkatan<input class={inputClass} name="angkatan" type="number" min="1900" max="9999" step="1" required value={value('angkatan', student ? String(student.angkatan) : '')} /></label>
-        <label class="text-sm font-medium">Status<select class={inputClass} name="status" required value={value('status', student?.status ?? 'AKTIF')}>{#each data.statuses as item}<option value={item}>{item}</option>{/each}</select></label>
+        <SelectField name="status" label="Status" value={value('status', student?.status ?? 'AKTIF')} required options={[...data.statuses.map(item => ({ value: item, label: item }))]} />
         <ReferenceCombobox name="dosen_pa_id" label="Dosen PA" bind:value={selectedAdviserId} options={adviserOptions} selectedOption={selectedAdviserOption} meta={data.advisers.meta} searchParam="adviser_search" pageParam="adviser_page" placeholder="Belum ditetapkan" searchPlaceholder="Cari nama, kode dosen, atau NIDN…" nullable help="Wajib sebelum mahasiswa mengajukan KRS." />
         <p class="text-sm text-slate-500 sm:col-span-2">Status akademik tidak menonaktifkan login. Perubahan program studi atau kurikulum memerlukan peninjauan akademik dan ditolak bila ada riwayat KRS disetujui.</p>
       {:else}<p class="text-sm text-slate-500">Homebase tidak membatasi program studi tempat dosen mengajar. Ubah status melalui tindakan pada tabel.</p>{/if}

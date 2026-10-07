@@ -7,7 +7,8 @@ test('reference combobox submits ids and supports scalable keyboard search', asy
 
   expect(source).toContain('onDestroy(() => globalThis.clearTimeout(debounceTimer))');
   expect(source).not.toContain('onDestroy(() => window.clearTimeout(debounceTimer))');
-  expect(source).toContain('<input type="hidden" {name} {value}');
+  expect(source).toContain('class="selection-native control-base mt-1.5" {name} {value} {required} {disabled}');
+  expect(source).toContain("native.dispatchEvent(new Event('change', { bubbles: true }))");
   expect(source).toContain('value = option.value');
   expect(source).toContain('window.setTimeout(() => navigate');
   expect(source).toContain("event.key === 'ArrowDown'");

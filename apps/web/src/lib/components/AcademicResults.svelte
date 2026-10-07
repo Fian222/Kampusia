@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SelectField from './ui/SelectField.svelte';
   import type { AcademicResultsData } from '$lib/server/academic-results';
   import { seamlessFilter } from '$lib/actions/seamless-filter';
   import { page, navigating } from '$app/state';
@@ -39,7 +40,7 @@
     <div><h2 class="text-lg font-semibold">Kartu Hasil Studi</h2><p class="mt-1 text-sm text-slate-500">IPS mengukur satu semester; IPK merangkum seluruh hasil final.</p></div>
     {#if data.summary.semesters.length}
       <form method="GET" class="flex flex-wrap items-end gap-3" use:seamlessFilter>
-        <label class="text-sm font-medium">Semester<select class="mt-1 block rounded-lg border border-slate-300 bg-white px-3 py-2" name="semester_id" value={data.selectedSemesterId ?? ''}>{#each data.summary.semesters as item}<option value={item.semester.id}>{item.semester.kode} — {item.semester.nama}</option>{/each}</select></label>
+        <SelectField name="semester_id" label="Semester" searchable value={data.selectedSemesterId ?? data.summary.semesters[0]?.semester.id ?? ''} options={data.summary.semesters.map(item => ({ value: item.semester.id, label: `${item.semester.kode} — ${item.semester.nama}` }))} />
         <noscript><button class="min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800">Tampilkan</button></noscript>
         {#if hasActiveQuery(page.url, ['semester_id'])}<a class="py-2 text-sm text-slate-600" href={resetQueryHref(page.url, ['semester_id'])} data-sveltekit-noscroll>Reset filter</a>{/if}
       </form>

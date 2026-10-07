@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SelectField from '$lib/components/ui/SelectField.svelte';
   import Pagination from '$lib/components/Pagination.svelte';
   import { page, navigating } from '$app/state';
   import { seamlessFilter } from '$lib/actions/seamless-filter';
@@ -18,7 +19,7 @@
 <PageHeader eyebrow="Perkuliahan" title="Kelas yang Diajar" description="Kelola pertemuan, absensi, dan penilaian untuk kelas tempat Anda ditugaskan." />
 <form method="GET" class="filter-panel mt-6 flex flex-col gap-3 sm:flex-row" use:seamlessFilter>
   <input class="control-base min-w-60 flex-1" name="search" value={data.query.search} placeholder="Cari kode, mata kuliah, atau kelas" aria-label="Cari kelas" />
-  <select class="control-base sm:w-48" name="status" aria-label="Filter status"><option value="">Semua status</option>{#each data.statuses as status}<option value={status} selected={data.query.status === status}>{status}</option>{/each}</select>
+  <SelectField name="status" label="Filter status" hideLabel class="sm:w-48" value={data.query.status ?? ''} options={[{ value: '', label: 'Semua status' }, ...data.statuses.map(status => ({ value: status, label: status }))]} />
   <noscript><button class="min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800">Terapkan filter</button></noscript>
   {#if filtersActive}<a class="self-center text-sm text-slate-600" href={resetQueryHref(page.url, filterKeys)} data-sveltekit-noscroll>Reset filter</a>{/if}
 </form>

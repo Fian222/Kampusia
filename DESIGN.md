@@ -14,6 +14,7 @@ Use semantic tokens in apps/web/src/app.css:
 | Navigation and primary text | --color-ink | #183d39 |
 | Secondary text | --color-muted | #626e68 |
 | Panel boundaries | --color-line | #dfe4da |
+| Interactive control boundaries | --color-control-border | #7c887e |
 | Primary actions | --color-brand-700 | #245d48 |
 | Subtle emphasis | --color-brand-50 | #eef4e9 |
 | Selected navigation and semester action | --color-highlight | #d5e9ad |
@@ -77,3 +78,26 @@ Failed confirmation submissions stay open with their context and feedback. Keep
 pending feedback close to the affected list or form, and provide workspace recovery
 for both route errors and hook-level failures. Dashboard metrics must identify any
 limited class scope or incomplete academic result.
+
+Fixed option lists use `ui/SelectField.svelte`: Jenjang, statuses, semester type,
+weekday, Wajib/Pilihan and coordinator choices share a select-only combobox and
+listbox. Arrow keys, Home/End and typeahead move the active choice; Enter commits;
+Escape dismisses without changing the value. Tab returns focus to the trigger
+before normal traversal continues. Keyboard semantics follow the
+[W3C combobox pattern](https://www.w3.org/WAI/ARIA/apg/patterns/combobox/).
+`searchable` supports already-loaded local
+lists such as a student's KHS semesters. Paginated reference datasets use
+`ReferenceCombobox.svelte` and their existing search/page parameters.
+
+Both controls share `selection-popover.ts` and the selection trigger/popup/option
+styles. Native select elements remain as visually hidden form/validation backing
+after enhancement and usable fallback controls when JavaScript is unavailable.
+Do not add page-specific native selects. Use field labels or `hideLabel` with an
+accessible label, and preserve the original field names and string option values.
+
+Checkboxes retain native semantics with shared checked, unchecked, indeterminate,
+disabled and focus styling; their labels provide 44px targets. Interactive borders
+contrast at 3.70:1 against white. Forced-color mode restores native checkbox/radio
+appearance. Date, time and datetime-local fields keep native keyboard entry,
+validation and pickers; field typography, boundaries and indicators use the shared
+system. Their platform picker interiors are intentionally retained.

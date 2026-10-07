@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SelectField from '$lib/components/ui/SelectField.svelte';
   import { enhance } from '$app/forms';
   import { goto } from '$app/navigation';
   import { page, navigating } from '$app/state';
@@ -31,9 +32,9 @@
   const button = 'min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-50';
   function href(changes: Record<string, string | number>) { const p = new URLSearchParams(page.url.searchParams); for (const [key, value] of Object.entries(changes)) { if (value === '') p.delete(key); else p.set(key, String(value)); } return '?' + p; }
   const filters = $derived([
-    { name: 'semester_id', label: 'Semester', value: data.filters.semester_id, rows: data.semesters.data },
-    { name: 'program_studi_id', label: 'Program Studi', value: data.filters.program_studi_id, rows: data.programs.data },
-    { name: 'mata_kuliah_id', label: 'Mata Kuliah', value: data.filters.mata_kuliah_id, rows: data.courses.data },
+    { name: 'semester_id', label: 'Semester', value: data.filters.semester_id, rows: data.semesters.data, meta: data.semesters.meta, prefix: 'semester' },
+    { name: 'program_studi_id', label: 'Program Studi', value: data.filters.program_studi_id, rows: data.programs.data, meta: data.programs.meta, prefix: 'program' },
+    { name: 'mata_kuliah_id', label: 'Mata Kuliah', value: data.filters.mata_kuliah_id, rows: data.courses.data, meta: data.courses.meta, prefix: 'course' },
   ]);
   const semesterOptions = $derived(data.semesters.data.map(row => ({ value: row.id, label: row.nama, description: row.kode })));
   const programOptions = $derived(data.programs.data.map(row => ({ value: row.id, label: row.nama, description: row.kode, disabled: !row.isActive && row.id !== data.edit?.programStudiId })));
@@ -47,8 +48,8 @@
 {#if form?.message}<p class={box} role={form.saved ? 'status' : 'alert'}>{form.message}</p>{/if}
 <form method="GET" class="filter-panel mt-6 grid gap-4 sm:grid-cols-3" use:seamlessFilter>
   <label class="text-sm">Cari mata kuliah atau kelas<input class={input} name="search" value={data.filters.search} maxlength="150" /></label>
-  {#each filters as filter}<label class="text-sm">{filter.label}<select class={input} name={filter.name} value={filter.value ?? ''}><option value="">Semua</option>{#if filter.value && !filter.rows.some(row => row.id === filter.value)}<option value={filter.value}>Pilihan tersimpan</option>{/if}{#each filter.rows as row}<option value={row.id}>{row.kode} — {row.nama}</option>{/each}</select></label>{/each}
-  <label class="text-sm">Status<select class={input} name="status" value={data.filters.status ?? ''}><option value="">Semua</option>{#each data.statuses as status}<option>{status}</option>{/each}</select></label>
+  {#each filters as filter}<ReferenceCombobox name={filter.name} label={filter.label} value={filter.value ?? ''} options={filter.rows.map(row => ({ value: row.id, label: row.nama, description: row.kode }))} selectedOption={filter.value ? { value: filter.value, label: `${filter.label} terpilih` } : null} meta={filter.meta} searchParam={`${filter.prefix}_search`} pageParam={`${filter.prefix}_page`} placeholder={`Semua ${filter.label.toLowerCase()}`} nullable optionalIndicator={false} />{/each}
+  <SelectField name="status" label="Status" value={data.filters.status ?? ''} options={[{ value: '', label: 'Semua' }, ...data.statuses.map(status => ({ value: status, label: status }))]} />
   {#each [...page.url.searchParams].filter(([key]) => /^(semester|program|course)_(search|page)$/.test(key)) as [key, value]}<input type="hidden" name={key} {value} />{/each}
   <noscript><button class={button}>Terapkan filter</button></noscript>
   {#if filtersActive}<div class="flex items-end"><a class="py-2 text-sm text-slate-600" href={resetQueryHref(page.url, filterKeys)} data-sveltekit-noscroll>Reset filter</a></div>{/if}

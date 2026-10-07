@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SelectField from '$lib/components/ui/SelectField.svelte';
   import { enhance } from '$app/forms';
   import { finishConfirmation } from '$lib/form-feedback';
   import ReferenceLookup from './ReferenceLookup.svelte';
@@ -59,13 +60,10 @@
 <section class="filter-panel mt-6" aria-label="Filter data">
   <form method="GET" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" use:seamlessFilter>
     <label class="text-sm font-medium">Cari kode atau nama<input class={inputClass} name="search" value={data.filters.search} maxlength="150" placeholder="Kode atau nama" /></label>
-    <label class="text-sm font-medium">Status<select class={inputClass} name="is_active" value={data.filters.is_active ?? ''}><option value="">Semua status</option><option value="true">Aktif</option><option value="false">Nonaktif</option></select></label>
+    <SelectField name="is_active" label="Status" value={data.filters.is_active ?? ''} options={[{ value: '', label: 'Semua status' }, { value: 'true', label: 'Aktif' }, { value: 'false', label: 'Nonaktif' }]} />
     {#if isCurriculum}
       <label class="text-sm font-medium">Tahun berlaku<input class={inputClass} name="tahun_berlaku" type="number" min="1900" max="9999" value={data.filters.tahun_berlaku ?? ''} /></label>
-      <label class="text-sm font-medium">Program Studi<select class={inputClass} name="program_studi_id" value={data.filters.program_studi_id ?? ''}><option value="">Semua program studi</option>
-        {#if data.filters.program_studi_id && !data.programs?.data.some(item => item.id === data.filters.program_studi_id)}<option value={data.filters.program_studi_id}>Program Studi terpilih</option>{/if}
-        {#each data.programs?.data ?? [] as item}<option value={item.id}>{item.kode} — {item.nama}{item.isActive ? '' : ' (Nonaktif)'}</option>{/each}
-      </select></label>
+      <ReferenceCombobox name="program_studi_id" label="Program Studi" value={data.filters.program_studi_id ?? ''} options={(data.programs?.data ?? []).map(item => ({ value: item.id, label: item.nama, description: `${item.kode}${item.isActive ? '' : ' · Nonaktif'}` }))} selectedOption={data.filters.program_studi_id ? { value: data.filters.program_studi_id, label: 'Program studi terpilih' } : null} meta={data.programs!.meta} searchParam="program_search" pageParam="program_page" placeholder="Semua program studi" nullable optionalIndicator={false} />
       <input type="hidden" name="program_search" value={data.programQuery.search} /><input type="hidden" name="program_page" value={data.programQuery.page} />
     {/if}
     <noscript><button class={buttonClass}>Terapkan filter</button></noscript>

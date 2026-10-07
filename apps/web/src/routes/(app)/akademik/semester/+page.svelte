@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SelectField from '$lib/components/ui/SelectField.svelte';
   import { enhance } from '$app/forms';
   import { goto } from '$app/navigation';
   import { page, navigating } from '$app/state';
@@ -61,9 +62,9 @@
 {#if form?.message}<p class={box} role={form.saved ? 'status' : 'alert'}>{form.message}</p>{/if}
 <form method="GET" class="filter-panel mt-6 grid gap-4 sm:grid-cols-4" use:seamlessFilter>
   <label class="text-sm">Cari kode atau nama<input class={input} name="search" value={data.filters.search} maxlength="150" /></label>
-  <label class="text-sm">Jenis<select class={input} name="jenis" value={data.filters.jenis ?? ''}><option value="">Semua</option><option>GANJIL</option><option>GENAP</option></select></label>
+  <SelectField name="jenis" label="Jenis" value={data.filters.jenis ?? ''} options={[{ value: '', label: 'Semua' }, { value: 'GANJIL', label: 'GANJIL' }, { value: 'GENAP', label: 'GENAP' }]} />
   <label class="text-sm">Tahun mulai<input class={input} type="number" min="1900" max="9998" name="tahun_mulai" value={data.filters.tahun_mulai ?? ''} /></label>
-  <label class="text-sm">Semester akademik aktif<select class={input} name="is_active" value={data.filters.is_active ?? ''}><option value="">Semua</option><option value="true">Sedang aktif</option><option value="false">Tidak dipilih</option></select></label>
+  <SelectField name="is_active" label="Semester akademik aktif" value={data.filters.is_active ?? ''} options={[{ value: '', label: 'Semua' }, { value: 'true', label: 'Sedang aktif' }, { value: 'false', label: 'Tidak dipilih' }]} />
   <noscript><button class={button}>Terapkan filter</button></noscript>
   {#if filtersActive}<div class="flex items-end"><a class="py-2 text-sm text-slate-600" href={resetQueryHref(page.url, filterKeys)} data-sveltekit-noscroll>Reset filter</a></div>{/if}
 </form>

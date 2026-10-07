@@ -1,4 +1,6 @@
 <script lang="ts">
+  import ReferenceCombobox from '$lib/components/ReferenceCombobox.svelte';
+  import SelectField from '$lib/components/ui/SelectField.svelte';
   import { page, navigating } from '$app/state';
   import { seamlessFilter } from '$lib/actions/seamless-filter';
   import { isListNavigationPending } from '$lib/navigation/pending';
@@ -20,9 +22,9 @@
 <PageHeader eyebrow="Akademik / Persetujuan" title="Manajemen KRS" description="Tinjau rencana studi mahasiswa dan pantau status persetujuannya." />
 <form method="GET" class="filter-panel my-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" use:seamlessFilter>
   <label class="text-sm font-semibold">NIM / nama<input name="search" value={data.query.search} class="control-base mt-1.5" /></label>
-  <label class="text-sm font-semibold">Status<select name="status" value={data.query.status ?? ''} class="control-base mt-1.5"><option value="">Semua</option>{#each data.statuses as status}<option value={status}>{status}</option>{/each}</select></label>
-  <label class="text-sm font-semibold">Semester<select name="semester_id" value={data.query.semester_id ?? ''} class="control-base mt-1.5"><option value="">Semua semester</option>{#if data.query.semester_id && !data.terms.data.some(row => row.id === data.query.semester_id)}<option value={data.query.semester_id}>Semester terpilih</option>{/if}{#each data.terms.data as term}<option value={term.id}>{term.nama}</option>{/each}</select></label>
-  <label class="text-sm font-semibold">Program studi<select name="program_studi_id" value={data.query.program_studi_id ?? ''} class="control-base mt-1.5"><option value="">Semua program</option>{#if data.query.program_studi_id && !data.programs.data.some(row => row.id === data.query.program_studi_id)}<option value={data.query.program_studi_id}>Program terpilih</option>{/if}{#each data.programs.data as program}<option value={program.id}>{program.nama}</option>{/each}</select></label>
+  <SelectField name="status" label="Status" value={data.query.status ?? ''} options={[{ value: '', label: 'Semua' }, ...data.statuses.map(status => ({ value: status, label: status }))]} />
+  <ReferenceCombobox name="semester_id" label="Semester" value={data.query.semester_id ?? ''} options={data.terms.data.map(term => ({ value: term.id, label: term.nama, description: term.kode }))} selectedOption={data.query.semester_id ? { value: data.query.semester_id, label: 'Semester terpilih' } : null} meta={data.terms.meta} searchParam="term_search" pageParam="term_page" placeholder="Semua semester" nullable optionalIndicator={false} />
+  <ReferenceCombobox name="program_studi_id" label="Program Studi" value={data.query.program_studi_id ?? ''} options={data.programs.data.map(program => ({ value: program.id, label: program.nama, description: program.kode }))} selectedOption={data.query.program_studi_id ? { value: data.query.program_studi_id, label: 'Program studi terpilih' } : null} meta={data.programs.meta} searchParam="program_search" pageParam="program_page" placeholder="Semua program" nullable optionalIndicator={false} />
   <noscript><button class="min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800">Terapkan filter</button></noscript>
   {#if filtersActive}<div class="flex items-end"><a href={resetQueryHref(page.url, resetKeys)} data-sveltekit-noscroll class="py-2 text-sm text-slate-600">Reset filter</a></div>{/if}
 </form>
