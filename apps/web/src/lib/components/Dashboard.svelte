@@ -61,41 +61,39 @@
 
 <svelte:head><title>Dashboard {roleAreas[data.user.role].label} · Kampusia</title></svelte:head>
 
-<PageHeader eyebrow={`Dashboard / ${roleAreas[data.user.role].label}`} {title} {description} />
+<PageHeader {title} {description} />
 
 {#if data.kind === 'manager'}
   {@const semester = data.manager.activeSemester}
   {@const period = periodState(semester)}
-  <section class="mt-6 overflow-hidden rounded-2xl border border-brand-200 bg-brand-50/70" aria-labelledby="manager-context-title">
-    <div class="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
-      <div class="flex items-start gap-3">
-        <span class="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-white text-brand-700 shadow-sm"><Icon name="calendar" /></span>
-        <div><p class="text-xs font-semibold uppercase tracking-[0.12em] text-brand-700">Semester aktif</p><h2 id="manager-context-title" class="mt-1 text-xl font-bold text-slate-950">{semester?.nama ?? 'Belum ditetapkan'}</h2>{#if semester}<p class="mt-1 text-sm text-slate-600">{formatAcademicDateRange(semester.tanggalMulai, semester.tanggalSelesai)}</p>{/if}</div>
-      </div>
-      <div class="flex flex-wrap items-center gap-3"><Badge tone={period.tone}>{period.label}</Badge><a href="/akademik/semester" class="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-brand-200 bg-white px-3 text-sm font-semibold text-brand-800 shadow-sm hover:bg-brand-50">Kelola semester <Icon name="arrow-right" size={15} /></a></div>
+  <section class="context-panel" aria-labelledby="manager-context-title">
+    <div class="context-heading"><span class="context-label"><Icon name="calendar" size={18} />Semester aktif</span><Badge tone={period.tone}>{period.label}</Badge></div>
+    <div class="context-body">
+      <div><h2 id="manager-context-title">{semester?.nama ?? 'Belum ditetapkan'}</h2>{#if semester}<p class="context-dates">{formatAcademicDateRange(semester.tanggalMulai, semester.tanggalSelesai)}</p>{/if}</div>
+      <a href="/akademik/semester" class="context-action">Kelola semester <Icon name="arrow-right" size={17} /></a>
     </div>
   </section>
 
-  <section class="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Ringkasan data akademik">
-    <StatCard label="Mahasiswa" value={data.manager.studentTotal} detail="Profil tersimpan" icon="users" />
-    <StatCard label="Dosen" value={data.manager.lecturerTotal} detail="Profil tersimpan" icon="user" />
-    <StatCard label="Kelas kuliah" value={data.manager.classTotal} detail="Seluruh semester" icon="presentation" />
-    <StatCard label="KRS menunggu review" value={data.manager.pendingKrsTotal} detail="Status DIAJUKAN" icon="clipboard" accent />
+  <section class="metric-strip" aria-label="Ringkasan data akademik">
+    <StatCard embedded label="Mahasiswa" value={data.manager.studentTotal} detail="Profil tersimpan" icon="users" />
+    <StatCard embedded label="Dosen" value={data.manager.lecturerTotal} detail="Profil tersimpan" icon="user" />
+    <StatCard embedded label="Kelas kuliah" value={data.manager.classTotal} detail="Seluruh semester" icon="presentation" />
+    <StatCard embedded label="KRS menunggu review" value={data.manager.pendingKrsTotal} detail="Status DIAJUKAN" icon="clipboard" accent />
   </section>
 {:else if data.kind === 'lecturer'}
-  <section class="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Ringkasan ruang dosen">
-    <StatCard label="Kelas ditugaskan" value={data.lecturer.classes.meta.total} detail="Seluruh status kelas" icon="presentation" accent />
-    <StatCard label="KRS menunggu review" value={data.lecturer.pendingKrsTotal} detail="Mahasiswa bimbingan" icon="clipboard" />
-    <StatCard label="Nilai perlu dilengkapi" value={data.lecturer.gradingNeedsAttention} detail="Dari kelas terbaru" icon="chart" />
-    <StatCard label="Siap difinalisasi" value={data.lecturer.readyToFinalize} detail="Sesuai kewenangan Anda" icon="check" />
+  <section class="metric-strip" aria-label="Ringkasan ruang dosen">
+    <StatCard embedded label="Kelas ditugaskan" value={data.lecturer.classes.meta.total} detail="Seluruh status kelas" icon="presentation" accent />
+    <StatCard embedded label="KRS menunggu review" value={data.lecturer.pendingKrsTotal} detail="Mahasiswa bimbingan" icon="clipboard" />
+    <StatCard embedded label="Nilai perlu dilengkapi" value={data.lecturer.gradingNeedsAttention} detail="Dari kelas terbaru" icon="chart" />
+    <StatCard embedded label="Siap difinalisasi" value={data.lecturer.readyToFinalize} detail="Sesuai kewenangan Anda" icon="check" />
   </section>
 
-  <section class="mt-7 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-panel" aria-labelledby="lecturer-classes-title">
-    <div class="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6"><div><p class="eyebrow">Perkuliahan</p><h2 id="lecturer-classes-title" class="mt-1 text-lg font-bold">Kelas terbaru</h2></div><a class="text-sm font-semibold text-brand-700 hover:text-brand-800" href="/dosen/kelas-kuliah">Lihat semua</a></div>
+  <section class="class-panel" aria-labelledby="lecturer-classes-title">
+    <div class="section-heading"><h2 id="lecturer-classes-title">Kelas terbaru</h2><a class="section-link" href="/dosen/kelas-kuliah">Lihat semua <Icon name="arrow-right" size={16} /></a></div>
     <ul class="divide-y divide-slate-100">
       {#each data.lecturer.classes.data as kelas}
         {@const grading = data.lecturer.gradingByClass[kelas.id]}
-        <li><a class="group flex items-center gap-4 px-5 py-4 hover:bg-slate-50 sm:px-6" href={`/dosen/kelas-kuliah/${kelas.id}`}><span class="grid size-10 shrink-0 place-items-center rounded-lg bg-slate-100 text-sm font-bold text-slate-700">{kelas.namaKelas}</span><span class="min-w-0 flex-1"><span class="block truncate font-semibold text-slate-900 group-hover:text-brand-800">{kelas.mataKuliah.nama}</span><span class="mt-0.5 block truncate text-xs text-slate-500">{kelas.mataKuliah.kode} · {kelas.semester.nama}</span>{#if grading}<span class="mt-1 block text-xs text-slate-500">Nilai lengkap {grading.summary.completeStudents}/{grading.summary.totalStudents} · Bobot {grading.summary.activeWeight}%</span>{/if}</span><Badge tone={grading?.summary.finalized ? 'success' : grading?.permissions.canFinalize && grading.kelas.status === 'DITUTUP' && grading.summary.activeWeight === '100.00' && grading.summary.missingScores === 0 && grading.summary.totalStudents > 0 ? 'info' : 'neutral'}>{grading?.summary.finalized ? 'Final' : grading?.permissions.canFinalize && grading.kelas.status === 'DITUTUP' && grading.summary.activeWeight === '100.00' && grading.summary.missingScores === 0 && grading.summary.totalStudents > 0 ? 'Siap final' : kelas.status}</Badge><Icon name="arrow-right" size={16} class="text-slate-400" /></a></li>
+        <li><a class="class-row group" href={`/dosen/kelas-kuliah/${kelas.id}`}><span class="class-letter">{kelas.namaKelas}</span><span class="min-w-0 flex-1"><span class="block truncate font-semibold text-slate-900 group-hover:text-brand-800">{kelas.mataKuliah.nama}</span><span class="mt-0.5 block truncate text-xs text-slate-500">{kelas.mataKuliah.kode} · {kelas.semester.nama}</span>{#if grading}<span class="mt-1 block text-xs text-slate-500">Nilai lengkap {grading.summary.completeStudents}/{grading.summary.totalStudents} · Bobot {grading.summary.activeWeight}%</span>{/if}</span><span class="class-status"><Badge tone={grading?.summary.finalized ? 'success' : grading?.permissions.canFinalize && grading.kelas.status === 'DITUTUP' && grading.summary.activeWeight === '100.00' && grading.summary.missingScores === 0 && grading.summary.totalStudents > 0 ? 'info' : 'neutral'}>{grading?.summary.finalized ? 'Final' : grading?.permissions.canFinalize && grading.kelas.status === 'DITUTUP' && grading.summary.activeWeight === '100.00' && grading.summary.missingScores === 0 && grading.summary.totalStudents > 0 ? 'Siap final' : kelas.status}</Badge></span><Icon name="arrow-right" size={16} class="text-slate-400" /></a></li>
       {:else}
         <li class="px-5 py-8 text-center text-sm text-slate-500">Belum ada kelas yang ditugaskan.</li>
       {/each}
@@ -105,29 +103,77 @@
   {@const semester = data.student.activeSemester}
   {@const currentKrs = data.student.currentKrs}
   {@const period = periodState(semester)}
-  <section class="mt-6 overflow-hidden rounded-2xl border border-brand-200 bg-brand-50/70" aria-labelledby="student-context-title">
-    <div class="grid gap-5 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-      <div><p class="text-xs font-semibold uppercase tracking-[0.12em] text-brand-700">Semester aktif</p><h2 id="student-context-title" class="mt-1 text-xl font-bold text-slate-950">{semester?.nama ?? 'Belum ditetapkan'}</h2><div class="mt-2 flex flex-wrap gap-2"><Badge tone={period.tone}>{period.label}</Badge>{#if currentKrs}<Badge tone={krsTone(currentKrs.status)}>KRS {currentKrs.status}</Badge>{/if}</div></div>
-      <div class="rounded-xl border border-brand-100 bg-white px-4 py-3"><p class="text-xs text-slate-500">Dosen PA</p><p class="mt-1 font-semibold text-slate-900">{data.student.dosenPa?.nama ?? 'Belum ditetapkan'}</p>{#if data.student.dosenPa}<p class="mt-0.5 text-xs text-slate-500">{data.student.dosenPa.kodeDosen}</p>{/if}</div>
+  <section class="context-panel" aria-labelledby="student-context-title">
+    <div class="context-heading"><span class="context-label"><Icon name="calendar" size={18} />Semester aktif</span><div class="context-status"><Badge tone={period.tone}>{period.label}</Badge>{#if currentKrs}<Badge tone={krsTone(currentKrs.status)}>KRS {currentKrs.status}</Badge>{/if}</div></div>
+    <div class="context-body">
+      <div><h2 id="student-context-title">{semester?.nama ?? 'Belum ditetapkan'}</h2></div>
+      <div class="adviser"><Icon name="user" size={20} /><div><p class="adviser-label">Dosen PA</p><p class="adviser-name">{data.student.dosenPa?.nama ?? 'Belum ditetapkan'}</p>{#if data.student.dosenPa}<p class="adviser-code">{data.student.dosenPa.kodeDosen}</p>{/if}</div></div>
     </div>
   </section>
 
-  <section class="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Ringkasan akademik mahasiswa">
-    <StatCard label="SKS KRS" value={currentKrs ? `${currentKrs.totalSks}/${currentKrs.batasSks}` : '—'} detail={currentKrs ? `${currentKrs.remainingSks} SKS tersisa` : 'Belum ada KRS'} icon="clipboard" accent />
-    <StatCard label="IPS terbaru" value={data.student.latestSemesterResult?.ips ?? '—'} detail={data.student.latestSemesterResult?.semester.nama ?? 'Belum ada hasil final'} icon="chart" />
-    <StatCard label="IPK" value={data.student.cumulative.ipk ?? '—'} detail={`${data.student.cumulative.totalSksKumulatif} SKS kumulatif`} icon="graduation" />
-    <StatCard label="Catatan absensi" value={data.student.attendanceTotal} detail="Riwayat tercatat" icon="clock" />
+  <section class="metric-strip" aria-label="Ringkasan akademik mahasiswa">
+    <StatCard embedded label="SKS KRS" value={currentKrs ? `${currentKrs.totalSks}/${currentKrs.batasSks}` : '—'} detail={currentKrs ? `${currentKrs.remainingSks} SKS tersisa` : 'Belum ada KRS'} icon="clipboard" accent />
+    <StatCard embedded label="IPS terbaru" value={data.student.latestSemesterResult?.ips ?? '—'} detail={data.student.latestSemesterResult?.semester.nama ?? 'Belum ada hasil final'} icon="chart" />
+    <StatCard embedded label="IPK" value={data.student.cumulative.ipk ?? '—'} detail={`${data.student.cumulative.totalSksKumulatif} SKS kumulatif`} icon="graduation" />
+    <StatCard embedded label="Catatan absensi" value={data.student.attendanceTotal} detail="Riwayat tercatat" icon="clock" />
   </section>
 {/if}
 
-<section class="mt-8" aria-labelledby="shortcut-heading">
-  <div><p class="eyebrow">Pintasan</p><h2 id="shortcut-heading" class="mt-1 text-lg font-bold">Lanjutkan pekerjaan</h2></div>
-  <div class={`mt-4 grid gap-3 sm:grid-cols-2 ${shortcuts.length > 2 ? 'xl:grid-cols-4' : 'lg:grid-cols-2'}`}>
+<section class="shortcuts-section" aria-labelledby="shortcut-heading">
+  <div class="section-heading"><h2 id="shortcut-heading">Lanjutkan pekerjaan</h2><span class="section-caption">Pintasan ruang {roleAreas[data.user.role].label}</span></div>
+  <div class="shortcut-list">
     {#each shortcuts as item}
-      <a href={item.href} class="group flex min-h-32 items-start gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-panel hover:border-brand-200 hover:bg-brand-50/30">
-        <span class="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700"><Icon name={item.icon} /></span>
-        <span class="min-w-0 flex-1"><span class="font-bold text-slate-900 group-hover:text-brand-800">{item.title}</span><span class="mt-1.5 block text-sm leading-5 text-slate-500">{item.description}</span><span class="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-brand-700">Buka <Icon name="arrow-right" size={15} /></span></span>
+      <a href={item.href} class="shortcut-link">
+        <span class="shortcut-icon"><Icon name={item.icon} size={21} /></span>
+        <span class="shortcut-copy"><span class="shortcut-title">{item.title}</span><span class="shortcut-description">{item.description}</span></span>
+        <span class="shortcut-arrow"><Icon name="arrow-right" size={18} /></span>
       </a>
     {/each}
   </div>
 </section>
+
+<style>
+  .context-panel { margin-top: 1.75rem; padding: 1.5rem; border-radius: 1rem; background: var(--color-ink); color: var(--color-on-ink); }
+  .context-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .85rem; }
+  .context-label { display: inline-flex; align-items: center; gap: .65rem; color: var(--color-sidebar-text); font-size: .8125rem; font-weight: 500; }
+  .context-status { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .context-body { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1.25rem; margin-top: 1.25rem; }
+  .context-panel h2 { color: var(--color-on-ink); font-size: 1.5rem; font-weight: 600; line-height: 1.3; letter-spacing: -.025em; overflow-wrap: anywhere; }
+  .context-dates { margin-top: .5rem; color: var(--color-sidebar-text); font-size: .8125rem; line-height: 1.6; }
+  .context-action { display: inline-flex; align-items: center; justify-content: center; gap: .75rem; min-height: 2.75rem; padding: .65rem 1rem; border-radius: .5rem; background: var(--color-highlight); color: var(--color-ink); font-size: .8125rem; font-weight: 650; }
+  .context-action:hover { background: var(--color-highlight-hover); }
+  .context-action:focus-visible { outline-color: var(--color-highlight); outline-offset: 4px; }
+  .adviser { display: flex; align-items: center; gap: .85rem; border-top: 1px solid var(--color-ink-line); padding-top: 1rem; width: 100%; }
+  .adviser-label, .adviser-code { color: var(--color-sidebar-text); font-size: .75rem; }
+  .adviser-name { margin-top: .2rem; font-size: .875rem; font-weight: 600; overflow-wrap: anywhere; }
+  .adviser-code { margin-top: .25rem; }
+  .metric-strip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 1.5rem; border: 1px solid var(--color-line); border-radius: .875rem; background: white; overflow: hidden; }
+  .metric-strip :global(.stat-card) { min-width: 0; border-radius: 0; }
+  .metric-strip :global(.stat-card:nth-child(2n)) { border-left: 1px solid var(--color-line); }
+  .metric-strip :global(.stat-card:nth-child(n+3)) { border-top: 1px solid var(--color-line); }
+  .class-panel, .shortcuts-section { margin-top: 2.25rem; }
+  .section-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem 1rem; margin-bottom: 1rem; }
+  .section-heading h2 { font-size: 1.125rem; font-weight: 650; letter-spacing: -.02em; }
+  .section-caption { font-size: .75rem; color: var(--color-muted); }
+  .section-link { display: inline-flex; align-items: center; gap: .5rem; min-height: 2.75rem; color: var(--color-brand-700); font-size: .8125rem; font-weight: 600; }
+  .section-link:hover { color: var(--color-brand-900); }
+  .class-panel ul { border: 1px solid var(--color-line); border-radius: .875rem; overflow: hidden; background: white; }
+  .class-row { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; padding: 1.1rem 1.25rem; }
+  .class-row:hover { background: var(--color-brand-50); }
+  .class-letter { display: grid; place-items: center; flex-shrink: 0; width: 2.5rem; height: 2.5rem; border: 1px solid var(--color-line); border-radius: .5rem; font-size: .875rem; font-weight: 650; color: var(--color-ink); }
+  .class-status { max-width: 100%; }
+  .class-status :global(span) { line-height: 1.4; white-space: normal; }
+  .shortcut-list { display: grid; border: 1px solid var(--color-line); border-radius: .875rem; background: white; overflow: hidden; }
+  .shortcut-link { display: flex; align-items: center; gap: 1rem; padding: 1.25rem; min-width: 0; }
+  .shortcut-link + .shortcut-link { border-top: 1px solid var(--color-line); }
+  .shortcut-link:hover { background: var(--color-brand-50); }
+  .shortcut-link:focus-visible { outline-offset: -3px; }
+  .shortcut-icon { display: grid; place-items: center; flex-shrink: 0; width: 2.5rem; height: 2.5rem; border-radius: .625rem; background: var(--color-brand-50); color: var(--color-brand-700); }
+  .shortcut-copy { flex: 1; min-width: 0; }
+  .shortcut-title { display: block; color: var(--color-ink); font-size: .875rem; font-weight: 650; }
+  .shortcut-description { display: block; margin-top: .35rem; color: var(--color-muted); font-size: .8125rem; line-height: 1.65; }
+  .shortcut-arrow { color: var(--color-brand-700); flex-shrink: 0; }
+  @media (min-width: 640px) { .context-panel { padding: 1.75rem 2rem; } .context-panel h2 { font-size: 1.75rem; } .adviser { width: auto; max-width: 45%; padding: 0 0 0 1.5rem; border-top: 0; border-left: 1px solid var(--color-ink-line); } .shortcut-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } .shortcut-link:nth-child(2) { border-top: 0; } .shortcut-link:nth-child(2n) { border-left: 1px solid var(--color-line); } .shortcut-link:last-child:nth-child(odd) { grid-column: 1 / -1; } }
+  @media (min-width: 1280px) { .metric-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); } .metric-strip :global(.stat-card:nth-child(n+3)) { border-top: 0; } .metric-strip :global(.stat-card + .stat-card) { border-left: 1px solid var(--color-line); } }
+  @media (max-width: 399px) { .class-status { order: 1; flex-basis: 100%; padding-left: 3.5rem; } .shortcut-description { font-size: .75rem; } }
+</style>

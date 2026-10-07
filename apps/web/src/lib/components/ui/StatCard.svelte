@@ -1,10 +1,24 @@
 <script lang="ts">
   import Icon, { type IconName } from './Icon.svelte';
-  let { label, value, detail, icon = 'chart', accent = false, compact = false }: { label: string; value: string | number; detail?: string; icon?: IconName; accent?: boolean; compact?: boolean } = $props();
+  let { label, value, detail, icon = 'chart', accent = false, compact = false, embedded = false }: { label: string; value: string | number; detail?: string; icon?: IconName; accent?: boolean; compact?: boolean; embedded?: boolean } = $props();
 </script>
-<div class={`surface-panel relative overflow-hidden ${compact ? 'p-4' : 'p-5'} ${accent ? 'border-brand-200 bg-brand-50/60' : ''}`}>
-  <div class="flex items-start justify-between gap-4">
-    <div class="min-w-0"><p class="text-sm font-medium text-slate-500">{label}</p><p class={`${compact ? 'mt-1 break-words text-xl' : 'mt-2 text-3xl'} font-bold tracking-tight ${accent ? 'text-brand-800' : 'text-slate-950'}`}>{value}</p>{#if detail}<p class="mt-1 text-xs text-slate-500">{detail}</p>{/if}</div>
-    <span class={`inline-flex shrink-0 items-center justify-center rounded-xl ${compact ? 'size-9' : 'size-10'} ${accent ? 'bg-brand-100 text-brand-700' : 'bg-slate-100 text-slate-500'}`}><Icon name={icon} size={compact ? 18 : 20} /></span>
-  </div>
+
+<div class="stat-card" class:accent class:compact class:embedded>
+  <div class="stat-heading"><p>{label}</p><Icon name={icon} size={18} /></div>
+  <p class="stat-value">{value}</p>
+  {#if detail}<p class="stat-detail">{detail}</p>{/if}
 </div>
+
+<style>
+  .stat-card { min-width: 0; padding: 1.4rem; border: 1px solid var(--color-line); border-radius: .875rem; background: white; }
+  .stat-card.embedded { border: 0; }
+  .stat-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; color: var(--color-muted); font-size: .8125rem; line-height: 1.5; }
+  .stat-heading :global(svg) { flex-shrink: 0; margin-top: .1rem; color: var(--color-brand-700); }
+  .stat-value { margin-top: 1rem; color: var(--color-ink); font-size: 2rem; font-weight: 650; letter-spacing: -.035em; line-height: 1.15; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .stat-detail { margin-top: .5rem; color: var(--color-muted); font-size: .6875rem; line-height: 1.6; }
+  .stat-card.accent { background: var(--color-brand-50); }
+  .accent .stat-heading, .accent .stat-detail { color: var(--color-brand-800); }
+  .compact { padding: 1rem; }
+  .compact .stat-value { margin-top: .5rem; font-size: 1.25rem; }
+  @media (max-width: 639px) { .stat-card { padding: 1.15rem 1rem; } .stat-heading { font-size: .75rem; } .stat-value { font-size: 1.75rem; } }
+</style>
