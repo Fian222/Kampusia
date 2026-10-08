@@ -1246,3 +1246,12 @@ Local development uses Podman, not Docker.
 - Use `podman compose` for `compose.yaml`.
 - Do not introduce Docker-specific tooling unless explicitly required.
 - The Compose specification itself should remain portable where practical.
+
+## Git workflow
+
+- For implementation tasks, create a git commit automatically after:
+  - the requested change is complete,
+  - relevant tests/checks pass,
+  - the diff has been reviewed.
+- Use a concise Conventional Commit message.
+- Do not commit partial or failing work.
