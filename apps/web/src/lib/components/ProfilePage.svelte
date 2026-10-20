@@ -98,7 +98,7 @@
 </script>
 
 <svelte:head><title>{title} · Kampusia</title></svelte:head>
-<PageHeader eyebrow={`Master Data / ${title}`} {title} description="Kelola profil akademik dan pertahankan riwayatnya. Akun login bersifat opsional.">
+<PageHeader eyebrow="Data akademik" {title} description="Kelola profil akademik dan pertahankan riwayatnya. Akun login bersifat opsional.">
   {#snippet actions()}<a class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-800" href={href({ edit: null, modal: 'create' })} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => { requestedEditId = null; formOpen = true; }}><Icon name="plus" size={16} /> Tambah {title}</a>{/snippet}
 </PageHeader>
 {#if form?.message}<p role={form.saved ? 'status' : 'alert'} class={panelClass}>{form.message}</p>{/if}
@@ -139,7 +139,7 @@
         </tr>{/each}
       {:else}
         {#each data.records as row}<tr>
-          <td class="px-5 py-4"><p class="font-semibold text-slate-950">{row.nama}</p><p class="mt-1 text-xs text-slate-500"><span class="font-mono font-semibold">{row.kodeDosen}</span>{row.nik ? ` · NIK ${row.nik}` : ''}{row.nidn ? ` · NIDN ${row.nidn}` : ''}</p><p class="mt-1 text-xs text-slate-500">{row.account?.loginId ? `Akun ${row.account.loginId} · ${row.account.isActive ? 'Aktif' : 'Nonaktif'}` : 'Belum memiliki akun login'}</p></td>
+          <td class="px-5 py-4"><p class="font-semibold text-slate-950">{row.nama}</p><p class="mt-1 text-xs text-slate-500"><span class="font-mono font-semibold">{row.kodeDosen}</span>{#if row.nik} · NIK {row.nik}{/if}{#if row.nidn} · NIDN {row.nidn}{/if}</p><p class="mt-1 text-xs text-slate-500">{row.account?.loginId ? `Akun ${row.account.loginId} · ${row.account.isActive ? 'Aktif' : 'Nonaktif'}` : 'Belum memiliki akun login'}</p></td>
           <td class="px-5 py-4"><p class="font-medium text-slate-800">{row.programStudi?.nama ?? 'Tanpa homebase'}</p>{#if row.programStudi}<p class="mt-1 text-xs text-slate-500">{row.programStudi.kode}</p>{/if}</td><td class="px-5 py-4"><StatusBadge active={row.isActive} /></td>
           <td class="px-5 py-4"><div class="flex flex-wrap gap-2"><a class="inline-flex min-h-8 items-center rounded-lg px-2.5 text-xs font-semibold text-brand-700 hover:bg-brand-50" aria-label={`Edit ${row.nama}`} href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}>Edit</a><button class="inline-flex min-h-8 items-center rounded-lg px-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100" onclick={() => { confirmation = row; confirmationError = null; confirmationOpen = true; }}>{row.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button></div></td>
         </tr>{/each}
@@ -211,7 +211,7 @@
           <p class="mt-1 text-sm text-slate-600">Nomor Induk: <span class="font-mono font-semibold">{data.kind === 'mahasiswa' ? student?.nim : lecturer?.nik ?? 'Belum diisi'}</span></p>
           <button type="button" class="mt-3 min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50" disabled={data.kind === 'dosen' && !lecturer?.nik} onclick={() => { const identifier = data.kind === 'mahasiswa' ? student?.nim : lecturer?.nik; if (data.edit && identifier) { accountConfirmation = { mode: 'provision-account', id: data.edit.id, nama: data.edit.nama, identifier }; accountConfirmationOpen = true; } }}>Buat Akun Login</button>
         {/if}
-        <p class="mt-2 text-xs text-slate-500">Identitas akun ditentukan otomatis dari {data.kind === 'mahasiswa' ? 'NIM' : 'NIK'} yang sama persis; UUID akun tidak pernah perlu dipilih.</p>
+        <p class="mt-2 text-xs text-slate-500">Akun login memakai {data.kind === 'mahasiswa' ? 'NIM' : 'NIK'} sebagai Nomor Induk.</p>
       </section>
       <div class="flex justify-end gap-3 sm:col-span-2"><button type="button" class="px-4 py-2 text-sm font-semibold text-slate-600" disabled={saving} onclick={() => formOpen = false}>Batal</button><button class={buttonClass} disabled={saving}>{saving ? 'Menyimpan…' : 'Simpan'}</button></div>
     </form>

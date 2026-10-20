@@ -19,7 +19,7 @@
   function href(key: string, value: number) { const p = new URLSearchParams(page.url.searchParams); p.set(key, String(value)); return '?' + p; }
 </script>
 <svelte:head><title>Manajemen KRS · Kampusia</title></svelte:head>
-<PageHeader eyebrow="Akademik / Persetujuan" title="Manajemen KRS" description="Tinjau rencana studi mahasiswa dan pantau status persetujuannya." />
+<PageHeader eyebrow="Ruang kerja" title="Manajemen KRS" description="Tinjau rencana studi mahasiswa dan pantau status persetujuannya." />
 <form method="GET" class="filter-panel my-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" use:seamlessFilter>
   <label class="text-sm font-semibold">NIM / nama<input name="search" value={data.query.search} class="control-base mt-1.5" /></label>
   <SelectField name="status" label="Status" value={data.query.status ?? ''} options={[{ value: '', label: 'Semua' }, ...data.statuses.map(status => ({ value: status, label: status }))]} />

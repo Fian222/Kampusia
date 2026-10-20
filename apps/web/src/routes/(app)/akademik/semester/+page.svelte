@@ -46,8 +46,8 @@
   $effect(() => { const state = periodModal; if (queryPeriodId && requestedPeriodId === queryPeriodId) requestedPeriodId = null; if (state.open) periodOpen = true; else if (requestedPeriodId === null) periodOpen = false; });
 </script>
 <svelte:head><title>Semester · Kampusia</title></svelte:head>
-<PageHeader eyebrow="Akademik / Perkuliahan" title="Semester" description="Pilih periode akademik aktif secara eksplisit dan pertahankan seluruh riwayat semester.">{#snippet actions()}<a class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm" href={href({ edit: '', modal: 'create' })} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => { requestedEditId = null; formOpen = true; }}><Icon name="plus" size={16} /> Tambah Semester</a>{/snippet}</PageHeader>
-{#if data.activeSemester}
+<PageHeader eyebrow="Perkuliahan" title="Semester" description="Pilih periode akademik aktif secara eksplisit dan pertahankan seluruh riwayat semester.">{#snippet actions()}<a class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm" href={href({ edit: '', modal: 'create' })} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => { requestedEditId = null; formOpen = true; }}><Icon name="plus" size={16} /> Tambah Semester</a>{/snippet}</PageHeader>
+{#if data.activeSemester && !(data.records.data.length === 1 && data.records.data[0]?.isActive)}
   <section class="mt-6 overflow-hidden rounded-2xl border border-brand-200 bg-white shadow-sm" aria-labelledby="active-semester-title">
     <div class="h-1 bg-brand-600"></div>
     <div class="p-5 sm:p-6">

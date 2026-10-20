@@ -54,7 +54,8 @@ function fixture() {
     cancelDetails: async id => { details.filter(row => row.krsId === id).forEach(row => row.status = 'DIBATALKAN'); },
   };
   const repository = { transaction: <T>(fn: (tx: KrsTransaction) => Promise<T>) => fn(tx) };
-  const service = createKrsService(repository, 6, getMaximumCreditsFromIps, () => new Date(now));
+  const clock = () => new Date(now);
+  const service = createKrsService(repository, 6, getMaximumCreditsFromIps, clock);
   const draft = () => service.create(user, term.id);
   const selected = async () => { const plan = await draft(); await service.add(user, plan.id, classes[0]!.id); return plan; };
   const submitted = async () => { const plan = await selected(); await service.submit(user, plan.id); return plan; };
@@ -62,12 +63,12 @@ function fixture() {
     const previous: typeof semester.$inferSelect = { ...common(), kode: `${year}${jenis === 'GANJIL' ? '1' : '2'}`, nama: `${jenis} ${year}`, tahunMulai: year, jenis, tanggalMulai: dates[0], tanggalSelesai: dates[1], krsMulaiAt: null, krsSelesaiAt: null, isActive: false };
     terms.push(previous); academicResults.set(`${owner.id}:${previous.id}`, results); return previous;
   }
-  return { user, admin, adviserUser, adviserId, adviserAccount, adviserProfile, owner, term, terms, plans, details, classes, members, finalized, academicResults, unfinishedResults, tx, repository, service, locks, draft, selected, submitted, addPreviousTerm, deactivate: () => { inactive = true; } };
+  return { user, admin, adviserUser, adviserId, adviserAccount, adviserProfile, owner, term, terms, plans, details, classes, members, finalized, academicResults, unfinishedResults, tx, repository, service, clock, locks, draft, selected, submitted, addPreviousTerm, deactivate: () => { inactive = true; } };
 }
 
 test('KRS creates/gets the same draft with server-assigned limit; missing policy fails closed', async () => {
   const f = fixture(); const plan = await f.draft(); expect((await f.draft()).id).toBe(plan.id); expect(plan.batasSks).toBe(6); expect(plan.batasSksSource).toBe('INITIAL_FALLBACK'); expect(plan.diajukanAt).toBeNull();
-  const other = fixture(); await expect(createKrsService(other.repository).create(other.user, other.term.id)).rejects.toThrow('belum dikonfigurasi');
+  const other = fixture(); await expect(createKrsService(other.repository, undefined, getMaximumCreditsFromIps, other.clock).create(other.user, other.term.id)).rejects.toThrow('belum dikonfigurasi');
 });
 test('KRS resolves the latest valid prior semester, reuses stored finalized indexes, and excludes the target term', async () => {
   const f = fixture();
@@ -89,15 +90,15 @@ test('KRS falls back with no prior semester, no finalized result, or unfinished 
 });
 test('complete previous IPS does not require the initial fallback configuration', async () => {
   const f = fixture(); f.addPreviousTerm(2025, 'GENAP', ['2026-01-01', '2026-06-30'], [{ sks: 3, nilaiIndeks: '3.00' }]);
-  expect(await createKrsService(f.repository).create(f.user, f.term.id)).toMatchObject({ batasSks: 24, batasSksSource: 'PREVIOUS_IPS' });
+  expect(await createKrsService(f.repository, undefined, getMaximumCreditsFromIps, f.clock).create(f.user, f.term.id)).toMatchObject({ batasSks: 24, batasSksSource: 'PREVIOUS_IPS' });
 });
 test('calculated KRS limit is enforced and later result/policy changes do not rewrite its snapshot', async () => {
   const f = fixture(); const previous = f.addPreviousTerm(2025, 'GENAP', ['2026-01-01', '2026-06-30'], [{ sks: 3, nilaiIndeks: '4.00' }]);
-  const initialPolicy = createKrsService(f.repository, 6, () => 6); const plan = await initialPolicy.create(f.user, f.term.id);
+  const initialPolicy = createKrsService(f.repository, 6, () => 6, f.clock); const plan = await initialPolicy.create(f.user, f.term.id);
   await initialPolicy.add(f.user, plan.id, f.classes[0]!.id); await initialPolicy.add(f.user, plan.id, f.classes[1]!.id);
   await expect(initialPolicy.add(f.user, plan.id, f.classes[2]!.id)).rejects.toThrow('9 SKS melebihi batas 6');
   f.academicResults.set(`${f.owner.id}:${previous.id}`, [{ sks: 3, nilaiIndeks: '1.00' }]);
-  const changedPolicy = createKrsService(f.repository, 6, () => 3); const retained = await changedPolicy.create(f.user, f.term.id);
+  const changedPolicy = createKrsService(f.repository, 6, () => 3, f.clock); const retained = await changedPolicy.create(f.user, f.term.id);
   expect(retained).toMatchObject({ id: plan.id, batasSks: 6, batasSksSource: 'EXISTING_SNAPSHOT' });
 });
 test('KRS ownership scopes all student mutations and semester reads', async () => {

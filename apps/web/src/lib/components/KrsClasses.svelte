@@ -2,7 +2,7 @@
   import type { KrsDetailData } from '$lib/server/krs';
   import EmptyState from './ui/EmptyState.svelte';
   import Badge from './ui/Badge.svelte';
-  let { classes }: { classes: KrsDetailData['details'][number]['kelas'][] } = $props();
+  let { classes, emptyDescription = 'Kelas yang dipilih akan muncul di sini.' }: { classes: KrsDetailData['details'][number]['kelas'][]; emptyDescription?: string } = $props();
   const days = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 </script>
 
@@ -20,5 +20,5 @@
         </tr>{/each}</tbody>
       </table>
     </div>
-  {:else}<EmptyState title="Belum ada kelas" description="Kelas yang dipilih akan muncul di sini." icon="book" compact />{/if}
+  {:else}<EmptyState title="Belum ada kelas" description={emptyDescription} icon="book" compact />{/if}
 </div>

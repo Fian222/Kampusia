@@ -84,8 +84,8 @@
   <section class="metric-strip" aria-label="Ringkasan ruang dosen">
     <StatCard embedded label="Kelas ditugaskan" value={data.lecturer.classes.meta.total} detail="Seluruh status kelas" icon="presentation" accent />
     <StatCard embedded label="KRS menunggu review" value={data.lecturer.pendingKrsTotal} detail="Mahasiswa bimbingan" icon="clipboard" />
-    <StatCard embedded label="Nilai perlu dilengkapi" value={data.lecturer.gradingNeedsAttention} detail={`Dari ${data.lecturer.classes.data.length} kelas ditampilkan`} icon="chart" />
-    <StatCard embedded label="Siap difinalisasi" value={data.lecturer.readyToFinalize} detail={`Dari ${data.lecturer.classes.data.length} kelas ditampilkan`} icon="check" />
+    <StatCard embedded label="Nilai perlu dilengkapi" value={data.lecturer.gradingNeedsAttention} detail={`Di antara ${data.lecturer.classes.data.length} kelas terbaru`} icon="chart" />
+    <StatCard embedded label="Siap difinalisasi" value={data.lecturer.readyToFinalize} detail={`Di antara ${data.lecturer.classes.data.length} kelas terbaru`} icon="check" />
   </section>
 
   <section class="class-panel" aria-labelledby="lecturer-classes-title">
@@ -93,7 +93,7 @@
     <ul class="divide-y divide-slate-100">
       {#each data.lecturer.classes.data as kelas}
         {@const grading = data.lecturer.gradingByClass[kelas.id]}
-        <li><a class="class-row group" href={`/dosen/kelas-kuliah/${kelas.id}`}><span class="class-letter">{kelas.namaKelas}</span><span class="min-w-0 flex-1"><span class="block truncate font-semibold text-slate-900 group-hover:text-brand-800">{kelas.mataKuliah.nama}</span><span class="mt-0.5 block truncate text-xs text-slate-500">{kelas.mataKuliah.kode} · {kelas.semester.nama}</span>{#if grading}<span class="mt-1 block text-xs text-slate-500">Nilai lengkap {grading.summary.completeStudents}/{grading.summary.totalStudents} · Bobot {grading.summary.activeWeight}%</span>{/if}</span><span class="class-status"><Badge tone={grading?.summary.finalized ? 'success' : grading?.permissions.canFinalize && grading.kelas.status === 'DITUTUP' && grading.summary.activeWeight === '100.00' && grading.summary.missingScores === 0 && grading.summary.totalStudents > 0 ? 'info' : 'neutral'}>{grading?.summary.finalized ? 'Final' : grading?.permissions.canFinalize && grading.kelas.status === 'DITUTUP' && grading.summary.activeWeight === '100.00' && grading.summary.missingScores === 0 && grading.summary.totalStudents > 0 ? 'Siap final' : kelas.status}</Badge></span><Icon name="arrow-right" size={16} class="text-slate-400" /></a></li>
+        <li><a class="class-row group" href={`/dosen/kelas-kuliah/${kelas.id}`}><span class="class-letter">{kelas.namaKelas}</span><span class="min-w-0 flex-1"><span class="block truncate font-semibold text-slate-900 group-hover:text-brand-800">{kelas.mataKuliah.nama}</span><span class="mt-0.5 block truncate text-xs text-slate-500">{kelas.mataKuliah.kode} · {kelas.semester.nama}</span>{#if grading}<span class="mt-1 block text-xs text-slate-500">{grading.summary.activeCount ? `Nilai lengkap ${grading.summary.completeStudents}/${grading.summary.totalStudents} · Bobot ${grading.summary.activeWeight}%` : 'Komponen nilai belum diatur'}</span>{/if}</span><span class="class-status"><Badge tone={grading?.state === 'FINAL' ? 'success' : grading?.state === 'SIAP_FINAL' ? 'info' : 'neutral'}>{grading?.state === 'FINAL' ? 'Final' : grading?.state === 'SIAP_FINAL' ? 'Siap final' : kelas.status}</Badge></span><Icon name="arrow-right" size={16} class="text-slate-400" /></a></li>
       {:else}
         <li class="px-5 py-8 text-center text-sm text-slate-500">Belum ada kelas yang ditugaskan.</li>
       {/each}

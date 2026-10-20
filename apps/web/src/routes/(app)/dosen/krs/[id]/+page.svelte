@@ -6,7 +6,7 @@
   const periodOpen = $derived(data.krs.semester.isActive && data.krs.semester.krsMulaiAt && data.krs.semester.krsSelesaiAt && new Date() >= new Date(data.krs.semester.krsMulaiAt) && new Date() < new Date(data.krs.semester.krsSelesaiAt));
 </script>
 <svelte:head><title>Tinjau Bimbingan KRS · Kampusia</title></svelte:head>
-<PageHeader eyebrow="Dosen / Bimbingan KRS" title="Tinjau KRS Mahasiswa" description="Validasi pilihan, jadwal, kapasitas, batas SKS, dan konteks IPS sebelum mengambil keputusan." />
+<PageHeader eyebrow="Bimbingan KRS" title="Tinjau KRS Mahasiswa" description="Validasi pilihan, jadwal, kapasitas, batas SKS, dan konteks IPS sebelum mengambil keputusan." />
 {#if form?.message}<p role={form.saved ? 'status' : 'alert'} class="my-4 rounded-xl border bg-white p-4 text-sm">{form.message}</p>{/if}
 {#if !periodOpen}<p class="my-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Periode peninjauan KRS tidak sedang dibuka. Detail tetap tersedia sebagai baca-saja.</p>{/if}
 <KrsSummary krs={data.krs} />

@@ -75,7 +75,7 @@
 <svelte:head><title>KRS · Kampusia</title></svelte:head>
 
 <PageHeader
-  eyebrow="Mahasiswa / Akademik"
+  eyebrow="Akademik"
   title="Kartu Rencana Studi"
   description="Susun mata kuliah semester ini, periksa jumlah SKS, lalu ajukan kepada Dosen PA."
 />
@@ -144,12 +144,7 @@
         <div>
           <p class="eyebrow">Ringkasan SKS</p>
           <h2 id="credit-summary-title" class="mt-1.5 text-3xl font-bold tracking-tight text-slate-950">{plan.totalSks} <span class="text-lg font-semibold text-slate-400">/ {plan.batasSks} SKS</span></h2>
-          <p class="mt-1 text-sm text-slate-500">Batas SKS tersimpan saat DRAFT KRS dibuat.</p>
-        </div>
-        <div class="grid grid-cols-3 gap-2 text-center sm:min-w-[20rem]">
-          <div><p class="text-xs text-slate-500">SKS dipilih</p><p class="mt-1 text-lg font-bold text-brand-800">{plan.totalSks}</p></div>
-          <div class="border-x border-slate-200"><p class="text-xs text-slate-500">Batas SKS maksimum</p><p class="mt-1 text-lg font-bold text-slate-900">{plan.batasSks}</p></div>
-          <div><p class="text-xs text-slate-500">Sisa SKS</p><p class="mt-1 text-lg font-bold text-slate-900">{plan.remainingSks}</p></div>
+          <p class="mt-1 text-sm text-slate-500">Sisa {plan.remainingSks} SKS. Batas ditetapkan saat KRS pertama kali dibuat.</p>
         </div>
       </div>
       <div class="mt-5 h-2 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label="Pemakaian batas SKS" aria-valuemin="0" aria-valuemax={plan.batasSks} aria-valuenow={plan.totalSks} aria-valuetext={`${plan.totalSks} dari ${plan.batasSks} SKS dipilih`}>

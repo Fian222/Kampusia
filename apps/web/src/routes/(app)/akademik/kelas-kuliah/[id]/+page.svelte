@@ -72,8 +72,8 @@
 <section class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Ringkasan metrik kelas">
   <StatCard compact label="Kapasitas" value={data.kelas.kapasitas} icon="users" />
   <StatCard compact label="Mahasiswa aktif" value={data.kelas.jumlahMahasiswa} icon="graduation" accent />
-  <StatCard compact label="Jadwal" value={regularSchedule ? 'Tersedia' : 'Belum diatur'} icon="calendar" />
-  <StatCard compact label="Koordinator" value={coordinator?.nama ?? '—'} detail={coordinator?.kodeDosen} icon="user" />
+  <StatCard compact label="Sisa kursi" value={Math.max(0, data.kelas.kapasitas - data.kelas.jumlahMahasiswa)} icon="door" />
+  <StatCard compact label="Pertemuan" value={data.meetings.meta.total} icon="calendar" />
 </section>
 
 <nav class="sticky top-3 z-20 mt-5 overflow-x-auto rounded-xl border border-slate-200 bg-white/95 p-1.5 shadow-sm backdrop-blur" aria-label="Ruang kerja kelas">
@@ -91,41 +91,25 @@
 
 {#if activeTab === 'overview'}
   <section class="mt-6" aria-labelledby="overview-heading">
-    <div class="flex flex-wrap items-end justify-between gap-3"><div><p class="eyebrow">Ruang kerja akademik</p><h2 id="overview-heading" class="mt-2 text-xl font-bold">Ringkasan kelas</h2></div><p class="max-w-xl text-sm text-slate-500">Informasi utama dan kesiapan operasional kelas dalam satu tampilan.</p></div>
-    <div class="mt-4 grid gap-4 lg:grid-cols-2">
-      <article class="surface-panel p-5 sm:p-6">
-        <h3 class="font-bold text-slate-950">Informasi Kelas</h3>
-        <dl class="mt-4 divide-y divide-slate-100 text-sm">
-          <div class="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4"><dt class="text-slate-500">Mata kuliah</dt><dd class="font-semibold text-slate-900 sm:text-right">{data.kelas.mataKuliah.kode} · {data.kelas.mataKuliah.nama}</dd></div>
-          <div class="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4"><dt class="text-slate-500">Semester</dt><dd class="font-semibold text-slate-900 sm:text-right">{data.kelas.semester.nama}</dd></div>
-          <div class="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4"><dt class="text-slate-500">Program studi</dt><dd class="font-semibold text-slate-900 sm:text-right">{data.kelas.programStudi.nama}</dd></div>
-          <div class="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4"><dt class="text-slate-500">Kelas</dt><dd class="font-semibold text-slate-900 sm:text-right">{data.kelas.namaKelas} · {data.kelas.kapasitas} kursi</dd></div>
-          <div class="flex items-center justify-between gap-4 pt-3"><dt class="text-slate-500">Status</dt><dd><Badge tone={data.kelas.status === 'DIBUKA' ? 'success' : data.kelas.status === 'DIBATALKAN' ? 'danger' : 'neutral'}>{data.kelas.status}</Badge></dd></div>
-        </dl>
-      </article>
-
-      <article class="surface-panel p-5 sm:p-6">
-        <div class="flex items-start justify-between gap-3"><div><p class="eyebrow">Pengajaran</p><h3 class="mt-2 font-bold text-slate-950">Tim Pengajar</h3></div><span class="text-sm font-semibold text-slate-500">{data.assignments.meta.total} dosen</span></div>
-        <div class="mt-5 flex items-center gap-3 rounded-xl bg-slate-50 p-4"><span class="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700"><Icon name="user" size={19} /></span><div class="min-w-0"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Koordinator</p><p class="mt-1 truncate font-semibold text-slate-950">{coordinator?.nama ?? 'Belum ditentukan'}</p>{#if coordinator}<p class="mt-0.5 text-xs text-slate-500">{coordinator.kodeDosen}</p>{/if}</div></div>
-        <a class="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:text-brand-800" href={tabHref('lecturers')} data-sveltekit-noscroll>Kelola dosen <Icon name="arrow-right" size={15} /></a>
-      </article>
-
-      <article class="surface-panel p-5 sm:p-6">
-        <div class="flex items-start justify-between gap-3"><div><p class="eyebrow">Jadwal</p><h3 class="mt-2 font-bold text-slate-950">Waktu & Ruangan</h3></div><span class="text-sm font-semibold text-slate-500">{regularSchedule ? 'Tersedia' : 'Belum diatur'}</span></div>
-        <div class="mt-4">
-          {#if regularSchedule}
-            <div class="flex items-start justify-between gap-4 rounded-xl border border-slate-100 p-3.5"><div><p class="font-semibold text-slate-900">{days[regularSchedule.hari - 1]} · {formatTime(regularSchedule.jamMulai)}–{formatTime(regularSchedule.jamSelesai)}</p><p class="mt-1 text-sm text-slate-500">{regularSchedule.ruangan.nama}{regularSchedule.ruangan.gedung ? ` · ${regularSchedule.ruangan.gedung}` : ''}</p></div><Icon name="clock" size={18} class="mt-0.5 shrink-0 text-slate-400" /></div>
-          {:else}<p class="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">Belum ada jadwal kuliah.</p>{/if}
-        </div>
-        <a class="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:text-brand-800" href={tabHref('schedule')} data-sveltekit-noscroll>Kelola jadwal <Icon name="arrow-right" size={15} /></a>
-      </article>
-
-      <article class="surface-panel p-5 sm:p-6">
-        <p class="eyebrow">Aktivitas akademik</p><h3 class="mt-2 font-bold text-slate-950">Kesiapan Kelas</h3>
-        <div class="mt-4 grid grid-cols-2 gap-3"><div class="rounded-xl bg-slate-50 p-4"><p class="text-2xl font-bold text-slate-950">{data.meetings.meta.total}</p><p class="mt-1 text-xs text-slate-500">Pertemuan</p></div><div class="rounded-xl bg-slate-50 p-4"><p class="text-2xl font-bold text-slate-950">{activeComponents}</p><p class="mt-1 text-xs text-slate-500">Komponen nilai aktif</p></div></div>
-        <div class="mt-4 flex flex-wrap gap-x-5 gap-y-2"><a class="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:text-brand-800" href={tabHref('meetings')} data-sveltekit-noscroll>Lihat pertemuan <Icon name="arrow-right" size={15} /></a><a class="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:text-brand-800" href={tabHref('grading')} data-sveltekit-noscroll>Awasi penilaian <Icon name="arrow-right" size={15} /></a></div>
-      </article>
-    </div>
+    <h2 id="overview-heading" class="text-xl font-bold">Ringkasan kelas</h2>
+    <p class="mt-1 text-sm text-slate-500">Kelas dapat dibuka setelah dosen pengajar, kurikulum, dan jadwal siap.</p>
+    <ul class="mt-4 grid gap-4 lg:grid-cols-3">
+      <li class="surface-panel flex flex-col p-5">
+        <div class="flex items-center justify-between gap-3"><h3 class="font-bold text-slate-950">Dosen pengajar</h3><Badge tone={data.assignments.meta.total ? 'success' : 'warning'}>{data.assignments.meta.total ? `${data.assignments.meta.total} dosen` : 'Belum ada'}</Badge></div>
+        <p class="mt-3 flex-1 text-sm text-slate-600">{#if coordinator}Koordinator: <strong class="font-semibold text-slate-900">{coordinator.nama}</strong> <span class="text-slate-500">({coordinator.kodeDosen})</span>{:else if data.assignments.meta.total}Koordinator belum ditentukan.{:else}Tambahkan minimal satu dosen pengajar.{/if}</p>
+        <a class="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:text-brand-800" href={tabHref('lecturers')} data-sveltekit-noscroll>Kelola dosen <Icon name="arrow-right" size={15} /></a>
+      </li>
+      <li class="surface-panel flex flex-col p-5">
+        <div class="flex items-center justify-between gap-3"><h3 class="font-bold text-slate-950">Jadwal</h3><Badge tone={regularSchedule ? 'success' : 'warning'}>{regularSchedule ? 'Tersedia' : 'Belum diatur'}</Badge></div>
+        <p class="mt-3 flex-1 text-sm text-slate-600">{#if regularSchedule}<strong class="font-semibold text-slate-900">{days[regularSchedule.hari - 1]} · {formatTime(regularSchedule.jamMulai)}–{formatTime(regularSchedule.jamSelesai)}</strong><br />{regularSchedule.ruangan.nama}{regularSchedule.ruangan.gedung ? ` · ${regularSchedule.ruangan.gedung}` : ''}{:else}Atur hari, jam, dan ruangan kelas.{/if}</p>
+        <a class="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:text-brand-800" href={tabHref('schedule')} data-sveltekit-noscroll>Kelola jadwal <Icon name="arrow-right" size={15} /></a>
+      </li>
+      <li class="surface-panel flex flex-col p-5">
+        <div class="flex items-center justify-between gap-3"><h3 class="font-bold text-slate-950">Penilaian</h3><Badge tone={data.grading.summary.finalized ? 'success' : 'neutral'}>{data.grading.summary.finalized ? 'Final' : 'Belum final'}</Badge></div>
+        <p class="mt-3 flex-1 text-sm text-slate-600">{activeComponents} komponen nilai aktif · total bobot {data.grading.summary.activeWeight}%</p>
+        <a class="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:text-brand-800" href={tabHref('grading')} data-sveltekit-noscroll>Lihat penilaian <Icon name="arrow-right" size={15} /></a>
+      </li>
+    </ul>
   </section>
 {:else if activeTab === 'lecturers'}
   <section class="surface-panel mt-6 p-5 sm:p-6" aria-labelledby="lecturers-heading">

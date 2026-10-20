@@ -1,6 +1,6 @@
 # Kampusia
 
-Bun workspace monorepo for a campus information system. The initial database, development seed, cookie authentication, and role-protected dashboard placeholders are implemented. Academic CRUD features are not implemented.
+Bun workspace monorepo for a campus information system. It provides cookie authentication with role-specific dashboards for ADMIN, AKADEMIK, DOSEN, and MAHASISWA; academic master data (fakultas, program studi, mahasiswa, dosen, mata kuliah, kurikulum, ruangan); semesters and class offerings with lecturers and schedules; KRS submission and adviser review; meetings and attendance; grading with finalization; and KHS/IPS/IPK results. Not yet implemented: student profile and dedicated student schedule pages, and self-service password changes outside the forced temporary-password flow.
 
 ## Structure
 
@@ -35,7 +35,7 @@ For local environment settings, copy each workspace's `.env.example` to `.env` i
 | `bun run build` | Build frontend and backend |
 | `bun --filter web preview` | Preview the frontend build |
 | `bun --filter api start` | Run the built API |
-| `bun test` | Run schema, seed validation, and authentication tests |
+| `bun test` | Run unit tests (opt-in database and E2E suites are skipped unless enabled; see docs/DEVELOPMENT.md) |
 | `bun run db:generate` | Generate migrations from Drizzle schemas |
 | `bun run db:check` | Validate Drizzle migration metadata |
 | `bun run db:seed` | Create repeatable local development data; see [development setup](docs/DEVELOPMENT.md) |

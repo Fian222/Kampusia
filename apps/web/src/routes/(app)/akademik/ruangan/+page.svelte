@@ -34,7 +34,7 @@
   $effect(() => { const state = editModal; if (queryEditId && requestedEditId === queryEditId) requestedEditId = null; if (state.open) formOpen = true; else if (requestedEditId === null) formOpen = false; });
 </script>
 <svelte:head><title>Ruangan · Kampusia</title></svelte:head>
-<PageHeader eyebrow="Akademik / Fasilitas" title="Ruangan" description="Kelola ruang kuliah dan kapasitasnya tanpa menghilangkan riwayat jadwal.">{#snippet actions()}<a class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm" href={href({ edit: '', modal: 'create' })} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => { requestedEditId = null; formOpen = true; }}><Icon name="plus" size={16} /> Tambah Ruangan</a>{/snippet}</PageHeader>
+<PageHeader eyebrow="Perkuliahan" title="Ruangan" description="Kelola ruang kuliah dan kapasitasnya tanpa menghilangkan riwayat jadwal.">{#snippet actions()}<a class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white shadow-sm" href={href({ edit: '', modal: 'create' })} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => { requestedEditId = null; formOpen = true; }}><Icon name="plus" size={16} /> Tambah Ruangan</a>{/snippet}</PageHeader>
 {#if form?.message}<p class={box} role={form.saved ? 'status' : 'alert'}>{form.message}</p>{/if}
 <form method="GET" class="filter-panel mt-6 grid gap-4 sm:grid-cols-3" use:seamlessFilter>
   <label class="text-sm">Cari kode atau nama<input class={input} name="search" value={data.filters.search} maxlength="150" /></label>

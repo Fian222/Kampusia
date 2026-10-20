@@ -113,11 +113,11 @@
       <details bind:this={accountMenu} class="account-menu">
         <summary aria-label={'Menu akun ' + (data.user.loginId ?? 'Akun')}>
           <UserAvatar label={data.user.loginId ?? 'Akun'} size="sm" />
-          <span class="account-label"><span>{data.user.loginId ?? 'Belum diprovisikan'}</span><span class="account-role">{area.label}</span></span>
+          <span class="account-label"><span>{data.user.loginId ?? 'Akun tanpa Nomor Induk'}</span><span class="account-role">{area.label}</span></span>
           <Icon name="chevron-down" size={16} class="account-chevron" />
         </summary>
         <div class="account-dropdown">
-          <div class="account-info"><p>Nomor Induk</p><strong>{data.user.loginId ?? 'Belum diprovisikan'}</strong><span>Peran: {area.label}</span>{#if data.user.email}<span class="truncate">{data.user.email}</span>{/if}</div>
+          <div class="account-info"><p>Nomor Induk</p><strong>{data.user.loginId ?? 'Akun tanpa Nomor Induk'}</strong><span>Peran: {area.label}</span>{#if data.user.email}<span class="truncate">{data.user.email}</span>{/if}</div>
           <form method="POST" action="/logout"><button class="logout-action"><Icon name="logout" size={17} />Keluar dari akun</button></form>
         </div>
       </details>

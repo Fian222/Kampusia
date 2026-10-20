@@ -46,9 +46,15 @@ export async function loadDashboard(event: RequestEvent, role: Role) {
       classId: kelas.id,
       grading: (await read(client['kelas-kuliah']({ id: kelas.id }).nilai.get())).data,
     })));
-    const gradingByClass = Object.fromEntries(gradingRows.map(row => [row.classId, row.grading]));
-    const unfinished = gradingRows.filter(row => !row.grading.summary.finalized && (row.grading.summary.activeWeight !== '100.00' || row.grading.summary.missingScores > 0));
-    const readyToFinalize = gradingRows.filter(row => row.grading.permissions.canFinalize && row.grading.kelas.status === 'DITUTUP' && row.grading.summary.activeWeight === '100.00' && row.grading.summary.missingScores === 0 && row.grading.summary.totalStudents > 0);
+    type Grading = (typeof gradingRows)[number]['grading'];
+    const gradingState = (grading: Grading) => grading.summary.finalized ? 'FINAL' as const
+      : grading.permissions.canFinalize && grading.kelas.status === 'DITUTUP' && grading.summary.activeWeight === '100.00' && grading.summary.missingScores === 0 && grading.summary.totalStudents > 0 ? 'SIAP_FINAL' as const
+      : grading.summary.activeWeight !== '100.00' || grading.summary.missingScores > 0 ? 'PERLU_DILENGKAPI' as const
+      : 'BERJALAN' as const;
+    const gradingByClass = Object.fromEntries(gradingRows.map(row => [row.classId, { summary: row.grading.summary, state: gradingState(row.grading) }]));
+    const states = Object.values(gradingByClass).map(row => row.state);
+    const unfinished = states.filter(state => state === 'PERLU_DILENGKAPI');
+    const readyToFinalize = states.filter(state => state === 'SIAP_FINAL');
     return { user, kind: 'lecturer' as const, lecturer: { classes, pendingKrsTotal: pendingKrs.meta.total, gradingByClass, gradingNeedsAttention: unfinished.length, readyToFinalize: readyToFinalize.length } };
   }
 

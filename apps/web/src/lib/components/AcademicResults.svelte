@@ -18,7 +18,7 @@
 </script>
 
 <svelte:head><title>KHS &amp; IPK · Kampusia</title></svelte:head>
-<PageHeader eyebrow={data.managed ? 'Mahasiswa / Hasil Studi' : 'Akademik / Hasil Studi'} title="KHS & IPK" description="Hasil resmi yang bersumber hanya dari nilai kelas yang telah difinalisasi.">
+<PageHeader eyebrow={data.managed ? 'Mahasiswa' : 'Akademik'} title="KHS & IPK" description="Hasil resmi yang bersumber hanya dari nilai kelas yang telah difinalisasi.">
   {#snippet actions()}{#if data.managed}<a class="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50" href="/akademik/mahasiswa"><Icon name="arrow-right" size={16} class="rotate-180" /> Kembali</a>{/if}{/snippet}
 </PageHeader>
 
@@ -65,6 +65,6 @@
 <details class="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">
   <summary class="cursor-pointer font-semibold text-slate-900">Cara IPS dan IPK dihitung</summary>
   <p class="mt-2">IPS dihitung dari jumlah SKS × indeks nilai, dibagi total SKS dalam semester tersebut. IPK menggunakan seluruh hasil final. Angka ditampilkan dengan dua desimal; nilai indeks nol tetap menghitung SKS.</p>
-  <p class="mt-2">Semua percobaan mata kuliah yang telah difinalisasi dihitung, termasuk pengulangan lintas semester. Kebijakan penggantian nilai mata kuliah berulang belum ditetapkan.</p>
-  {#if data.ipk.hasRepeatedCourses}<p class="mt-2 font-medium text-amber-800">Data ini memuat mata kuliah berulang; IPK memakai model hitung-semua saat ini.</p>{/if}
+  <p class="mt-2">Jika sebuah mata kuliah diambil ulang, setiap pengambilan yang sudah difinalisasi ikut dihitung.</p>
+  {#if data.ipk.hasRepeatedCourses}<p class="mt-2 font-medium text-amber-800">Terdapat mata kuliah yang diambil lebih dari sekali; seluruh pengambilannya ikut dihitung dalam IPK.</p>{/if}
 </details>
