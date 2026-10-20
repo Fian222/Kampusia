@@ -61,6 +61,8 @@ test('Akademik class detail renders one focused workspace section with seamless 
   expect(page).toContain('Status Kelas');
   expect(page).toContain('title="Ubah Status Kelas"');
   expect(page).toContain('Edit Kelas');
+  expect(page).toContain('<KelasForm action="?/kelas" edit={data.kelas}');
+  expect(page).not.toContain('/akademik/kelas-kuliah?edit=');
   expect(page).toContain('aria-label="Ringkasan metrik kelas"');
   expect(page).toContain('aria-label={`Tindakan lain untuk ${row.dosen.nama}`}');
   expect(page).not.toContain('class={box}');

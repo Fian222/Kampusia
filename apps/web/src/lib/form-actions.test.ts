@@ -40,7 +40,7 @@ test('class detail forms submit to their explicit named actions', async () => {
   expect(actionNames(dosenServer, 'dosen/+page.server.ts')).toEqual(['grading']);
 
   const akademikServer = await read('routes/(app)/akademik/kelas-kuliah/[id]/+page.server.ts');
-  expect(actionNames(akademikServer, 'akademik/+page.server.ts')).toEqual(['detail', 'meeting', 'grading']);
+  expect(actionNames(akademikServer, 'akademik/+page.server.ts')).toEqual(['detail', 'kelas', 'meeting', 'grading']);
 
   const meetings = await read('lib/components/MeetingManager.svelte');
   expect(meetings).toContain("const action = '?/meeting';");

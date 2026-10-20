@@ -68,7 +68,9 @@ test('CRUD list pages open create and record-specific edit modals', async () => 
     expect(source, path).toContain('href={editQueryHref(page.url, row.id)} data-sveltekit-noscroll data-sveltekit-keepfocus onclick={() => openEdit(row.id)}');
     expect(source, path).toMatch(/href=\{href\(\{ edit: (?:null|''), modal: 'create' \}\)\} data-sveltekit-noscroll data-sveltekit-keepfocus/);
     expect(source, path).toContain('editModal.loading');
-    expect(source, path).toContain('value={data.edit?.id ?? \'\'}');
+    // The class page delegates its fields to the shared KelasForm, which receives the loaded edit record.
+    if (source.includes('<KelasForm')) expect(source, path).toContain('<KelasForm edit={data.edit}');
+    else expect(source, path).toContain('value={data.edit?.id ?? \'\'}');
     expect(source, path).toContain('clearEditQueryHref(page.url)');
     expect(source, path).toContain('goto(clearEditQueryHref(page.url), { replaceState: true, ...modalNavigationOptions })');
     expect(source, path).not.toContain('data.edit?.id === row.id');
@@ -81,7 +83,9 @@ test('URL-backed modal navigation consistently preserves scroll and focus', asyn
   expect(modalNavigationOptions).toEqual({ noScroll: true, keepFocus: true });
 
   const detail = await read('routes/(app)/akademik/kelas-kuliah/[id]/+page.svelte');
-  expect(detail).toMatch(/href=\{`\/akademik\/kelas-kuliah\?edit=\$\{data\.kelas\.id\}`\} data-sveltekit-noscroll data-sveltekit-keepfocus/);
+  // Class details are edited in place; dismissing a failed edit clears the action state without scrolling.
+  expect(detail).toContain('<Modal bind:open={editOpen}');
+  expect(detail).toContain("if (form?.values?.mode === 'save') void goto(page.url, { replaceState: true, noScroll: true, keepFocus: true })");
 });
 
 test('one edit click opens immediately and waits for the matching record before prefilling', () => {

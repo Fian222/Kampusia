@@ -1,6 +1,5 @@
 <script lang="ts">
   import SelectField from '$lib/components/ui/SelectField.svelte';
-  import { enhance } from '$app/forms';
   import { goto } from '$app/navigation';
   import { page, navigating } from '$app/state';
   import { seamlessFilter } from '$lib/actions/seamless-filter';
@@ -9,8 +8,8 @@
   import { clearEditQueryHref, editQueryHref, modalNavigationOptions, resolveEditModalState } from '$lib/navigation/edit-modal';
   import ReferenceLookup from '$lib/components/ReferenceLookup.svelte';
   import Pagination from '$lib/components/Pagination.svelte';
-  import AcademicFields from '$lib/components/AcademicFields.svelte';
   import ReferenceCombobox from '$lib/components/ReferenceCombobox.svelte';
+  import KelasForm from '$lib/components/KelasForm.svelte';
   import PageHeader from '$lib/components/ui/PageHeader.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
@@ -36,9 +35,6 @@
     { name: 'program_studi_id', label: 'Program Studi', value: data.filters.program_studi_id, rows: data.programs.data, meta: data.programs.meta, prefix: 'program' },
     { name: 'mata_kuliah_id', label: 'Mata Kuliah', value: data.filters.mata_kuliah_id, rows: data.courses.data, meta: data.courses.meta, prefix: 'course' },
   ]);
-  const semesterOptions = $derived(data.semesters.data.map(row => ({ value: row.id, label: row.nama, description: row.kode })));
-  const programOptions = $derived(data.programs.data.map(row => ({ value: row.id, label: row.nama, description: row.kode, disabled: !row.isActive && row.id !== data.edit?.programStudiId })));
-  const courseOptions = $derived(data.courses.data.map(row => ({ value: row.id, label: row.nama, description: `${row.kode} · ${row.sks} SKS`, disabled: !row.isActive && row.id !== data.edit?.mataKuliahId })));
   function openEdit(id: string) { requestedEditId = id; formOpen = true; }
   $effect(() => { const state = editModal; if (queryEditId && requestedEditId === queryEditId) requestedEditId = null; if (state.open) formOpen = true; else if (requestedEditId === null) formOpen = false; });
 </script>
@@ -66,20 +62,9 @@
   {#if editModal.loading}
     <div class="space-y-3" role="status" aria-label="Menyiapkan formulir kelas"><div class="h-11 animate-pulse rounded-lg bg-slate-100"></div><div class="h-11 animate-pulse rounded-lg bg-slate-100"></div></div>
   {:else}
-  <p class="mt-2 text-sm text-slate-500">Pilihan KRS atau jadwal mengunci identitas akademik. Kapasitas tidak boleh di bawah jumlah mahasiswa pada KRS disetujui atau melebihi ruangan terjadwal. Pembatalan dengan pilihan aktif memerlukan alur KRS.</p>
   {#if form?.message && form.values?.mode === 'save'}<p role="alert" class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}
   {#key data.edit?.id + JSON.stringify(form)}
-  <form method="POST" class="mt-4 grid gap-4 sm:grid-cols-2" use:enhance={() => { saving = true; return async ({ update, result }) => { try { await update({ reset: false }); if (result.type === 'success') formOpen = false; } finally { saving = false; } }; }}>
-    <input type="hidden" name="mode" value="save" /><input type="hidden" name="id" value={data.edit?.id ?? ''} />
-    <ReferenceCombobox name="semester_id" label="Semester" value={form?.values?.semester_id ?? data.edit?.semesterId ?? ''} options={semesterOptions} selectedOption={data.edit?.semester ? { value: data.edit.semester.id, label: data.edit.semester.nama, description: data.edit.semester.kode } : null} meta={data.semesters.meta} searchParam="semester_search" pageParam="semester_page" placeholder="Pilih semester" searchPlaceholder="Cari semester…" required />
-    <ReferenceCombobox name="program_studi_id" label="Program Studi" value={form?.values?.program_studi_id ?? data.edit?.programStudiId ?? ''} options={programOptions} selectedOption={data.edit?.programStudi ? { value: data.edit.programStudi.id, label: data.edit.programStudi.nama, description: data.edit.programStudi.kode, disabled: !data.edit.programStudi.isActive } : null} meta={data.programs.meta} searchParam="program_search" pageParam="program_page" placeholder="Pilih program studi" searchPlaceholder="Cari program studi…" required />
-    <ReferenceCombobox name="mata_kuliah_id" label="Mata Kuliah" value={form?.values?.mata_kuliah_id ?? data.edit?.mataKuliahId ?? ''} options={courseOptions} selectedOption={data.edit?.mataKuliah ? { value: data.edit.mataKuliah.id, label: data.edit.mataKuliah.nama, description: `${data.edit.mataKuliah.kode} · ${data.edit.mataKuliah.sks} SKS`, disabled: !data.edit.mataKuliah.isActive } : null} meta={data.courses.meta} searchParam="course_search" pageParam="course_page" placeholder="Pilih mata kuliah" searchPlaceholder="Cari mata kuliah…" required />
-    <AcademicFields values={form?.values} fields={[
-      { name: 'nama_kelas', label: 'Nama Kelas', value: data.edit?.namaKelas, maxlength: 20 },
-      { name: 'kapasitas', label: 'Kapasitas', type: 'number', min: 1, max: 2147483647, value: data.edit?.kapasitas },
-      { name: 'status', label: 'Status', value: data.edit?.status ?? 'DRAFT', options: data.statuses.map(value => ({ value, label: value, disabled: value === 'DIBUKA' && data.edit?.status !== 'DIBUKA' })) },
-    ]} />
-    <div class="flex justify-end gap-3 sm:col-span-2"><button type="button" class="px-4 py-2 text-sm font-semibold text-slate-600" disabled={saving} onclick={() => formOpen = false}>Batal</button><button class={button} disabled={saving}>{saving ? 'Menyimpan…' : 'Simpan'}</button></div>
-  </form>{/key}
+  <KelasForm edit={data.edit} values={form?.values} semesters={data.semesters} programs={data.programs} courses={data.courses} statuses={data.statuses} {saving} onCancel={() => formOpen = false} submit={() => { saving = true; return async ({ update, result }) => { try { await update({ reset: false }); if (result.type === 'success') formOpen = false; } finally { saving = false; } }; }} />
+  {/key}
   {/if}
 </Modal>

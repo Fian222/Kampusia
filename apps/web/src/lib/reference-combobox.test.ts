@@ -57,6 +57,7 @@ test('entity relationship forms use the shared compact control', async () => {
     read('../routes/(app)/akademik/kelas-kuliah/[id]/+page.svelte'),
     read('../routes/(app)/akademik/kurikulum/[id]/+page.svelte'),
     read('./components/ScheduleForm.svelte'),
+    read('./components/KelasForm.svelte'),
   ]);
   const joined = sources.join('\n');
 

@@ -5,6 +5,7 @@
   import Pagination from '$lib/components/Pagination.svelte';
   import ReferenceCombobox from '$lib/components/ReferenceCombobox.svelte';
   import ScheduleForm from '$lib/components/ScheduleForm.svelte';
+  import KelasForm from '$lib/components/KelasForm.svelte';
   import AcademicFields from '$lib/components/AcademicFields.svelte';
   import MeetingManager from '$lib/components/MeetingManager.svelte';
   import GradingManager from '$lib/components/GradingManager.svelte';
@@ -21,6 +22,7 @@
   let lecturerOpen = $state(false);
   let scheduleOpen = $state(false);
   let statusOpen = $state(false);
+  let editOpen = $state(false);
   let editingScheduleId = $state<string>();
   let feedbackVisible = $state(false);
 
@@ -50,6 +52,7 @@
     if (form?.values?.mode === 'add' && !form.saved) lecturerOpen = true;
     if (form?.values?.mode === 'schedule-save' && !form.saved) { editingScheduleId = form.values.jadwal_id || undefined; scheduleOpen = true; }
     if (form?.values?.mode === 'status' && !form.saved) statusOpen = true;
+    if (form?.values?.mode === 'save' && !form.saved) editOpen = true;
   });
 
   $effect(() => {
@@ -148,7 +151,7 @@
   <GradingManager grading={data.grading} area="akademik" {form} />
 {:else if activeTab === 'settings'}
   <section class="mt-6 grid gap-4 lg:grid-cols-2" aria-label="Pengaturan kelas">
-    <article class="surface-panel p-5 sm:p-6"><p class="eyebrow">Konfigurasi</p><h2 class="mt-2 text-xl font-bold">Edit Kelas</h2><p class="mt-2 text-sm leading-6 text-slate-500">Perbarui mata kuliah, semester, program studi, nama kelas, dan kapasitas melalui formulir kelas.</p><a class={`${subtleButton} mt-5`} href={`/akademik/kelas-kuliah?edit=${data.kelas.id}`} data-sveltekit-noscroll data-sveltekit-keepfocus>Edit Kelas</a></article>
+    <article class="surface-panel p-5 sm:p-6"><p class="eyebrow">Konfigurasi</p><h2 class="mt-2 text-xl font-bold">Edit Kelas</h2><p class="mt-2 text-sm leading-6 text-slate-500">Perbarui mata kuliah, semester, program studi, nama kelas, dan kapasitas melalui formulir kelas.</p><button type="button" class={`${subtleButton} mt-5`} onclick={() => editOpen = true}>Edit Kelas</button></article>
     <article class="surface-panel p-5 sm:p-6"><p class="eyebrow">Alur akademik</p><h2 class="mt-2 text-xl font-bold">Status Kelas</h2><div class="mt-4 flex flex-col items-stretch gap-4 rounded-xl bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Status saat ini</p><div class="mt-2"><Badge tone={data.kelas.status === 'DIBUKA' ? 'success' : data.kelas.status === 'DIBATALKAN' ? 'danger' : 'neutral'}>{data.kelas.status}</Badge></div></div><button type="button" class={button} onclick={() => statusOpen = true}>Ubah Status</button></div><p class="mt-3 text-xs leading-5 text-slate-500">Perubahan tetap mengikuti validasi kesiapan dan transisi status kelas.</p></article>
   </section>
 {/if}
@@ -177,4 +180,11 @@
     <label class="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900"><input class="mt-0.5" type="checkbox" name="confirm" value="yes" required /> <span>Saya memahami dan mengonfirmasi perubahan status kelas.</span></label>
     <div class="flex justify-end gap-3"><button type="button" class="px-4 py-2 text-sm font-semibold text-slate-600" disabled={saving} onclick={() => statusOpen = false}>Batal</button><button class={button} disabled={saving}>Simpan Status</button></div>
   </form>
+</Modal>
+
+<Modal bind:open={editOpen} title="Edit Kelas Kuliah" closeDisabled={saving} width="lg" onClose={() => { if (form?.values?.mode === 'save') void goto(page.url, { replaceState: true, noScroll: true, keepFocus: true }); }}>
+  {#if form?.message && form.values?.mode === 'save' && !form.saved}<p role="alert" class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{form.message}</p>{/if}
+  {#key JSON.stringify(form)}
+  <KelasForm action="?/kelas" edit={data.kelas} values={form?.values?.mode === 'save' ? form.values : undefined} semesters={data.semesters} programs={data.programs} courses={data.courses} statuses={data.statuses} {saving} onCancel={() => editOpen = false} submit={() => { saving = true; return async ({ update, result }) => { try { await update({ reset: false }); if (result.type === 'success') editOpen = false; } finally { saving = false; } }; }} />
+  {/key}
 </Modal>
