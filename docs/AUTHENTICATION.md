@@ -49,6 +49,19 @@ New and reset credentials use a cryptographically secure random temporary passwo
 
 The explicitly shared master-data pages `/akademik/fakultas` and `/akademik/program-studi` allow both ADMIN and AKADEMIK. Their loads and form actions enforce that allowlist, as do all Fakultas and Program Studi API endpoints. Master-data mutations also verify `Origin` against `WEB_URL`. This exception does not grant ADMIN access to the AKADEMIK dashboard or other role areas.
 
+## Staff account management
+
+ADMIN manages ADMIN and AKADEMIK accounts at `/admin/staf`, backed by `/staf` API endpoints that require an active ADMIN and, for mutations, the configured web origin. AKADEMIK and other roles receive 403.
+
+| Method | Path | Behavior |
+| --- | --- | --- |
+| GET | `/staf` | Paginated staff accounts; `search` matches Nomor Induk or email, with optional `role` and `is_active` filters |
+| POST | `/staf` | Create `{ login_id, role, email? }`; returns the account and a one-time temporary password |
+| PATCH | `/staf/:loginId` | Change `role`, `email`, or `is_active` |
+| POST | `/staf/:loginId/reset-password` | Issue a new one-time temporary password |
+
+Responses never contain the users UUID or password hash. Temporary passwords follow the academic provisioning rules above: they are shown once and the account must replace them after signing in. Self-deactivation, self-demotion, and any change leaving no active ADMIN are rejected. Deactivation and password reset take effect on the account's existing sessions immediately.
+
 ## Environment and deployment
 
 - API: `DATABASE_URL`, `API_PORT`, `WEB_URL`, and `NODE_ENV`. In production, `WEB_URL` must be an HTTPS origin and `NODE_ENV=production` enables secure API cookies.

@@ -26,7 +26,8 @@
     { title: 'KHS & IPK', description: 'Lihat hasil final dan capaian akademik.', href: '/mahasiswa/khs', icon: 'chart' },
     { title: 'Riwayat Absensi', description: 'Periksa catatan kehadiran perkuliahan.', href: '/mahasiswa/absensi', icon: 'clock' },
   ];
-  const shortcuts = $derived(data.kind === 'manager' ? managerShortcuts : data.kind === 'lecturer' ? lecturerShortcuts : studentShortcuts);
+  const adminShortcuts: Shortcut[] = [{ title: 'Akun Staf', description: 'Kelola akun login ADMIN dan AKADEMIK.', href: '/admin/staf', icon: 'users' }, ...managerShortcuts];
+  const shortcuts = $derived(data.kind === 'manager' ? (data.user.role === 'ADMIN' ? adminShortcuts : managerShortcuts) : data.kind === 'lecturer' ? lecturerShortcuts : studentShortcuts);
 
   const title = $derived(data.user.role === 'ADMIN'
     ? 'Kendali operasional kampus'

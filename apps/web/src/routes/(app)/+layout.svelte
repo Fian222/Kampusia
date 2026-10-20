@@ -53,7 +53,8 @@
     { path: '/mahasiswa/absensi', label: 'Riwayat Absensi', icon: 'clock' },
     { path: '/mahasiswa/profil', label: 'Profil', icon: 'user' },
   ] }];
-  const groups = $derived(data.user.role === 'ADMIN' || data.user.role === 'AKADEMIK' ? managerGroups : data.user.role === 'DOSEN' ? lecturerGroups : studentGroups);
+  const adminGroups: NavGroup[] = [{ label: 'Administrasi', items: [{ path: '/admin/staf', label: 'Akun Staf', icon: 'users' }] }, ...managerGroups];
+  const groups = $derived(data.user.role === 'ADMIN' ? adminGroups : data.user.role === 'AKADEMIK' ? managerGroups : data.user.role === 'DOSEN' ? lecturerGroups : studentGroups);
   const allItems = $derived([{ path: area.path, label: 'Dashboard', icon: 'home' as IconName, exact: true }, ...groups.flatMap(group => group.items), { path: '/akun/password', label: 'Ganti Kata Sandi', icon: 'user' as IconName }]);
   const currentItem = $derived(allItems.filter(item => item.exact ? page.url.pathname === item.path : page.url.pathname === item.path || page.url.pathname.startsWith(item.path + '/')).sort((a, b) => b.path.length - a.path.length)[0]);
   const isActive = (item: NavItem) => item.exact ? page.url.pathname === item.path : page.url.pathname === item.path || page.url.pathname.startsWith(item.path + '/');

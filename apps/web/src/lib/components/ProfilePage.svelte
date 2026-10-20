@@ -15,6 +15,7 @@
   import PageHeader from './ui/PageHeader.svelte';
   import Icon from './ui/Icon.svelte';
   import Modal from './ui/Modal.svelte';
+  import TemporaryCredentialModal from './TemporaryCredentialModal.svelte';
   import ListPending from './ui/ListPending.svelte';
   import Badge from './ui/Badge.svelte';
   import EmptyState from './ui/EmptyState.svelte';
@@ -32,7 +33,6 @@
   let credential = $state<{ account: { loginId: string; role: string; isActive: boolean }; temporaryPassword: string | null; created?: boolean } | null>(null);
   let credentialAction = $state<'provision-account' | 'reset-password'>('provision-account');
   let credentialOpen = $state(false);
-  let copyFeedback = $state('');
   let selectedProgramId = $state('');
   let selectedCurriculumId = $state('');
   let selectedAdviserId = $state('');
@@ -59,13 +59,6 @@
   }
   function value(key: string, fallback = '') { return form?.values?.[key] ?? fallback; }
   function openEdit(id: string) { requestedEditId = id; formOpen = true; }
-  async function copyTemporaryPassword() {
-    if (!credential?.temporaryPassword) return;
-    try {
-      await navigator.clipboard.writeText(credential.temporaryPassword);
-      copyFeedback = 'Password disalin';
-    } catch { copyFeedback = 'Tidak dapat menyalin otomatis. Salin password secara manual.'; }
-  }
   const programs = $derived.by(() => {
     const rows: { id: string; kode: string; nama: string; isActive: boolean }[] = data.programs.data.map(({ id, kode, nama, isActive }) => ({ id, kode, nama, isActive }));
     for (const item of [data.edit?.programStudi, data.selectedProgram]) {
@@ -232,7 +225,6 @@
             if (result.type === 'success' && result.data && 'accountCredential' in result.data) {
               credential = result.data.accountCredential as typeof credential;
               credentialAction = accountConfirmation?.mode ?? 'provision-account';
-              copyFeedback = '';
               accountConfirmationOpen = false;
               credentialOpen = true;
               await invalidateAll();
@@ -248,20 +240,7 @@
   {/if}
 </Modal>
 
-<Modal bind:open={credentialOpen} title={credentialAction === 'reset-password' ? 'Password berhasil direset' : credential?.temporaryPassword ? 'Akun login berhasil dibuat' : 'Akun login berhasil dihubungkan'} description="Sampaikan kredensial secara aman kepada pemilik akun." width="sm" closeOnBackdrop={false} onClose={() => { credential = null; copyFeedback = ''; }}>
-  {#if credential}
-    <dl class="space-y-4">
-      <div><dt class="text-xs font-bold uppercase tracking-wide text-slate-500">Nomor Induk</dt><dd class="mt-1 font-mono text-base font-semibold text-slate-950">{credential.account.loginId}</dd></div>
-      {#if credential.temporaryPassword}<div><dt class="text-xs font-bold uppercase tracking-wide text-slate-500">Password sementara</dt><dd class="mt-1 break-all rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-lg font-bold tracking-wide text-slate-950">{credential.temporaryPassword}</dd></div>{/if}
-    </dl>
-    {#if credential.temporaryPassword}
-      <p class="mt-4 text-sm font-semibold text-amber-800">Password ini hanya ditampilkan sekali.</p>
-      <button type="button" class="mt-4 min-h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800" onclick={copyTemporaryPassword}>Salin Password</button>
-      {#if copyFeedback}<p class="mt-2 text-sm text-slate-600" role="status">{copyFeedback}</p>{/if}
-    {:else}<p class="mt-4 text-sm leading-6 text-slate-600">Akun yang sudah ada dan cocok telah dihubungkan. Password akun tidak diubah.</p>{/if}
-    <div class="mt-6 flex justify-end"><button type="button" class={buttonClass} onclick={() => credentialOpen = false}>Tutup</button></div>
-  {/if}
-</Modal>
+<TemporaryCredentialModal bind:open={credentialOpen} title={credentialAction === 'reset-password' ? 'Password berhasil direset' : credential?.temporaryPassword ? 'Akun login berhasil dibuat' : 'Akun login berhasil dihubungkan'} {credential} onClose={() => { credential = null; }} />
 
 <Modal bind:open={confirmationOpen} title={`${confirmation?.isActive ? 'Nonaktifkan' : 'Aktifkan'} dosen`} description={confirmation ? `${confirmation.nama}. Riwayat penugasan tetap tersimpan.` : undefined} width="sm" closeDisabled={saving} onClose={() => confirmation = null}>
   {#if confirmation}

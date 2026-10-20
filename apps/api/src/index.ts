@@ -1,3 +1,5 @@
+import { createStafRepository } from './modules/staf/staf.repository';
+import { createStafService } from './modules/staf/staf.service';
 import { createKrsRepository } from './modules/krs/krs.repository';
 import { createKrsService } from './modules/krs/krs.service';
 import { createJadwalRepository } from './modules/jadwal/jadwal.repository';
@@ -48,6 +50,7 @@ if (production && !webOrigin.startsWith('https://')) throw new Error('Production
 const { db, client } = createDatabase(Bun.env.DATABASE_URL ?? '');
 const sessions = createDatabaseSessionStore(createSessionRepository(db));
 const app = createApp(createAuthService(createAuthRepository(db), sessions), { webOrigin, production }, {
+  staf: createStafService(createStafRepository(db)),
   hasilStudi: createHasilStudiService(createHasilStudiRepository(db)),
   nilai: createNilaiService(createNilaiRepository(db)),
   pertemuan: createPertemuanService(createPertemuanRepository(db)),

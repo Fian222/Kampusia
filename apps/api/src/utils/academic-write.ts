@@ -12,6 +12,8 @@ export function postgresError(error: unknown) {
 // Retry the complete transaction, including all validation reads.
 export async function academicWrite<T>(operation: () => Promise<T>): Promise<T> {
   const duplicates: Record<string, string> = {
+    users_login_id_unique: 'Nomor Induk sudah digunakan oleh akun lain.',
+    users_email_unique: 'Email sudah digunakan oleh akun lain.',
     ruangan_kode_unique: 'Kode ruangan sudah digunakan.',
     jadwal_kuliah_kelas_kuliah_id_hari_jam_mulai_jam_selesai_unique: 'Jadwal kelas pada waktu tersebut sudah ada.',
     jadwal_kuliah_kelas_kuliah_id_unique: 'Jadwal kelas sudah tersedia. Edit jadwal yang ada.',

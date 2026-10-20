@@ -25,8 +25,11 @@ test('profile forms use read-only deterministic account status and text identity
   expect(page).toContain('Belum memiliki akun login');
   expect(page).toContain('Buat Akun Login');
   expect(page).toContain('Reset Password');
-  expect(page).toContain('Salin Password');
-  expect(page).toContain('Password ini hanya ditampilkan sekali.');
+  const credentialModal = await source('./components/TemporaryCredentialModal.svelte');
+  expect(page).toContain('<TemporaryCredentialModal');
+  expect(credentialModal).toContain('Salin Password');
+  expect(credentialModal).toContain('Password ini hanya ditampilkan sekali.');
+  expect(credentialModal).not.toContain('localStorage');
   expect(page).toContain('credential = null');
   expect(page).not.toContain('localStorage');
   expect(page).not.toContain('sessionStorage');
@@ -70,4 +73,17 @@ test('authenticated account presentation prefers Nomor Induk over email', async 
   expect(layout).toContain('Nomor Induk');
   expect(layout).toContain('data.user.loginId');
   expect(layout.indexOf('data.user.loginId')).toBeLessThan(layout.indexOf('data.user.email'));
+});
+
+test('ADMIN manages staff accounts by Nomor Induk without exposing account UUIDs', async () => {
+  const page = await source('../routes/(app)/admin/staf/+page.svelte');
+  const server = await source('server/staf.ts');
+  const layout = await source('../routes/(app)/+layout.svelte');
+  expect(server).toContain("event.locals.user.role !== 'ADMIN'");
+  expect(server).toContain("client({ loginId: values.login_id! })['reset-password'].post()");
+  expect(page).toContain('<TemporaryCredentialModal');
+  expect(page).not.toContain('name="id"');
+  expect(page).toContain('{#if !self}');
+  expect(layout).toContain("{ path: '/admin/staf', label: 'Akun Staf', icon: 'users' }");
+  expect(layout).toContain("data.user.role === 'ADMIN' ? adminGroups");
 });
