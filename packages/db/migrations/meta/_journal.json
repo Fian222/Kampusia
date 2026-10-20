@@ -50,6 +50,13 @@
       "when": 1789861650321,
       "tag": "0006_zippy_mojo",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792477487906,
+      "tag": "0007_user_session",
+      "breakpoints": true
     }
   ]
 }

@@ -236,7 +236,7 @@ test('KRS service enforces admin role and live account status', async () => {
 });
 test('KRS API rejects missing session, other roles, foreign ownership, CSRF; credit-limit payload cannot change policy', async () => {
   const f = fixture(); const plan = await f.selected(); let current: AuthUser | null = f.user;
-  const auth: AuthService = { current: async () => current, login: async () => { throw new Error('unused'); }, logout: () => {} };
+  const auth: AuthService = { current: async () => current && { ...current, nama: null }, login: async () => { throw new Error('unused'); }, logout: () => {} };
   const app = createApp(auth, { webOrigin: 'http://localhost:5173', production: false }, { krs: f.service });
   const request = (path: string, method = 'GET', body?: object, origin = 'http://localhost:5173') => app.handle(new Request('http://localhost' + path, { method, headers: { origin, 'content-type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) }));
   expect((await request('/mahasiswa/me/krs')).status).toBe(200);

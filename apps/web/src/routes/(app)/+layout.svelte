@@ -48,11 +48,13 @@
   const lecturerGroups: NavGroup[] = [{ label: 'Perkuliahan', items: [{ path: '/dosen/krs', label: 'Bimbingan KRS', icon: 'clipboard' }, { path: '/dosen/kelas-kuliah', label: 'Kelas yang Diajar', icon: 'presentation' }] }];
   const studentGroups: NavGroup[] = [{ label: 'Akademik', items: [
     { path: '/mahasiswa/krs', label: 'Kartu Rencana Studi', icon: 'clipboard' },
+    { path: '/mahasiswa/jadwal', label: 'Jadwal Kuliah', icon: 'calendar' },
     { path: '/mahasiswa/khs', label: 'KHS & IPK', icon: 'chart' },
     { path: '/mahasiswa/absensi', label: 'Riwayat Absensi', icon: 'clock' },
+    { path: '/mahasiswa/profil', label: 'Profil', icon: 'user' },
   ] }];
   const groups = $derived(data.user.role === 'ADMIN' || data.user.role === 'AKADEMIK' ? managerGroups : data.user.role === 'DOSEN' ? lecturerGroups : studentGroups);
-  const allItems = $derived([{ path: area.path, label: 'Dashboard', icon: 'home' as IconName, exact: true }, ...groups.flatMap(group => group.items)]);
+  const allItems = $derived([{ path: area.path, label: 'Dashboard', icon: 'home' as IconName, exact: true }, ...groups.flatMap(group => group.items), { path: '/akun/password', label: 'Ganti Kata Sandi', icon: 'user' as IconName }]);
   const currentItem = $derived(allItems.filter(item => item.exact ? page.url.pathname === item.path : page.url.pathname === item.path || page.url.pathname.startsWith(item.path + '/')).sort((a, b) => b.path.length - a.path.length)[0]);
   const isActive = (item: NavItem) => item.exact ? page.url.pathname === item.path : page.url.pathname === item.path || page.url.pathname.startsWith(item.path + '/');
 
@@ -112,12 +114,13 @@
       </div>
       <details bind:this={accountMenu} class="account-menu">
         <summary aria-label={'Menu akun ' + (data.user.loginId ?? 'Akun')}>
-          <UserAvatar label={data.user.loginId ?? 'Akun'} size="sm" />
-          <span class="account-label"><span>{data.user.loginId ?? 'Akun tanpa Nomor Induk'}</span><span class="account-role">{area.label}</span></span>
+          <UserAvatar label={data.user.nama ?? data.user.loginId ?? 'Akun'} size="sm" />
+          <span class="account-label"><span>{data.user.nama ?? data.user.loginId ?? 'Akun tanpa Nomor Induk'}</span><span class="account-role">{area.label}</span></span>
           <Icon name="chevron-down" size={16} class="account-chevron" />
         </summary>
         <div class="account-dropdown">
-          <div class="account-info"><p>Nomor Induk</p><strong>{data.user.loginId ?? 'Akun tanpa Nomor Induk'}</strong><span>Peran: {area.label}</span>{#if data.user.email}<span class="truncate">{data.user.email}</span>{/if}</div>
+          <div class="account-info">{#if data.user.nama}<strong class="account-name">{data.user.nama}</strong>{/if}<p>Nomor Induk</p><strong>{data.user.loginId ?? 'Akun tanpa Nomor Induk'}</strong><span>Peran: {area.label}</span>{#if data.user.email}<span class="truncate">{data.user.email}</span>{/if}</div>
+          <a href="/akun/password" class="account-action"><Icon name="user" size={17} />Ganti kata sandi</a>
           <form method="POST" action="/logout"><button class="logout-action"><Icon name="logout" size={17} />Keluar dari akun</button></form>
         </div>
       </details>
@@ -196,6 +199,9 @@
   .account-info strong { overflow-wrap: anywhere; color: var(--color-ink); font-weight: 600; }
   .logout-action { display: flex; align-items: center; gap: .6rem; min-height: 2.75rem; width: 100%; margin-top: .4rem; padding: .6rem .75rem; border-radius: .5rem; text-align: left; color: #b91c1c; font-size: .8125rem; font-weight: 600; }
   .logout-action:hover { background: #fef2f2; }
+  .account-name { font-size: .8125rem; }
+  .account-action { display: flex; align-items: center; gap: .6rem; min-height: 2.75rem; margin-top: .4rem; padding: .6rem .75rem; border-radius: .5rem; color: var(--color-ink); font-size: .8125rem; font-weight: 600; }
+  .account-action:hover { background: var(--color-brand-50); }
   .navigation-status { position: fixed; z-index: 35; inset: 4.5rem 0 auto; padding: .5rem 1rem; background: var(--color-brand-50); color: var(--color-brand-800); font-size: .8125rem; text-align: center; }
   .app-content { max-width: 90rem; width: 100%; margin: 0 auto; padding: 1.75rem 1rem 3rem; }
   .app-content:focus { outline: none; }

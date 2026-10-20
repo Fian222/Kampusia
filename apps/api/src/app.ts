@@ -83,4 +83,4 @@ export function createApp(auth: AuthService, options: { webOrigin: string; produ
 }
 
 export type App = ReturnType<typeof createApp>;
-export type { AuthUser, Role } from './modules/auth/auth.model';
+export type { AuthUser, Role, SessionUser } from './modules/auth/auth.model';

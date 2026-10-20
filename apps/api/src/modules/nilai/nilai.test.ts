@@ -143,7 +143,7 @@ test('controlled correction requires manager/reason and preserves original final
 
 test('grading API enforces authentication, origin, and student mutation denial', async () => {
   const f = fixture(); let current: AuthUser | null = f.admin;
-  const auth: AuthService = { current: async () => current, login: async () => { throw new Error('unused'); }, logout: () => {} };
+  const auth: AuthService = { current: async () => current && { ...current, nama: null }, login: async () => { throw new Error('unused'); }, logout: () => {} };
   const app = createApp(auth, { webOrigin: 'http://localhost:5173', production: false }, { nilai: f.service });
   const request = (path: string, method = 'GET', body?: object, origin = 'http://localhost:5173') => app.handle(new Request('http://localhost' + path, { method, headers: { origin, 'content-type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) }));
   expect((await request(`/kelas-kuliah/${f.kelas.id}/komponen-nilai`)).status).toBe(200);

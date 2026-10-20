@@ -1,4 +1,5 @@
 export * from './users';
+export * from './user-session';
 export * from './fakultas';
 export * from './program-studi';
 export * from './mahasiswa';

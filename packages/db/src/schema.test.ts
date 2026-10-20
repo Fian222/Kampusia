@@ -32,7 +32,7 @@ describe('DATABASE.md schema contract', () => {
   });
 
   test('exports exactly the documented tables', () => {
-    expect(sections).toHaveLength(20);
+    expect(sections).toHaveLength(21);
     expect(tables.map((table) => getTableConfig(table).name).sort())
       .toEqual(sections.map((section) => section[1]!).sort());
   });
@@ -79,7 +79,7 @@ describe('DATABASE.md schema contract', () => {
 
   test('all foreign keys restrict deletion and updates', () => {
     const keys = tables.flatMap((table) => getTableConfig(table).foreignKeys);
-    expect(keys).toHaveLength(39);
+    expect(keys).toHaveLength(40);
     for (const key of keys) {
       expect(key.onDelete).toBe('restrict');
       expect(key.onUpdate).toBe('restrict');

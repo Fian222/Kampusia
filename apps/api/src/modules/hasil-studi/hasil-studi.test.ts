@@ -95,7 +95,7 @@ test('ADMIN and AKADEMIK can read a student; students and DOSEN cannot use manag
 
 test('academic-result API enforces own scope and manager roles without granting DOSEN access', async () => {
   const f = fixture(); let current: AuthUser | null = f.studentUser;
-  const auth: AuthService = { current: async () => current, login: async () => { throw new Error('unused'); }, logout: () => {} };
+  const auth: AuthService = { current: async () => current && { ...current, nama: null }, login: async () => { throw new Error('unused'); }, logout: () => {} };
   const app = createApp(auth, { webOrigin: 'http://localhost:5173', production: false }, { hasilStudi: f.service });
   const request = (path: string) => app.handle(new Request(`http://localhost${path}`));
 

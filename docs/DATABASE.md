@@ -1,6 +1,6 @@
 # Kampusia database design
 
-This document is the source of truth for the database design. Twenty PostgreSQL tables are implemented in `packages/db/schema/`: the initial 15 tables from `packages/db/migrations/0000_initial.sql`, followed by the `pertemuan` and `absensi` extension and the `komponen_nilai`, `nilai_mahasiswa`, and `hasil_studi` extension. The initial migration was applied and verified on the local Podman development database on 2026-09-05, the attendance extension on 2026-09-14, and the grading extension on 2026-09-15. Migration state is specific to each database.
+This document is the source of truth for the database design. Twenty-one PostgreSQL tables are implemented in `packages/db/schema/`: the initial 15 tables from `packages/db/migrations/0000_initial.sql`, followed by the `pertemuan` and `absensi` extension, the `komponen_nilai`, `nilai_mahasiswa`, and `hasil_studi` extension, and the `user_session` authentication-session extension. The initial migration was applied and verified on the local Podman development database on 2026-09-05, the attendance extension on 2026-09-14, the grading extension on 2026-09-15, and the authentication-session extension (`0007_user_session.sql`) on 2026-10-20. Migration state is specific to each database.
 
 The academic/staff identity-number authentication extension is implemented through the nullable migration phase in `0004_ordinary_donald_blake.sql` and the application cutover: the Drizzle schema and additive migration contain `users.login_id`, nullable email, `dosen.nik`, row-local checks, uniqueness, and deterministic development-fixture backfill, while the API and frontend authenticate only with `login_id`. The migration was applied and verified on the local Podman development database on 2026-09-19. `users.login_id` remains nullable specifically so unmapped legacy accounts are preserved; the final NOT NULL step is deferred until explicit provisioning and audit are complete. Accounts left null cannot authenticate.
 
@@ -28,6 +28,7 @@ The grading tables and their application APIs, service policies, and frontend wo
 ```mermaid
 erDiagram
     users o|--o| mahasiswa : login
+    users ||--o{ user_session : signs_in
     users o|--o| dosen : login
     fakultas ||--o{ program_studi : contains
     program_studi ||--o{ mahasiswa : enrolls
@@ -115,9 +116,41 @@ Authentication accounts, separate from student and lecturer academic profiles. T
 
 **CHECK constraints:** digits-only `login_id`; canonical nullable email; nonblank password hash; and the documented role set. The target `login_id` NOT NULL constraint is applied only at the end of the staged migration.
 
-**Relationships:** Optional one-to-one links from mahasiswa and dosen; one-to-many latest KRS approval, rejection, reopening, and administrative-cancellation actor references; one-to-many initial and latest attendance-recording references.
+**Relationships:** Optional one-to-one links from mahasiswa and dosen; one-to-many login sessions in user_session; one-to-many latest KRS approval, rejection, reopening, and administrative-cancellation actor references; one-to-many initial and latest attendance-recording references.
 
 **Retention/history behavior:** Keep `login_id`, email, password hash, role, and actor references when an account is deactivated. Do not erase historical email during migration merely because it stops being the login identifier. Clearing an optional email is an explicit authorized account update, not a side effect of login migration or profile changes.
+
+### user_session
+
+Authenticated login sessions for `users`. Rows hold only a SHA-256 digest of the opaque browser token, never the token itself, so a database read cannot be replayed as a cookie. Persisting sessions lets API restarts and multiple API processes share login state.
+
+| Column | PostgreSQL type | Nullable | Default | Meaning / reference |
+| --- | --- | --- | --- | --- |
+| `id` | `uuid` | No | gen_random_uuid() | Primary key |
+| `user_id` | `uuid` | No | — | users.id of the authenticated account |
+| `token_digest` | `varchar(64)` | No | — | Lowercase hex SHA-256 digest of the 256-bit session token |
+| `password_fingerprint` | `varchar(64)` | No | — | Lowercase hex SHA-256 digest of the account password hash when the session was issued |
+| `expires_at` | `timestamptz` | No | — | Absolute expiry instant (eight hours after issue) |
+| `created_at` | `timestamptz` | No | now() | Creation instant |
+| `updated_at` | `timestamptz` | No | now() | Last mutation instant |
+
+**Primary key:** `id`.
+
+**Foreign keys:** `user_id` → users.id.
+
+**Unique constraints:** `UNIQUE (token_digest)`.
+
+**Additional indexes:** `(user_id)` and `(expires_at)`. The user index supports revoking an account's sessions; the expiry index supports removing expired rows.
+
+**Business rules:**
+
+- CHECK `token_digest ~ '^[0-9a-f]{64}$'` and `password_fingerprint ~ '^[0-9a-f]{64}$'`.
+- A session is valid only while `expires_at` is in the future, the account is active and has a login ID, and `password_fingerprint` matches the current `users.password_hash`. Any password change or administrative reset therefore invalidates older sessions without updating them.
+- Logout and login rotation delete the presented session row. Expired rows are deleted opportunistically when new sessions are issued and when an expired token is presented.
+
+**Relationships:** One account has many sessions.
+
+**Retention/history behavior:** Sessions are ephemeral credentials, not academic history. They are the documented exception to the no-hard-delete rule; deleting a row only signs that browser out.
 
 ### fakultas
 
@@ -1168,8 +1201,8 @@ This design is additive and does not introduce a new table. A later implementati
 
 ## Retention and design boundaries
 
-Use is_active and academic/workflow statuses to retain referenced records. Hard deletion is limited to unreferenced setup mistakes; services must explicitly validate and delete dependent draft records in a transaction if a permitted cleanup requires it. For grading, only an unscored component on a nonfinalized class may be hard-deleted. nilai_mahasiswa and hasil_studi are never hard-deleted, and component/score/result rows are never removed merely because a KRS, detail, class, student, or lecturer changes state. Foreign-key restrictions remain authoritative. No general soft-delete column or implicit cascade is part of this design.
+Use is_active and academic/workflow statuses to retain referenced records. Hard deletion is limited to unreferenced setup mistakes and expired or revoked `user_session` rows; services must explicitly validate and delete dependent draft records in a transaction if a permitted cleanup requires it. For grading, only an unscored component on a nonfinalized class may be hard-deleted. nilai_mahasiswa and hasil_studi are never hard-deleted, and component/score/result rows are never removed merely because a KRS, detail, class, student, or lecturer changes state. Foreign-key restrictions remain authoritative. No general soft-delete column or implicit cascade is part of this design.
 
-The following remain deliberately outside the 20-table target model: OBE, CPL, CPMK, Sub-CPMK, assessment-to-CPMK mapping, curriculum equivalency, transfer credit, prerequisites, graduation rules, transcript/KHS document issuance, actual meeting room/resource reservations, database grading-policy versions, authentication sessions, multi-role accounts, exact historical enrollment snapshots, full workflow/attendance/grade revision logs, and persistent IPS/IPK snapshots. Extend this document before introducing their tables or rules.
+The following remain deliberately outside the 21-table target model: OBE, CPL, CPMK, Sub-CPMK, assessment-to-CPMK mapping, curriculum equivalency, transfer credit, prerequisites, graduation rules, transcript/KHS document issuance, actual meeting room/resource reservations, database grading-policy versions, multi-role accounts, exact historical enrollment snapshots, full workflow/attendance/grade revision logs, and persistent IPS/IPK snapshots. Extend this document before introducing their tables or rules.
 
 The intentionally unresolved academic-policy decisions are the numeric-to-letter/index mapping, final numeric and IPS/IPK rounding rules, repeated-course treatment, course equivalency/transfer handling, official result annulment, and the IPS-to-batas_sks ranges/completeness rule. Application implementation must provide validated policy for any behavior it exposes and must not invent silent defaults. `KRS_INITIAL_BATAS_SKS` remains only the documented fallback integration point.

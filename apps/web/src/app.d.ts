@@ -1,8 +1,8 @@
-import type { AuthUser } from 'api';
+import type { SessionUser } from 'api';
 
 declare global {
   namespace App {
-    interface Locals { user: AuthUser | null }
+    interface Locals { user: SessionUser | null }
   }
 }
 

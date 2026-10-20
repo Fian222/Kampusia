@@ -1,5 +1,6 @@
 import { relations } from 'drizzle-orm';
 import { users } from './users';
+import { userSession } from './user-session';
 import { fakultas } from './fakultas';
 import { programStudi } from './program-studi';
 import { mahasiswa } from './mahasiswa';
@@ -23,6 +24,7 @@ import { hasilStudi } from './hasil-studi';
 export const usersRelations = relations(users, ({ one, many }) => ({
   mahasiswa: one(mahasiswa),
   dosen: one(dosen),
+  sessions: many(userSession),
   krsDisetujui: many(krs, { relationName: 'krs_disetujui_oleh' }),
   krsDitolak: many(krs, { relationName: 'krs_ditolak_oleh' }),
   krsDibukaKembali: many(krs, { relationName: 'krs_dibuka_kembali_oleh' }),
@@ -33,6 +35,10 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   nilaiMahasiswaDiubah: many(nilaiMahasiswa, { relationName: 'nilai_mahasiswa_diubah_oleh' }),
   hasilStudiDifinalisasi: many(hasilStudi, { relationName: 'hasil_studi_difinalisasi_oleh' }),
   hasilStudiDikoreksi: many(hasilStudi, { relationName: 'hasil_studi_dikoreksi_oleh' }),
+}));
+
+export const userSessionRelations = relations(userSession, ({ one }) => ({
+  user: one(users, { fields: [userSession.userId], references: [users.id] }),
 }));
 
 export const fakultasRelations = relations(fakultas, ({ many }) => ({

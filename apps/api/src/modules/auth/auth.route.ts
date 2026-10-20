@@ -16,8 +16,8 @@ export function authRoutes(auth: AuthService, options: { webOrigin: string; prod
       cookie[sessionCookie]!.set({ ...cookieOptions, value: result.token, maxAge: sessionSeconds });
       return { success: true as const, data: result.user };
     }, { body: loginBody, beforeHandle: ({ request }) => checkOrigin(request) })
-    .post('/logout', ({ request, cookie }) => {
-      auth.logout(readSession(request));
+    .post('/logout', async ({ request, cookie }) => {
+      await auth.logout(readSession(request));
       cookie[sessionCookie]!.set({ ...cookieOptions, value: '', maxAge: 0, expires: new Date(0) });
       return { success: true as const, data: null };
     }, { beforeHandle: ({ request }) => checkOrigin(request) })
@@ -25,7 +25,7 @@ export function authRoutes(auth: AuthService, options: { webOrigin: string; prod
     .post('/change-password', async ({ user, body, request, cookie }) => {
       checkOrigin(request);
       if (!auth.changePassword) throw new AuthError(503, 'Layanan perubahan kata sandi tidak tersedia.');
-      const result = await auth.changePassword(user.id, body.new_password, body.confirmation, readSession(request));
+      const result = await auth.changePassword(user.id, body.new_password, body.confirmation, readSession(request), body.current_password);
       cookie[sessionCookie]!.set({ ...cookieOptions, value: result.token, maxAge: sessionSeconds });
       return { success: true as const, data: result.user };
     }, { body: changePasswordBody })

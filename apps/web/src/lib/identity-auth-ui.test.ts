@@ -45,12 +45,24 @@ test('temporary-password users are routed to a dedicated password-change flow', 
   const login = await source('../routes/login/+page.server.ts');
   const page = await source('../routes/change-password/+page.svelte');
   const action = await source('../routes/change-password/+page.server.ts');
+  const helper = await source('server/password.ts');
   expect(hook).toContain("redirect(303, '/change-password')");
   expect(login).toContain("? '/change-password'");
   expect(page).toContain('Anda menggunakan password sementara.');
   expect(page).toContain('name="new_password"');
   expect(page).toContain('name="confirmation"');
-  expect(action).toContain("auth['change-password']");
+  expect(action).toContain('submitPasswordChange(event, { requireCurrent: false })');
+  expect(helper).toContain("auth['change-password']");
+});
+
+test('signed-in users can change their password after confirming the current one', async () => {
+  const page = await source('../routes/(app)/akun/password/+page.svelte');
+  const action = await source('../routes/(app)/akun/password/+page.server.ts');
+  const layout = await source('../routes/(app)/+layout.svelte');
+  expect(page).toContain('name="current_password"');
+  expect(page).toContain('autocomplete="current-password"');
+  expect(action).toContain('submitPasswordChange(event, { requireCurrent: true })');
+  expect(layout).toContain('href="/akun/password"');
 });
 
 test('authenticated account presentation prefers Nomor Induk over email', async () => {

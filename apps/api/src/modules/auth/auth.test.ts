@@ -36,7 +36,7 @@ test('valid leading-zero Nomor Induk login returns safe user and sets an HTTP-on
   const ctx = setup();
   const response = await ctx.login();
   expect(response.status).toBe(200);
-  expect(await response.json()).toEqual({ success: true, data: { id: ctx.record.id, loginId: '00123456', email: ctx.record.email, role: 'AKADEMIK', mustChangePassword: false } });
+  expect(await response.json()).toEqual({ success: true, data: { id: ctx.record.id, loginId: '00123456', email: ctx.record.email, role: 'AKADEMIK', mustChangePassword: false, nama: null } });
   expect(response.headers.get('set-cookie')).toContain('HttpOnly');
   expect(response.headers.get('set-cookie')).toContain('SameSite=Lax');
   expect(response.headers.get('set-cookie')).not.toContain('Secure');
@@ -72,7 +72,7 @@ test('current-user endpoint returns only authenticated public fields', async () 
   const cookie = cookieOf(await ctx.login());
   const response = await ctx.request('/auth/me', 'GET', cookie);
   expect(response.status).toBe(200);
-  expect(await response.json()).toEqual({ success: true, data: { id: ctx.record.id, loginId: ctx.record.loginId, email: ctx.record.email, role: 'AKADEMIK', mustChangePassword: false } });
+  expect(await response.json()).toEqual({ success: true, data: { id: ctx.record.id, loginId: ctx.record.loginId, email: ctx.record.email, role: 'AKADEMIK', mustChangePassword: false, nama: null } });
 });
 
 for (const status of ['AKTIF', 'CUTI', 'NONAKTIF', 'LULUS', 'KELUAR'] as const) {
@@ -92,7 +92,7 @@ for (const status of ['AKTIF', 'CUTI', 'NONAKTIF', 'LULUS', 'KELUAR'] as const) 
     const current = await ctx.request('/auth/me', 'GET', existingCookie);
     expect(current.status).toBe(200);
     expect(await current.json()).toEqual({
-      success: true, data: { id: ctx.record.id, loginId: ctx.record.loginId, email: ctx.record.email, role: 'MAHASISWA', mustChangePassword: false },
+      success: true, data: { id: ctx.record.id, loginId: ctx.record.loginId, email: ctx.record.email, role: 'MAHASISWA', mustChangePassword: false, nama: null },
     });
     expect((await ctx.request('/dashboard/mahasiswa', 'GET', existingCookie)).status).toBe(200);
 
@@ -187,4 +187,29 @@ test('temporary-password account is restricted until password change rotates its
   expect((await ctx.login()).status).toBe(401);
   expect((await ctx.request('/auth/login', 'POST', undefined, { login_id: ctx.record.loginId, password: 'A-New-Password-2026!' })).status).toBe(200);
   expect((await ctx.request('/dashboard/mahasiswa', 'GET', newCookie)).status).toBe(200);
+});
+
+test('voluntary password change requires the correct current password and rotates the session', async () => {
+  const ctx = setup('DOSEN');
+  const cookie = cookieOf(await ctx.login());
+  const change = (body: Record<string, string>) => ctx.request('/auth/change-password', 'POST', cookie, body);
+  const missing = await change({ new_password: 'Another-Password-2026', confirmation: 'Another-Password-2026' });
+  expect(missing.status).toBe(400);
+  expect(await missing.json()).toEqual({ success: false, message: 'Masukkan kata sandi saat ini.' });
+  const wrong = await change({ current_password: 'not-the-password', new_password: 'Another-Password-2026', confirmation: 'Another-Password-2026' });
+  expect(await wrong.json()).toEqual({ success: false, message: 'Kata sandi saat ini salah.' });
+  const same = await change({ current_password: 'TestPassword2026!', new_password: 'TestPassword2026!', confirmation: 'TestPassword2026!' });
+  expect(await same.json()).toEqual({ success: false, message: 'Kata sandi baru harus berbeda dari kata sandi saat ini.' });
+  const changed = await change({ current_password: 'TestPassword2026!', new_password: 'Another-Password-2026', confirmation: 'Another-Password-2026' });
+  expect(changed.status).toBe(200);
+  expect((await ctx.request('/auth/me', 'GET', cookie)).status).toBe(401);
+  expect((await ctx.request('/auth/me', 'GET', cookieOf(changed))).status).toBe(200);
+  expect((await ctx.login()).status).toBe(401);
+});
+
+test('me returns the linked profile display name', async () => {
+  const ctx = setup('MAHASISWA');
+  Object.assign(ctx.record, { nama: 'Andi Saputra' });
+  const cookie = cookieOf(await ctx.login());
+  expect(((await (await ctx.request('/auth/me', 'GET', cookie)).json()) as { data: { nama: string | null } }).data.nama).toBe('Andi Saputra');
 });

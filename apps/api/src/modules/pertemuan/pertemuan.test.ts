@@ -139,7 +139,7 @@ test('student history is scoped to the authenticated profile and API enforces CS
   const f = fixture(); const meeting = await f.create(); await f.service.record(f.admin, meeting.id, f.students[0]!.id, { status: 'SAKIT' });
   expect((await f.service.studentHistory(f.studentUser, {})).data).toHaveLength(1);
   let current: AuthUser | null = f.studentUser;
-  const auth: AuthService = { current: async () => current, login: async () => { throw new Error('unused'); }, logout: () => {} };
+  const auth: AuthService = { current: async () => current && { ...current, nama: null }, login: async () => { throw new Error('unused'); }, logout: () => {} };
   const app = createApp(auth, { webOrigin: 'http://localhost:5173', production: false }, { pertemuan: f.service });
   const request = (path: string, method = 'GET', body?: object, origin = 'http://localhost:5173') => app.handle(new Request('http://localhost' + path, { method, headers: { origin, 'content-type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) }));
   expect((await request('/mahasiswa/me/absensi')).status).toBe(200);

@@ -18,7 +18,8 @@ import { createMataKuliahRepository } from './modules/mata-kuliah/mata-kuliah.re
 import { createMataKuliahService } from './modules/mata-kuliah/mata-kuliah.service';
 import { createDatabase } from '@kampusia/db';
 import { createApp } from './app';
-import { createAuthRepository } from './modules/auth/auth.repository';
+import { createAuthRepository, createSessionRepository } from './modules/auth/auth.repository';
+import { createDatabaseSessionStore } from './modules/auth/auth.session';
 import { createAuthService } from './modules/auth/auth.service';
 import { createFakultasRepository } from './modules/fakultas/fakultas.repository';
 import { createFakultasService } from './modules/fakultas/fakultas.service';
@@ -45,7 +46,8 @@ const production = Bun.env.NODE_ENV === 'production';
 const webOrigin = new URL(Bun.env.WEB_URL ?? 'http://localhost:5173').origin;
 if (production && !webOrigin.startsWith('https://')) throw new Error('Production WEB_URL must use HTTPS.');
 const { db, client } = createDatabase(Bun.env.DATABASE_URL ?? '');
-const app = createApp(createAuthService(createAuthRepository(db)), { webOrigin, production }, {
+const sessions = createDatabaseSessionStore(createSessionRepository(db));
+const app = createApp(createAuthService(createAuthRepository(db), sessions), { webOrigin, production }, {
   hasilStudi: createHasilStudiService(createHasilStudiRepository(db)),
   nilai: createNilaiService(createNilaiRepository(db)),
   pertemuan: createPertemuanService(createPertemuanRepository(db)),

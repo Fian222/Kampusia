@@ -4,10 +4,10 @@ import { createAuthRepository } from './auth.repository';
 import { createAuthService } from './auth.service';
 
 const demoAccounts = [
-  { id: '20260000-0000-4000-8000-000100000002', loginId: '99000001', email: 'admin@kampusia.test', role: 'ADMIN' },
-  { id: '20260000-0000-4000-8000-000100000001', loginId: '99000002', email: 'akademik@kampusia.test', role: 'AKADEMIK' },
-  { id: '20260000-0000-4000-8000-000100000003', loginId: '99000003', email: 'dosen@kampusia.test', role: 'DOSEN' },
-  { id: '20260000-0000-4000-8000-000100000004', loginId: '99202601', email: 'mahasiswa@kampusia.test', role: 'MAHASISWA' },
+  { id: '20260000-0000-4000-8000-000100000002', loginId: '99000001', email: 'admin@kampusia.test', role: 'ADMIN', nama: null },
+  { id: '20260000-0000-4000-8000-000100000001', loginId: '99000002', email: 'akademik@kampusia.test', role: 'AKADEMIK', nama: null },
+  { id: '20260000-0000-4000-8000-000100000003', loginId: '99000003', email: 'dosen@kampusia.test', role: 'DOSEN', nama: 'Rina Pratama (Demo)' },
+  { id: '20260000-0000-4000-8000-000100000004', loginId: '99202601', email: 'mahasiswa@kampusia.test', role: 'MAHASISWA', nama: 'Andi Saputra (Demo)' },
 ] as const;
 
 test.skipIf(Bun.env.RUN_AUTH_DB_TESTS !== '1')('all seeded roles authenticate through numeric Nomor Induk', async () => {
@@ -22,8 +22,8 @@ test.skipIf(Bun.env.RUN_AUTH_DB_TESTS !== '1')('all seeded roles authenticate th
     const auth = createAuthService(createAuthRepository(db));
     for (const account of demoAccounts) {
       const result = await auth.login(account.loginId, password);
-      expect(result.user).toEqual({ id: account.id, loginId: account.loginId, email: account.email, role: account.role, mustChangePassword: false });
-      auth.logout(result.token);
+      expect(result.user).toEqual({ id: account.id, loginId: account.loginId, email: account.email, role: account.role, mustChangePassword: false, nama: account.nama });
+      await auth.logout(result.token);
     }
     await expect(auth.login(demoAccounts[1].email, password)).rejects.toMatchObject({ status: 400 });
   } finally {

@@ -1,6 +1,6 @@
 # Kampusia database package
 
-The schema implements the 20 tables in [DATABASE.md](../../docs/DATABASE.md). Each table has its own file under `schema/`; `schema/index.ts` exports the tables and Drizzle query relations. PostgreSQL names use snake_case; TypeScript properties use camelCase.
+The schema implements the 21 tables in [DATABASE.md](../../docs/DATABASE.md). Each table has its own file under `schema/`; `schema/index.ts` exports the tables and Drizzle query relations. PostgreSQL names use snake_case; TypeScript properties use camelCase.
 
 The initial migration is `migrations/0000_initial.sql`; additive migrations create the attendance, grading, KRS-advising, and identity-number authentication extensions. Their Drizzle snapshots and journal metadata are in `migrations/meta/`. Identity migration `0004_ordinary_donald_blake.sql` was applied and verified against the local Podman `kampusia` development database on 2026-09-19. Other databases must run their own migration command.
 
