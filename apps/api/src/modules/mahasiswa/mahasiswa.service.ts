@@ -40,6 +40,12 @@ export function createMahasiswaService(repository: MahasiswaRepository) {
       if (!row) throw new MasterDataError(404, 'Mahasiswa tidak ditemukan.');
       return row;
     },
+    /** The signed-in student's own profile, resolved only from the session account. */
+    async getOwn(userId: string) {
+      const row = await repository.findByUserId(userId);
+      if (!row) throw new MasterDataError(404, 'Akun belum terhubung dengan data mahasiswa.');
+      return row;
+    },
     create(input: MahasiswaInput) {
       const changes = normalize(input);
       return withProfileConstraints(() => repository.transaction(async tx => {

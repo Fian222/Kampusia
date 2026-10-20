@@ -1,7 +1,7 @@
 import { error, fail, redirect, type RequestEvent } from '@sveltejs/kit';
 import { serverApi } from './api';
 import { apiMessage, integer, requireMasterAccess } from './master-data';
-function studentAccess(event: RequestEvent) {
+export function studentAccess(event: RequestEvent) {
   if (!event.locals.user) redirect(303, '/login');
   if (event.locals.user.role !== 'MAHASISWA') error(403, 'Akses khusus mahasiswa.');
 }
@@ -17,7 +17,7 @@ export function krsPeriodState(term: { isActive: boolean; krsMulaiAt: Date | str
   if (now >= end) return { code: 'CLOSED' as const, label: 'Sudah ditutup', open: false };
   return { code: 'OPEN' as const, label: 'Sedang dibuka', open: term.isActive };
 }
-function resultError(status: number, value: unknown): never {
+export function resultError(status: number, value: unknown): never {
   if (status === 401) redirect(303, '/login');
   error(status >= 400 && status < 500 ? status : 503, apiMessage(value));
 }

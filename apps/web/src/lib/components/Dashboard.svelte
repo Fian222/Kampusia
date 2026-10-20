@@ -22,6 +22,7 @@
   ];
   const studentShortcuts: Shortcut[] = [
     { title: 'Susun KRS', description: 'Pilih kelas dan pantau persetujuan Dosen PA.', href: '/mahasiswa/krs', icon: 'clipboard' },
+    { title: 'Jadwal Kuliah', description: 'Lihat jadwal mingguan kelas pada KRS Anda.', href: '/mahasiswa/jadwal', icon: 'calendar' },
     { title: 'KHS & IPK', description: 'Lihat hasil final dan capaian akademik.', href: '/mahasiswa/khs', icon: 'chart' },
     { title: 'Riwayat Absensi', description: 'Periksa catatan kehadiran perkuliahan.', href: '/mahasiswa/absensi', icon: 'clock' },
   ];

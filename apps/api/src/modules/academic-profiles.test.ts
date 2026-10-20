@@ -79,6 +79,7 @@ function setup(role: Role = 'AKADEMIK') {
   const studentRepository: MahasiswaRepository = {
     list: async query => list(students.filter(row => (!query.program_studi_id || row.programStudiId === query.program_studi_id) && (!query.kurikulum_id || row.kurikulumId === query.kurikulum_id) && (!query.angkatan || row.angkatan === query.angkatan) && (!query.status || row.status === query.status)).map(relatedStudent), query, row => [row.nim]),
     findById: async id => { const row = students.find(row => row.id === id); return row ? relatedStudent(row) : undefined; },
+    findByUserId: async userId => { const row = students.find(row => row.userId === userId); return row ? relatedStudent(row) : undefined; },
     kurikulumOptions: async query => list([curriculum].filter(row => (!query.program_studi_id || row.programStudiId === query.program_studi_id) && (query.is_active === undefined || row.isActive === (query.is_active === 'true'))), query, row => [row.kode]),
     transaction: async operation => operation({
       ...references,
@@ -439,4 +440,17 @@ for (const role of ['DOSEN', 'MAHASISWA'] as const) test(`${role} cannot provisi
   ctx.user.role = role;
   expect((await ctx.request(`/mahasiswa/${profile.id}/account`, 'POST')).status).toBe(403);
   expect((await ctx.request(`/mahasiswa/${profile.id}/account/reset`, 'POST')).status).toBe(403);
+});
+
+test('mahasiswa reads only their own profile through /mahasiswa/me', async () => {
+  const ctx = setup('MAHASISWA');
+  expect((await ctx.request('/mahasiswa/me')).status).toBe(404);
+  ctx.students.push({ id: crypto.randomUUID(), userId: ctx.user.id, nim: '001001', nama: 'Ahmad', programStudiId: ctx.program.id, kurikulumId: ctx.curriculum.id, dosenPaId: null, angkatan: 2026, status: 'AKTIF', createdAt: new Date(), updatedAt: new Date() });
+  const response = await ctx.request('/mahasiswa/me');
+  expect(response.status).toBe(200);
+  const body = await response.json() as { data: { nim: string; nama: string; userId?: string; programStudi: { id: string } } };
+  expect(body.data).toMatchObject({ nim: '001001', nama: 'Ahmad', programStudi: { id: ctx.program.id } });
+  expect(body.data.userId).toBeUndefined();
+  expect((await ctx.request('/mahasiswa/' + ctx.students[0]!.id)).status).toBe(403);
+  expect((await setup('AKADEMIK').request('/mahasiswa/me')).status).toBe(403);
 });

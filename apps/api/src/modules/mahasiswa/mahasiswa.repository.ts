@@ -1,5 +1,5 @@
 import { dosen, fakultas, krs, kurikulum, mahasiswa, programStudi, users } from '@kampusia/db/schema';
-import { and, asc, count, eq, getTableColumns, ilike, isNotNull, isNull, or } from 'drizzle-orm';
+import { and, asc, count, eq, getTableColumns, ilike, isNotNull, isNull, or, type SQL } from 'drizzle-orm';
 import { pagination, searchPattern } from '../../utils/master-data';
 import { profileReferences, type Database, type Transaction } from '../../utils/profile-repository';
 import type { KurikulumOptionsQuery, MahasiswaQuery } from './mahasiswa.model';
@@ -48,6 +48,15 @@ function transactionRepository(tx: Transaction) {
   };
 }
 export function createMahasiswaRepository(db: Pick<Database, 'select' | 'transaction'>) {
+  async function findProfile(where: SQL) {
+    const [row] = await db.select(selection).from(mahasiswa)
+      .innerJoin(programStudi, eq(mahasiswa.programStudiId, programStudi.id))
+      .innerJoin(fakultas, eq(programStudi.fakultasId, fakultas.id))
+      .innerJoin(kurikulum, eq(mahasiswa.kurikulumId, kurikulum.id))
+      .leftJoin(dosen, eq(mahasiswa.dosenPaId, dosen.id))
+      .leftJoin(users, eq(mahasiswa.userId, users.id)).where(where);
+    return row;
+  }
   return {
     async list(query: MahasiswaQuery) {
       const { page, limit } = pagination(query);
@@ -70,15 +79,8 @@ export function createMahasiswaRepository(db: Pick<Database, 'select' | 'transac
         return { data, meta: { page, limit, total: total!.value } };
       }, { isolationLevel: 'repeatable read', accessMode: 'read only' });
     },
-    async findById(id: string) {
-      const [row] = await db.select(selection).from(mahasiswa)
-        .innerJoin(programStudi, eq(mahasiswa.programStudiId, programStudi.id))
-        .innerJoin(fakultas, eq(programStudi.fakultasId, fakultas.id))
-        .innerJoin(kurikulum, eq(mahasiswa.kurikulumId, kurikulum.id))
-        .leftJoin(dosen, eq(mahasiswa.dosenPaId, dosen.id))
-        .leftJoin(users, eq(mahasiswa.userId, users.id)).where(eq(mahasiswa.id, id));
-      return row;
-    },
+    findById: (id: string) => findProfile(eq(mahasiswa.id, id)),
+    findByUserId: (userId: string) => findProfile(eq(mahasiswa.userId, userId)),
     async kurikulumOptions(query: KurikulumOptionsQuery) {
       const { page, limit } = pagination(query);
       const where = and(
