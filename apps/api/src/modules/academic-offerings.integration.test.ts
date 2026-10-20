@@ -107,7 +107,8 @@ test.skipIf(Bun.env.RUN_OFFERING_DB_TESTS !== '1')('PostgreSQL semester/class/le
       await expect(classes.update(row.id, { status: 'DIBATALKAN' })).rejects.toThrow('KRS');
       await tx.insert(krsDetail).values({ krsId: plan!.id, kelasKuliahId: other.id, status: 'DIBATALKAN' });
       await expect(classes.update(other.id, { semester_id: a.id })).rejects.toThrow('Identitas');
-      await tx.update(krs).set({ status: 'DIBATALKAN' }).where(eq(krs.id, plan!.id));
+      // Administrative cancellation must record when, by whom, and why (krs_status_timestamps_check).
+      await tx.update(krs).set({ status: 'DIBATALKAN', dibatalkanAt: new Date(), dibatalkanOleh: approver!.id, alasanPembatalan: 'Uji pembatalan' }).where(eq(krs.id, plan!.id));
       expect((await classes.get(row.id)).jumlahMahasiswa).toBe(0);
       // A retained approval timestamp freezes history even after cancellation, without a schedule.
       await tx.update(krs).set({ semesterId: b.id }).where(eq(krs.id, plan!.id));

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { sql, type SQL } from 'drizzle-orm';
+import { eq, sql, type SQL } from 'drizzle-orm';
 import {
   absensi,
   fakultas,
@@ -154,7 +154,8 @@ test.skipIf(!enabled)('PostgreSQL pertemuan and absensi schema contracts reject 
         jamSelesai: '09:30',
       }).returning();
       expect(meeting!.status).toBe('TERJADWAL');
-      expect(await tx.select().from(absensi)).toHaveLength(0);
+      // Scope the check to this fixture's meeting; the shared development database may already hold attendance.
+      expect(await tx.select().from(absensi).where(eq(absensi.pertemuanId, meeting!.id))).toHaveLength(0);
 
       const expectRejected = async (statement: SQL) => {
         await expect(tx.transaction((savepoint) => savepoint.execute(statement))).rejects.toThrow();
