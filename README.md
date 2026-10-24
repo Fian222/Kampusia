@@ -1,6 +1,6 @@
 # Kampusia
 
-Bun workspace monorepo for a campus information system. It provides cookie authentication with role-specific dashboards for ADMIN, AKADEMIK, DOSEN, and MAHASISWA; academic master data (fakultas, program studi, mahasiswa, dosen, mata kuliah, kurikulum, ruangan); semesters and class offerings with lecturers and schedules; KRS submission and adviser review; meetings and attendance; grading with finalization; and KHS/IPS/IPK results. Not yet implemented: student profile and dedicated student schedule pages, and self-service password changes outside the forced temporary-password flow.
+Bun workspace monorepo for a campus information system. It provides cookie authentication with role-specific dashboards for ADMIN, AKADEMIK, DOSEN, and MAHASISWA; academic master data (fakultas, program studi, mahasiswa, dosen, mata kuliah, kurikulum, ruangan); semesters and class offerings with lecturers and schedules; KRS submission and adviser review; meetings and attendance; grading with finalization; KHS/IPS/IPK results; student profiles and weekly schedules; self-service password changes; and ADMIN management of ADMIN and AKADEMIK staff accounts.
 
 ## Structure
 
